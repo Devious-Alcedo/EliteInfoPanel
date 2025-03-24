@@ -5,6 +5,7 @@ namespace EliteInfoPanel.Core
     public class DisplayOptions : INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler PropertyChanged;
+        public bool ShowFCMaterials { get; set; } = true;
 
         private bool showCommanderName;
         public bool ShowCommanderName

@@ -22,7 +22,7 @@
             <CheckBox Content="Current Route" Foreground="{DynamicResource MaterialDesignBody}" IsChecked="{Binding ShowRoute}" Style="{DynamicResource MaterialDesignCheckbox}" Margin="0 8"/>
             <CheckBox Content="Cargo Manifest" Foreground="{DynamicResource MaterialDesignBody}" IsChecked="{Binding ShowCargo}" Style="{DynamicResource MaterialDesignCheckbox}" Margin="0 8"/>
             <CheckBox Content="Backpack / Materials" Foreground="{DynamicResource MaterialDesignBody}"  IsChecked="{Binding ShowBackpack}" Style="{DynamicResource MaterialDesignCheckbox}" Margin="0 8"/>
-
+            <CheckBox Content="Show Fleet Carrier Materials" Foreground="{DynamicResource MaterialDesignBody}" IsChecked="{Binding ShowFCMaterials}" Style="{DynamicResource MaterialDesignCheckbox}" Margin="0,8,0,0"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 24 0 0">
                 <Button Content="Cancel" Click="Cancel_Click" Style="{DynamicResource MaterialDesignFlatButton}" Margin="0 0 8 0" />
                 <Button Content="Save" Click="Save_Click" Style="{DynamicResource MaterialDesignRaisedButton}" />

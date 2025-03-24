@@ -14,6 +14,7 @@ namespace EliteInfoPanel.Core
         public StatusJson CurrentStatus { get; private set; }
         public CargoJson CurrentCargo { get; private set; }
         public BackpackJson CurrentBackpack { get; private set; }
+        public NavRouteJson CurrentRoute { get; private set; }
         public FCMaterialsJson CurrentMaterials { get; private set; }
         public string CommanderName { get; private set; }
         public string ShipLocalised { get; private set; }
@@ -61,6 +62,9 @@ namespace EliteInfoPanel.Core
                 var cargoPath = Path.Combine(gamePath, "Cargo.json");
                 var backpackPath = Path.Combine(gamePath, "Backpack.json");
                 var materialsPath = Path.Combine(gamePath, "FCMaterials.json");
+                var routePath = Path.Combine(gamePath, "NavRoute.json");
+                if (File.Exists(routePath))
+                    CurrentRoute = JsonSerializer.Deserialize<NavRouteJson>(File.ReadAllText(routePath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
                 if (File.Exists(statusPath))
                     CurrentStatus = JsonSerializer.Deserialize<StatusJson>(File.ReadAllText(statusPath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });

@@ -27,9 +27,14 @@ public partial class MainWindow : Window
     private GameStateService gameState;
     private TextBlock commanderText, shipText, fuelText, cargoText;
     private StackPanel summaryPanel;
+    private StackPanel fuelPanel;
+    private StackPanel shipPanel;
     private StackPanel cargoPanel;
     private StackPanel backpackPanel;
-    private StackPanel fuelPanel;
+    private StackPanel fcMaterialsPanel;
+
+
+    private Border fuelCard;
 
     private JournalWatcher journalWatcher;
     private ProgressBar fuelBar;
@@ -99,7 +104,7 @@ public partial class MainWindow : Window
         {
             Minimum = 0,
             Maximum = 32,
-            Height = 12,
+            Height = 24,
             Margin = new Thickness(0, 4, 0, 0),
             Foreground = (Brush)Application.Current.Resources["PrimaryHueMidBrush"],
             Background = Brushes.DarkSlateGray
@@ -109,16 +114,16 @@ public partial class MainWindow : Window
         {
             Text = "Fuel:",
             Foreground = GetBodyBrush(),
-            FontSize = 16
+            FontSize = 26
         };
 
         fuelStack = new StackPanel();
         fuelStack.Children.Add(fuelText);
         fuelStack.Children.Add(fuelBar);
 
-        var fuelCard = CreateCard("Fuel", fuelStack);
-        fuelPanel.Children.Add(fuelCard); // ✅ use fuelPanel here
+        fuelCard = CreateCard("Fuel", fuelStack); // 🟠 store reference but don't add yet
     }
+
 
     private void GameState_DataUpdated()
     {
@@ -144,7 +149,7 @@ public partial class MainWindow : Window
                     {
                         Text = $"Commander: {commander}",
                         Foreground = GetBodyBrush(),
-                        FontSize = 16
+                        FontSize = 26
                     });
                 }
 
@@ -155,18 +160,27 @@ public partial class MainWindow : Window
                     {
                         Text = $"Ship: {ship}",
                         Foreground = GetBodyBrush(),
-                        FontSize = 16
+                        FontSize = 26
                     });
                 }
 
                 if (display.ShowFuelLevel && status?.Fuel != null)
                 {
+                    if (!fuelPanel.Children.Contains(fuelCard))
+                        fuelPanel.Children.Add(fuelCard);
+
                     fuelText.Text = $"Fuel: Main {status.Fuel.FuelMain:0.00} / Reserve {status.Fuel.FuelReservoir:0.00}";
 
                     if (Math.Abs(fuelBar.Value - status.Fuel.FuelMain) > 0.01)
                     {
                         ProgressBarFix.SetValueInstantly(fuelBar, status.Fuel.FuelMain);
                     }
+                }
+                else
+                {
+                    // remove if not visible or no data
+                    if (fuelPanel.Children.Contains(fuelCard))
+                        fuelPanel.Children.Remove(fuelCard);
                 }
 
 
@@ -186,29 +200,24 @@ public partial class MainWindow : Window
                     {
                         Text = $"{item.Name}: {item.Count}",
                         Foreground = GetBodyBrush(),
-                        FontSize = 14
+                        FontSize = 26
                     });
                 }
 
                 cargoPanel.Children.Add(CreateCard("Cargo", cargoList));
             }
 
-            // Backpack / Materials Card (placeholder — add models later)
+                   
+            // BACKPACK
             if (display.ShowBackpack)
             {
                 var backpackStack = new StackPanel();
 
-                // Combine backpack and FC materials into one dictionary by category
-                var backpackItems = gameState.CurrentBackpack?.Inventory ?? new();
-                var fcMaterials = gameState.CurrentMaterials?.Materials ?? new();
-
-                var combined = backpackItems
-                    .Select(i => new { i.Category, Name = i.Name_Localised ?? i.Name, i.Count })
-                    .Concat(fcMaterials.Select(i => new { i.Category, Name = i.Name_Localised ?? i.Name, i.Count }))
+                var grouped = gameState.CurrentBackpack.Inventory
                     .GroupBy(i => i.Category)
                     .OrderBy(g => g.Key);
 
-                foreach (var group in combined)
+                foreach (var group in grouped)
                 {
                     backpackStack.Children.Add(new TextBlock
                     {
@@ -222,34 +231,74 @@ public partial class MainWindow : Window
                     {
                         backpackStack.Children.Add(new TextBlock
                         {
-                            Text = $"{item.Name}: {item.Count}",
-                            FontSize = 14,
+                            Text = $"{item.Name_Localised ?? item.Name}: {item.Count}",
+                            FontSize = 20,
                             Margin = new Thickness(8, 0, 0, 2),
                             Foreground = GetBodyBrush()
                         });
                     }
                 }
 
-                backpackPanel.Children.Add(CreateCard("Backpack / Materials", backpackStack));
+                backpackPanel.Children.Add(CreateCard("Backpack", backpackStack));
             }
+
+            // NAV ROUTE
+            if (display.ShowRoute && gameState.CurrentRoute?.Route?.Any() == true)
+            {
+                var routeStack = new StackPanel();
+
+                foreach (var jump in gameState.CurrentRoute.Route)
+                {
+                    routeStack.Children.Add(new TextBlock
+                    {
+                        Text = $"{jump.StarSystem} ({jump.StarClass})",
+                        FontSize = 20,
+                        Margin = new Thickness(8, 0, 0, 2),
+                        Foreground = GetBodyBrush()
+                    });
+                }
+
+                // Place in column 4 (or create a new panel in SetupDisplayUi if needed)
+                var routeCard = CreateCard("Nav Route", routeStack);
+                InfoPanel.Children.Add(routeCard);
+                Grid.SetColumn(routeCard, 4);
+            }
+
+
+            // FCMATERIALS
+            if (display.ShowFCMaterials && gameState.CurrentMaterials?.Materials?.Any() == true)
+            {
+                fcMaterialsPanel.Children.Clear(); // <== Clear first!
+
+                var fcStack = new StackPanel();
+
+                foreach (var item in gameState.CurrentMaterials.Materials.OrderByDescending(i => i.Count))
+                {
+                    fcStack.Children.Add(new TextBlock
+                    {
+                        Text = $"{item.Name_Localised ?? item.Name}: {item.Count}",
+                        FontSize = 20,
+                        Margin = new Thickness(8, 0, 0, 2),
+                        Foreground = GetBodyBrush()
+                    });
+                }
+
+                fcMaterialsPanel.Children.Add(CreateCard("Fleet Carrier Materials", fcStack));
+            }
+            else
+            {
+                fcMaterialsPanel.Children.Clear(); // Also clear if nothing to show
+            }
+
+
+
 
         });
     }
     private Brush GetBodyBrush() =>
     (Brush)Application.Current.Resources["MaterialDesignBody"];
 
-    private void OpenOptions()
-    {
-        var options = new OptionsWindow();
-        options.Owner = this;
-        bool? result = options.ShowDialog();
 
-        if (result == true)
-        {
-            appSettings = SettingsManager.Load();
-            GameState_DataUpdated(); // refresh visible UI
-        }
-    }
     private void OptionsButton_Click(object sender, RoutedEventArgs e)
     {
         var options = new OptionsWindow();
@@ -267,19 +316,33 @@ public partial class MainWindow : Window
     {
         InfoPanel.Children.Clear();
 
-        fuelPanel = new StackPanel();      // new
+        // Column 0: Status and Fuel stacked vertically
+        var statusAndFuel = new StackPanel();
         summaryPanel = new StackPanel();
+        fuelPanel = new StackPanel();
+        statusAndFuel.Children.Add(summaryPanel);
+        statusAndFuel.Children.Add(fuelPanel);
+        Grid.SetColumn(statusAndFuel, 0);
+        InfoPanel.Children.Add(statusAndFuel);
+
+        // Column 1: Cargo
         cargoPanel = new StackPanel();
-        backpackPanel = new StackPanel();
-
-        InfoPanel.Children.Add(fuelPanel);     // add first, stays persistent
-        InfoPanel.Children.Add(summaryPanel);  // cleared & rebuilt every update
+        Grid.SetColumn(cargoPanel, 1);
         InfoPanel.Children.Add(cargoPanel);
+
+        // Column 2: Backpack
+        backpackPanel = new StackPanel();
+        Grid.SetColumn(backpackPanel, 2);
         InfoPanel.Children.Add(backpackPanel);
+
+        // Column 3: FC Materials
+        fcMaterialsPanel = new StackPanel();
+        Grid.SetColumn(fcMaterialsPanel, 3);
+        InfoPanel.Children.Add(fcMaterialsPanel);
+
+
+      
     }
-
-
-
 
 
     private void ApplyScreenBounds(Screen targetScreen)
@@ -315,7 +378,7 @@ public partial class MainWindow : Window
     {
         return new Border
         {
-            Margin = new Thickness(0, 10, 0, 0),
+            Margin = new Thickness(0, 10, 10, 0),
             Padding = new Thickness(12),
             Background = (Brush)Application.Current.Resources["MaterialDesignCardBackground"],
             CornerRadius = new CornerRadius(8),
@@ -326,13 +389,17 @@ public partial class MainWindow : Window
                 new TextBlock
                 {
                     Text = title,
-                    Style = (Style)Application.Current.Resources["MaterialDesignSubtitle1"]
+                    FontSize = 26,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = Brushes.Orange,
+                    Margin = new Thickness(0, 0, 0, 8)
                 },
                 content
             }
             }
         };
     }
+
 
 }
 
