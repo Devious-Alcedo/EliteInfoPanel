@@ -1,5 +1,6 @@
 ﻿using System.Windows;
 using EliteInfoPanel.Core;
+using WpfScreenHelper;
 
 namespace EliteInfoPanel.Dialogs
 {
@@ -10,6 +11,9 @@ namespace EliteInfoPanel.Dialogs
         public OptionsWindow()
         {
             InitializeComponent();
+            var primaryScreen = Screen.PrimaryScreen;
+            this.Left = primaryScreen.WorkingArea.Left + (primaryScreen.WorkingArea.Width - this.Width) / 2;
+            this.Top = primaryScreen.WorkingArea.Top + (primaryScreen.WorkingArea.Height - this.Height) / 2;
 
             Settings = SettingsManager.Load();
             DataContext = Settings.DisplayOptions;
