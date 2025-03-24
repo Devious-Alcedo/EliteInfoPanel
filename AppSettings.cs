@@ -1,4 +1,5 @@
-﻿using System;
+﻿using EliteInfoPanel.Core;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,5 +10,7 @@ namespace EliteInfoPanel
     public class AppSettings
     {
         public string? SelectedScreenId { get; set; }
+        public DisplayOptions DisplayOptions { get; set; } = new DisplayOptions();
     }
+
 }

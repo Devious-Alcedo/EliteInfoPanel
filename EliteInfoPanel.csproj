@@ -6,7 +6,18 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <ApplicationIcon>elite-dangerous-icon.ico</ApplicationIcon>
+    <Title>Elite Info Panel</Title>
+    <PackageIcon>app.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/jimmyeao/EliteInfoPanel</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/jimmyeao/EliteInfoPanel</PackageProjectUrl>
+    <Description>Elite Dangerous Info Panel</Description>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="elite-dangerous-icon.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="MaterialDesignColors" Version="5.2.1" />
@@ -23,6 +34,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="app.png">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Update="README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
     <None Update="Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
