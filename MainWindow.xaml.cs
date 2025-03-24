@@ -29,7 +29,12 @@ public partial class MainWindow : Window
     private StackPanel summaryPanel;
     private StackPanel cargoPanel;
     private StackPanel backpackPanel;
+    private StackPanel fuelPanel;
+
     private JournalWatcher journalWatcher;
+    private ProgressBar fuelBar;
+  
+    private StackPanel fuelStack;
 
 
 
@@ -75,17 +80,44 @@ public partial class MainWindow : Window
             journalWatcher = new JournalWatcher(latestJournal);
             journalWatcher.StartWatching();
         }
-        
         SetupDisplayUi(); // build controls
+        SetupFuelCard();
         GameState_DataUpdated(); // do an initial update
     }
     public static class ProgressBarFix
     {
         public static void SetValueInstantly(ProgressBar bar, double value)
         {
-            bar.BeginAnimation(RangeBase.ValueProperty, null); // cancel animation
+            bar.BeginAnimation(System.Windows.Controls.Primitives.RangeBase.ValueProperty, null); // Cancel animation
             bar.Value = value;
         }
+    }
+
+    private void SetupFuelCard()
+    {
+        fuelBar = new ProgressBar
+        {
+            Minimum = 0,
+            Maximum = 32,
+            Height = 12,
+            Margin = new Thickness(0, 4, 0, 0),
+            Foreground = (Brush)Application.Current.Resources["PrimaryHueMidBrush"],
+            Background = Brushes.DarkSlateGray
+        };
+
+        fuelText = new TextBlock
+        {
+            Text = "Fuel:",
+            Foreground = GetBodyBrush(),
+            FontSize = 16
+        };
+
+        fuelStack = new StackPanel();
+        fuelStack.Children.Add(fuelText);
+        fuelStack.Children.Add(fuelBar);
+
+        var fuelCard = CreateCard("Fuel", fuelStack);
+        fuelPanel.Children.Add(fuelCard); // ✅ use fuelPanel here
     }
 
     private void GameState_DataUpdated()
@@ -129,30 +161,12 @@ public partial class MainWindow : Window
 
                 if (display.ShowFuelLevel && status?.Fuel != null)
                 {
-                    var fuelStack = new StackPanel();
+                    fuelText.Text = $"Fuel: Main {status.Fuel.FuelMain:0.00} / Reserve {status.Fuel.FuelReservoir:0.00}";
 
-                    fuelStack.Children.Add(new TextBlock
+                    if (Math.Abs(fuelBar.Value - status.Fuel.FuelMain) > 0.01)
                     {
-                        Text = $"Fuel: Main {status.Fuel.FuelMain:0.00} / Reserve {status.Fuel.FuelReservoir:0.00}",
-                        Foreground = GetBodyBrush(),
-                        FontSize = 16
-                    });
-
-                    var fuelBar = new ProgressBar
-                    {
-                        Minimum = 0,
-                        Maximum = 32,
-                        Height = 12,
-                        Margin = new Thickness(0, 4, 0, 0),
-                        Foreground = (Brush)Application.Current.Resources["PrimaryHueMidBrush"]
-                    };
-
-                    ProgressBarFix.SetValueInstantly(fuelBar, status.Fuel.FuelMain);
-
-                    fuelBar.Value = status.Fuel.FuelMain;
-
-                    fuelStack.Children.Add(fuelBar);
-                    summaryStack.Children.Add(fuelStack);
+                        ProgressBarFix.SetValueInstantly(fuelBar, status.Fuel.FuelMain);
+                    }
                 }
 
 
@@ -253,14 +267,17 @@ public partial class MainWindow : Window
     {
         InfoPanel.Children.Clear();
 
+        fuelPanel = new StackPanel();      // new
         summaryPanel = new StackPanel();
         cargoPanel = new StackPanel();
         backpackPanel = new StackPanel();
 
-        InfoPanel.Children.Add(summaryPanel);
+        InfoPanel.Children.Add(fuelPanel);     // add first, stays persistent
+        InfoPanel.Children.Add(summaryPanel);  // cleared & rebuilt every update
         InfoPanel.Children.Add(cargoPanel);
         InfoPanel.Children.Add(backpackPanel);
     }
+
 
 
 
