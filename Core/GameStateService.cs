@@ -80,23 +80,34 @@ namespace EliteInfoPanel.Core
 
                 if (!string.IsNullOrEmpty(latestJournal))
                 {
-                    var lines = File.ReadAllLines(latestJournal).Reverse();
-                    foreach (var line in lines)
+                    using var fs = new FileStream(latestJournal, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    using var sr = new StreamReader(fs);
+                    var lines = new List<string>();
+
+                    while (!sr.EndOfStream)
+                    {
+                        lines.Add(sr.ReadLine());
+                    }
+
+                    foreach (var line in lines.AsEnumerable().Reverse())
                     {
                         if (line.Contains("\"event\":\"Commander\""))
                         {
                             var entry = JsonSerializer.Deserialize<JournalEntry>(line, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                            if (!string.IsNullOrWhiteSpace(entry?.Commander))
+                            if (entry?.@event == "Commander")
                             {
-                                CommanderName = entry.Commander;
+                                CommanderName = entry.Name;
                             }
                         }
                         else if (line.Contains("\"event\":\"LoadGame\""))
                         {
                             var entry = JsonSerializer.Deserialize<JournalEntry>(line, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                            if (!string.IsNullOrWhiteSpace(entry?.Ship_Localised))
+                            if (entry?.@event == "LoadGame")
                             {
-                                ShipLocalised = entry.Ship_Localised;
+                                if (!string.IsNullOrWhiteSpace(entry.Ship_Localised))
+                                {
+                                    ShipLocalised = entry.Ship_Localised;
+                                }
                             }
                         }
 
@@ -105,11 +116,13 @@ namespace EliteInfoPanel.Core
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Handle or log parse errors if needed
+                Debug.WriteLine("Exception in LoadData: " + ex);
             }
         }
     }
-
 }
+
+
+

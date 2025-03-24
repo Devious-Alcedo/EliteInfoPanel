@@ -41,9 +41,9 @@ namespace EliteInfoPanel.Core
                                 PropertyNameCaseInsensitive = true
                             });
                             NewEntry?.Invoke(entry);
-                            if (entry?.Event == "LoadGame" && !string.IsNullOrEmpty(entry.Commander))
+                            if (entry.@event == "LoadGame" && !string.IsNullOrEmpty(entry.Name))
                             {
-                                CommanderName = entry.Commander;
+                                CommanderName = entry.Name;
                                 ShipLocalised = entry.Ship_Localised;
                             }
                         }

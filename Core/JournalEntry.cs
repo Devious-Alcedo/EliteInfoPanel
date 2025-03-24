@@ -10,11 +10,12 @@ namespace EliteInfoPanel.Core
     {
         public string timestamp { get; set; }
         public string @event { get; set; }
-        public string Commander { get; set; }
+        public string Name { get; set; } // Used for Commander name
         public string Ship { get; set; }
         public string Ship_Localised { get; set; }
 
-        public string Event => @event;
+        // Removed conflicting property alias to fix JSON parsing error
     }
+
 
 }
