@@ -8,9 +8,16 @@ namespace EliteInfoPanel.Core
 {
     public class StatusJson
     {
-        public string Fuel { get; set; }  // Needs parsing
-        public string LegalState { get; set; }
-        public string GameMode { get; set; }
-        public string Ship { get; set; }
+        public FuelInfo Fuel { get; set; }
+
+        public string ShipType { get; set; }
+
+        public class FuelInfo
+        {
+            public float FuelMain { get; set; }
+            public float FuelReservoir { get; set; }
+        }
     }
+
+
 }

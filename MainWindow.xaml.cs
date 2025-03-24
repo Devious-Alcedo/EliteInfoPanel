@@ -13,6 +13,7 @@ using WpfScreenHelper;
 using Path = System.IO.Path;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Dialogs;
+using System.Windows.Controls.Primitives;
 
 namespace EliteInfoPanel;
 
@@ -28,6 +29,8 @@ public partial class MainWindow : Window
     private StackPanel summaryPanel;
     private StackPanel cargoPanel;
     private StackPanel backpackPanel;
+    private JournalWatcher journalWatcher;
+
 
 
 
@@ -62,10 +65,29 @@ public partial class MainWindow : Window
         string gamePath = EliteDangerousPaths.GetSavedGamesPath();
         gameState = new GameStateService(gamePath);
         gameState.DataUpdated += GameState_DataUpdated;
+        // Get latest journal file
+        string latestJournal = Directory.GetFiles(gamePath, "Journal.*.log")
+            .OrderByDescending(File.GetLastWriteTime)
+            .FirstOrDefault();
 
+        if (!string.IsNullOrEmpty(latestJournal))
+        {
+            journalWatcher = new JournalWatcher(latestJournal);
+            journalWatcher.StartWatching();
+        }
+        
         SetupDisplayUi(); // build controls
         GameState_DataUpdated(); // do an initial update
     }
+    public static class ProgressBarFix
+    {
+        public static void SetValueInstantly(ProgressBar bar, double value)
+        {
+            bar.BeginAnimation(RangeBase.ValueProperty, null); // cancel animation
+            bar.Value = value;
+        }
+    }
+
     private void GameState_DataUpdated()
     {
         Dispatcher.Invoke(() =>
@@ -84,16 +106,60 @@ public partial class MainWindow : Window
                 var summaryStack = new StackPanel();
 
                 if (display.ShowCommanderName)
-                    summaryStack.Children.Add(new TextBlock { Text = $"Commander: {status?.GameMode}", Foreground = GetBodyBrush(), FontSize = 16 });
+                {
+                    string commander = gameState?.CommanderName ?? "(Unknown)";
+                    summaryStack.Children.Add(new TextBlock
+                    {
+                        Text = $"Commander: {commander}",
+                        Foreground = GetBodyBrush(),
+                        FontSize = 16
+                    });
+                }
 
                 if (display.ShowShipInfo)
-                    summaryStack.Children.Add(new TextBlock { Text = $"Ship: {status?.Ship}", Foreground = GetBodyBrush(), FontSize = 16 });
+                {
+                    string ship = gameState?.ShipLocalised ?? status?.ShipType ?? "(Unknown)";
+                    summaryStack.Children.Add(new TextBlock
+                    {
+                        Text = $"Ship: {ship}",
+                        Foreground = GetBodyBrush(),
+                        FontSize = 16
+                    });
+                }
 
-                if (display.ShowFuelLevel)
-                    summaryStack.Children.Add(new TextBlock { Text = $"Fuel: {status?.Fuel}", Foreground = GetBodyBrush(), FontSize = 16 });
+                if (display.ShowFuelLevel && status?.Fuel != null)
+                {
+                    var fuelStack = new StackPanel();
+
+                    fuelStack.Children.Add(new TextBlock
+                    {
+                        Text = $"Fuel: Main {status.Fuel.FuelMain:0.00} / Reserve {status.Fuel.FuelReservoir:0.00}",
+                        Foreground = GetBodyBrush(),
+                        FontSize = 16
+                    });
+
+                    var fuelBar = new ProgressBar
+                    {
+                        Minimum = 0,
+                        Maximum = 32,
+                        Height = 12,
+                        Margin = new Thickness(0, 4, 0, 0),
+                        Foreground = (Brush)Application.Current.Resources["PrimaryHueMidBrush"]
+                    };
+
+                    ProgressBarFix.SetValueInstantly(fuelBar, status.Fuel.FuelMain);
+
+                    fuelBar.Value = status.Fuel.FuelMain;
+
+                    fuelStack.Children.Add(fuelBar);
+                    summaryStack.Children.Add(fuelStack);
+                }
+
+
 
                 summaryPanel.Children.Add(CreateCard("Status", summaryStack));
             }
+
 
             // Cargo Card
             if (display.ShowCargo && cargo?.Inventory != null)
@@ -116,14 +182,43 @@ public partial class MainWindow : Window
             // Backpack / Materials Card (placeholder — add models later)
             if (display.ShowBackpack)
             {
-                var placeholder = new TextBlock
+                var backpackStack = new StackPanel();
+
+                // Combine backpack and FC materials into one dictionary by category
+                var backpackItems = gameState.CurrentBackpack?.Inventory ?? new();
+                var fcMaterials = gameState.CurrentMaterials?.Materials ?? new();
+
+                var combined = backpackItems
+                    .Select(i => new { i.Category, Name = i.Name_Localised ?? i.Name, i.Count })
+                    .Concat(fcMaterials.Select(i => new { i.Category, Name = i.Name_Localised ?? i.Name, i.Count }))
+                    .GroupBy(i => i.Category)
+                    .OrderBy(g => g.Key);
+
+                foreach (var group in combined)
                 {
-                    Text = "(Backpack data not yet implemented)",
-                    Foreground = GetBodyBrush(),
-                    FontSize = 14
-                };
-                backpackPanel.Children.Add(CreateCard("Backpack", placeholder));
+                    backpackStack.Children.Add(new TextBlock
+                    {
+                        Text = group.Key,
+                        FontWeight = FontWeights.Bold,
+                        Margin = new Thickness(0, 8, 0, 4),
+                        Foreground = GetBodyBrush()
+                    });
+
+                    foreach (var item in group.OrderByDescending(i => i.Count))
+                    {
+                        backpackStack.Children.Add(new TextBlock
+                        {
+                            Text = $"{item.Name}: {item.Count}",
+                            FontSize = 14,
+                            Margin = new Thickness(8, 0, 0, 2),
+                            Foreground = GetBodyBrush()
+                        });
+                    }
+                }
+
+                backpackPanel.Children.Add(CreateCard("Backpack / Materials", backpackStack));
             }
+
         });
     }
     private Brush GetBodyBrush() =>

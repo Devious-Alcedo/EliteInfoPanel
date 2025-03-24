@@ -9,12 +9,12 @@ namespace EliteInfoPanel.Core
     public class JournalEntry
     {
         public string timestamp { get; set; }
-        public string eventType { get; set; }  // 'event' in original JSON, renamed to avoid keyword collision
+        public string @event { get; set; }
         public string Commander { get; set; }
-        public string StarSystem { get; set; }
         public string Ship { get; set; }
-        public string FuelLevel { get; set; }
-        public string JumpDist { get; set; }
-        // Add more fields as needed
+        public string Ship_Localised { get; set; }
+
+        public string Event => @event;
     }
+
 }

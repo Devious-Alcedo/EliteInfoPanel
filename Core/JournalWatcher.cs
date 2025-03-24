@@ -12,7 +12,8 @@ namespace EliteInfoPanel.Core
     {
         private readonly string logFilePath;
         private long lastPosition = 0;
-
+        public string CommanderName { get; private set; }
+        public string ShipLocalised { get; private set; }
         public event Action<JournalEntry> NewEntry;
 
         public JournalWatcher(string filePath)
@@ -40,7 +41,13 @@ namespace EliteInfoPanel.Core
                                 PropertyNameCaseInsensitive = true
                             });
                             NewEntry?.Invoke(entry);
+                            if (entry?.Event == "LoadGame" && !string.IsNullOrEmpty(entry.Commander))
+                            {
+                                CommanderName = entry.Commander;
+                                ShipLocalised = entry.Ship_Localised;
+                            }
                         }
+                       
                     }
 
                     lastPosition = stream.Position;
