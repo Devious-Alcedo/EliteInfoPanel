@@ -14,14 +14,14 @@
     
         TextOptions.TextFormattingMode="Ideal"
         TextOptions.TextRenderingMode="Auto"
-        Title="SelectScreenDialog" Height="450" Width="800">
+        Title="Choose a Screen" Height="322" Width="435">
 
     <StackPanel Margin="16">
         <TextBlock Text="Select a display to use:" FontSize="20" Margin="0 0 0 16"/>
         <ListBox x:Name="ScreenListBox"
                  DisplayMemberPath="DeviceName"
                  Style="{StaticResource MaterialDesignListBox}"
-                 Height="180"/>
+                 Height="144"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 16 0 0">
             <Button Content="Cancel" Margin="0 0 8 0" Click="CancelButton_Click" Style="{StaticResource MaterialDesignRaisedButton}"/>
             <Button Content="OK" Margin="0 0 8 0" IsDefault="True" Click="OkButton_Click" Style="{StaticResource MaterialDesignRaisedButton}"/>
