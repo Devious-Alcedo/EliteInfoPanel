@@ -14,15 +14,20 @@ namespace EliteInfoPanel.Core
         public StatusJson CurrentStatus { get; private set; }
         public CargoJson CurrentCargo { get; private set; }
         public BackpackJson CurrentBackpack { get; private set; }
-        public NavRouteJson CurrentRoute { get; private set; }
         public FCMaterialsJson CurrentMaterials { get; private set; }
+        public NavRouteJson CurrentRoute { get; private set; }
         public string CommanderName { get; private set; }
         public string ShipLocalised { get; private set; }
+        public string ShipName { get; private set; }
+        public string CurrentSystem { get; private set; }
+        public string SquadronName { get; private set; }
+        public DateTime? FleetCarrierJumpTime { get; private set; }
+        public TimeSpan? JumpCountdown => FleetCarrierJumpTime.HasValue ? FleetCarrierJumpTime.Value - DateTime.UtcNow : null;
+
+        public event Action DataUpdated;
 
         private string gamePath;
         private FileSystemWatcher watcher;
-
-        public event Action DataUpdated;
 
         public GameStateService(string path)
         {
@@ -42,14 +47,13 @@ namespace EliteInfoPanel.Core
 
             LoadData();
 
-            // Add periodic polling fallback to ensure updates
             Task.Run(async () =>
             {
                 while (true)
                 {
                     LoadData();
                     DataUpdated?.Invoke();
-                    await Task.Delay(2000); // Refresh every 2 seconds
+                    await Task.Delay(2000);
                 }
             });
         }
@@ -63,8 +67,6 @@ namespace EliteInfoPanel.Core
                 var backpackPath = Path.Combine(gamePath, "Backpack.json");
                 var materialsPath = Path.Combine(gamePath, "FCMaterials.json");
                 var routePath = Path.Combine(gamePath, "NavRoute.json");
-                if (File.Exists(routePath))
-                    CurrentRoute = JsonSerializer.Deserialize<NavRouteJson>(File.ReadAllText(routePath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
                 if (File.Exists(statusPath))
                     CurrentStatus = JsonSerializer.Deserialize<StatusJson>(File.ReadAllText(statusPath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
@@ -77,6 +79,9 @@ namespace EliteInfoPanel.Core
 
                 if (File.Exists(materialsPath))
                     CurrentMaterials = JsonSerializer.Deserialize<FCMaterialsJson>(File.ReadAllText(materialsPath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                if (File.Exists(routePath))
+                    CurrentRoute = JsonSerializer.Deserialize<NavRouteJson>(File.ReadAllText(routePath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
                 var latestJournal = Directory.GetFiles(gamePath, "Journal.*.log")
                     .OrderByDescending(File.GetLastWriteTime)
@@ -112,10 +117,34 @@ namespace EliteInfoPanel.Core
                                 {
                                     ShipLocalised = entry.Ship_Localised;
                                 }
+                                ShipName = entry.Ship;
+                            }
+                        }
+                        else if (line.Contains("\"event\":\"CarrierJumpRequest\""))
+                        {
+                            using var doc = JsonDocument.Parse(line);
+                            if (doc.RootElement.TryGetProperty("DepartureTime", out var departureTime))
+                            {
+                                if (DateTime.TryParse(departureTime.GetString(), out var dt))
+                                {
+                                    FleetCarrierJumpTime = dt;
+                                }
+                            }
+                        }
+                        else if (line.Contains("\"event\":\"Location\""))
+                        {
+                            using var doc = JsonDocument.Parse(line);
+                            if (doc.RootElement.TryGetProperty("StarSystem", out var sys))
+                            {
+                                CurrentSystem = sys.GetString();
+                            }
+                            if (doc.RootElement.TryGetProperty("SquadronName", out var squad))
+                            {
+                                SquadronName = squad.GetString();
                             }
                         }
 
-                        if (CommanderName != null && ShipLocalised != null)
+                        if (CommanderName != null && ShipLocalised != null && FleetCarrierJumpTime.HasValue)
                             break;
                     }
                 }

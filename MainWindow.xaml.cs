@@ -136,58 +136,91 @@ public partial class MainWindow : Window
             var display = appSettings.DisplayOptions;
             var status = gameState.CurrentStatus;
             var cargo = gameState.CurrentCargo;
-
+            var summaryStack = new StackPanel();
             // Summary Card
-            if (display.ShowCommanderName || display.ShowShipInfo || display.ShowFuelLevel)
+            // Commander Name
+            if (display.ShowCommanderName)
             {
-                var summaryStack = new StackPanel();
-
-                if (display.ShowCommanderName)
+                summaryStack.Children.Add(new TextBlock
                 {
-                    string commander = gameState?.CommanderName ?? "(Unknown)";
-                    summaryStack.Children.Add(new TextBlock
-                    {
-                        Text = $"Commander: {commander}",
-                        Foreground = GetBodyBrush(),
-                        FontSize = 26
-                    });
-                }
-
-                if (display.ShowShipInfo)
-                {
-                    string ship = gameState?.ShipLocalised ?? status?.ShipType ?? "(Unknown)";
-                    summaryStack.Children.Add(new TextBlock
-                    {
-                        Text = $"Ship: {ship}",
-                        Foreground = GetBodyBrush(),
-                        FontSize = 26
-                    });
-                }
-
-                if (display.ShowFuelLevel && status?.Fuel != null)
-                {
-                    if (!fuelPanel.Children.Contains(fuelCard))
-                        fuelPanel.Children.Add(fuelCard);
-
-                    fuelText.Text = $"Fuel: Main {status.Fuel.FuelMain:0.00} / Reserve {status.Fuel.FuelReservoir:0.00}";
-
-                    if (Math.Abs(fuelBar.Value - status.Fuel.FuelMain) > 0.01)
-                    {
-                        ProgressBarFix.SetValueInstantly(fuelBar, status.Fuel.FuelMain);
-                    }
-                }
-                else
-                {
-                    // remove if not visible or no data
-                    if (fuelPanel.Children.Contains(fuelCard))
-                        fuelPanel.Children.Remove(fuelCard);
-                }
-
-
-
-                summaryPanel.Children.Add(CreateCard("Status", summaryStack));
+                    Text = $"Commander: {gameState?.CommanderName ?? "(Unknown)"}",
+                    Foreground = GetBodyBrush(),
+                    FontSize = 26
+                });
             }
 
+            // Current System
+            if (!string.IsNullOrEmpty(gameState?.CurrentSystem))
+            {
+                summaryStack.Children.Add(new TextBlock
+                {
+                    Text = $"System: {gameState.CurrentSystem}",
+                    Foreground = GetBodyBrush(),
+                    FontSize = 20
+                });
+            }
+
+            // Ship Name and Type
+            if (!string.IsNullOrEmpty(gameState?.ShipName) || !string.IsNullOrEmpty(gameState?.ShipLocalised))
+            {
+                summaryStack.Children.Add(new TextBlock
+                {
+                    Text = $"Ship: {gameState.ShipName} ({gameState.ShipLocalised})",
+                    Foreground = GetBodyBrush(),
+                    FontSize = 20
+                });
+            }
+
+            // Squadron
+            if (!string.IsNullOrEmpty(gameState?.SquadronName))
+            {
+                summaryStack.Children.Add(new TextBlock
+                {
+                    Text = $"Squadron: {gameState.SquadronName}",
+                    Foreground = GetBodyBrush(),
+                    FontSize = 20
+                });
+            }
+
+            // Carrier Jump Countdown
+            if (gameState?.JumpCountdown != null && gameState.JumpCountdown.Value.TotalSeconds > 0)
+            {
+                summaryStack.Children.Add(new TextBlock
+                {
+                    Text = $"Carrier Jump In: {gameState.JumpCountdown.Value:mm\\:ss}",
+                    Foreground = Brushes.Orange,
+                    FontSize = 22,
+                    FontWeight = FontWeights.Bold
+                });
+            }
+
+            summaryPanel.Children.Add(CreateCard("Status", summaryStack));
+            //fuel card
+            // FUEL
+            if (display.ShowFuelLevel && status?.Fuel != null)
+            {
+                // Update fuel text
+                fuelText.Text = $"Fuel: Main {status.Fuel.FuelMain:0.00} / Reserve {status.Fuel.FuelReservoir:0.00}";
+
+                if (Math.Abs(fuelBar.Value - status.Fuel.FuelMain) > 0.01)
+                {
+                    ProgressBarFix.SetValueInstantly(fuelBar, status.Fuel.FuelMain);
+                }
+
+                // ✅ Ensure card is re-added after panel clear
+                if (!fuelPanel.Children.Contains(fuelCard))
+                {
+                    fuelPanel.Children.Add(fuelCard);
+                }
+            }
+            else
+            {
+                // Remove fuel card if hidden
+                if (fuelPanel.Children.Contains(fuelCard))
+                {
+                    fuelPanel.Children.Remove(fuelCard);
+                }
+            }
 
             // Cargo Card
             if (display.ShowCargo && cargo?.Inventory != null)
