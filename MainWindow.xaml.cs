@@ -17,113 +17,81 @@ using System.Windows.Controls.Primitives;
 
 namespace EliteInfoPanel;
 
-/// <summary>
-/// Interaction logic for MainWindow.xaml
-/// </summary>
+
 public partial class MainWindow : Window
 {
-    private Screen screen;
+    #region Private Fields
+
     private AppSettings appSettings = SettingsManager.Load();
-    private GameStateService gameState;
-    private TextBlock commanderText, shipText, fuelText, cargoText;
-    private StackPanel summaryPanel;
-    private StackPanel fuelPanel;
-    private StackPanel shipPanel;
-    private StackPanel cargoPanel;
     private StackPanel backpackPanel;
+    private StackPanel cargoPanel;
+    private TextBlock commanderText, shipText, fuelText, cargoText;
     private StackPanel fcMaterialsPanel;
-
-
-    private Border fuelCard;
-
-    private JournalWatcher journalWatcher;
     private ProgressBar fuelBar;
-  
+    private Border fuelCard;
+    private StackPanel fuelPanel;
     private StackPanel fuelStack;
+    private GameStateService gameState;
+    private JournalWatcher journalWatcher;
+    private Screen screen;
+    private StackPanel shipPanel;
+    private StackPanel summaryPanel;
 
+    #endregion Private Fields
 
-
+    #region Public Constructors
 
     public MainWindow()
     {
-        
- 
         InitializeComponent();
         Loaded += Window_Loaded;
     }
 
-    private async void Window_Loaded(object sender, RoutedEventArgs e)
-    {
-        var allScreens = Screen.AllScreens.ToList();
-        screen = allScreens.FirstOrDefault(s => s.DeviceName == appSettings.SelectedScreenId);
+    #endregion Public Constructors
 
-        if (screen == null)
+    #region Private Methods
+
+    private void ApplyScreenBounds(Screen targetScreen)
+    {
+        this.Left = targetScreen.WpfBounds.Left;
+        this.Top = targetScreen.WpfBounds.Top;
+        this.Width = targetScreen.WpfBounds.Width;
+        this.Height = targetScreen.WpfBounds.Height;
+        this.WindowStyle = WindowStyle.None;
+        this.WindowState = WindowState.Maximized;
+        this.Topmost = true;
+    }
+
+    private void CloseButton_Click(object sender, RoutedEventArgs e)
+    {
+        this.Close();
+    }
+
+    private Border CreateCard(string title, UIElement content)
+    {
+        return new Border
         {
-            screen = await PromptUserToSelectScreenAsync(allScreens);
-            if (screen == null)
+            Margin = new Thickness(0, 10, 10, 0),
+            Padding = new Thickness(12),
+            Background = (Brush)Application.Current.Resources["MaterialDesignCardBackground"],
+            CornerRadius = new CornerRadius(8),
+            Child = new StackPanel
             {
-                Application.Current.Shutdown();
-                return;
+                Children =
+            {
+                new TextBlock
+                {
+                    Text = title,
+                    FontSize = 26,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = Brushes.Orange,
+                    Margin = new Thickness(0, 0, 0, 8)
+                },
+                content
             }
-
-            appSettings.SelectedScreenId = screen.DeviceName;
-            SettingsManager.Save(appSettings);
-        }
-
-        ApplyScreenBounds(screen);
-
-        string gamePath = EliteDangerousPaths.GetSavedGamesPath();
-        gameState = new GameStateService(gamePath);
-        gameState.DataUpdated += GameState_DataUpdated;
-        // Get latest journal file
-        string latestJournal = Directory.GetFiles(gamePath, "Journal.*.log")
-            .OrderByDescending(File.GetLastWriteTime)
-            .FirstOrDefault();
-
-        if (!string.IsNullOrEmpty(latestJournal))
-        {
-            journalWatcher = new JournalWatcher(latestJournal);
-            journalWatcher.StartWatching();
-        }
-        SetupDisplayUi(); // build controls
-        SetupFuelCard();
-        GameState_DataUpdated(); // do an initial update
-    }
-    public static class ProgressBarFix
-    {
-        public static void SetValueInstantly(ProgressBar bar, double value)
-        {
-            bar.BeginAnimation(System.Windows.Controls.Primitives.RangeBase.ValueProperty, null); // Cancel animation
-            bar.Value = value;
-        }
-    }
-
-    private void SetupFuelCard()
-    {
-        fuelBar = new ProgressBar
-        {
-            Minimum = 0,
-            Maximum = 32,
-            Height = 24,
-            Margin = new Thickness(0, 4, 0, 0),
-            Foreground = (Brush)Application.Current.Resources["PrimaryHueMidBrush"],
-            Background = Brushes.DarkSlateGray
+            }
         };
-
-        fuelText = new TextBlock
-        {
-            Text = "Fuel:",
-            Foreground = GetBodyBrush(),
-            FontSize = 26
-        };
-
-        fuelStack = new StackPanel();
-        fuelStack.Children.Add(fuelText);
-        fuelStack.Children.Add(fuelBar);
-
-        fuelCard = CreateCard("Fuel", fuelStack); // 🟠 store reference but don't add yet
     }
-
 
     private void GameState_DataUpdated()
     {
@@ -240,7 +208,6 @@ public partial class MainWindow : Window
                 cargoPanel.Children.Add(CreateCard("Cargo", cargoList));
             }
 
-                   
             // BACKPACK
             if (display.ShowBackpack)
             {
@@ -297,7 +264,6 @@ public partial class MainWindow : Window
                 Grid.SetColumn(routeCard, 4);
             }
 
-
             // FCMATERIALS
             if (display.ShowFCMaterials && gameState.CurrentMaterials?.Materials?.Any() == true)
             {
@@ -322,15 +288,11 @@ public partial class MainWindow : Window
             {
                 fcMaterialsPanel.Children.Clear(); // Also clear if nothing to show
             }
-
-
-
-
         });
     }
+
     private Brush GetBodyBrush() =>
     (Brush)Application.Current.Resources["MaterialDesignBody"];
-
 
     private void OptionsButton_Click(object sender, RoutedEventArgs e)
     {
@@ -343,6 +305,19 @@ public partial class MainWindow : Window
             appSettings = SettingsManager.Load();
             GameState_DataUpdated(); // refresh display
         }
+    }
+
+    private Task<Screen?> PromptUserToSelectScreenAsync(List<Screen> screens)
+    {
+        var dialog = new SelectScreenDialog(screens);
+        bool? result = dialog.ShowDialog();
+
+        if (result == true)
+        {
+            return Task.FromResult<Screen?>(dialog.SelectedScreen);
+        }
+
+        return Task.FromResult<Screen?>(null);
     }
 
     private void SetupDisplayUi()
@@ -372,67 +347,88 @@ public partial class MainWindow : Window
         fcMaterialsPanel = new StackPanel();
         Grid.SetColumn(fcMaterialsPanel, 3);
         InfoPanel.Children.Add(fcMaterialsPanel);
-
-
-      
     }
 
-
-    private void ApplyScreenBounds(Screen targetScreen)
+    private void SetupFuelCard()
     {
-        this.Left = targetScreen.WpfBounds.Left;
-        this.Top = targetScreen.WpfBounds.Top;
-        this.Width = targetScreen.WpfBounds.Width;
-        this.Height = targetScreen.WpfBounds.Height;
-        this.WindowStyle = WindowStyle.None;
-        this.WindowState = WindowState.Maximized;
-        this.Topmost = true;
-    }
-
-    private Task<Screen?> PromptUserToSelectScreenAsync(List<Screen> screens)
-    {
-        var dialog = new SelectScreenDialog(screens);
-        bool? result = dialog.ShowDialog();
-
-        if (result == true)
+        fuelBar = new ProgressBar
         {
-            return Task.FromResult<Screen?>(dialog.SelectedScreen);
+            Minimum = 0,
+            Maximum = 32,
+            Height = 24,
+            Margin = new Thickness(0, 4, 0, 0),
+            Foreground = (Brush)Application.Current.Resources["PrimaryHueMidBrush"],
+            Background = Brushes.DarkSlateGray
+        };
+
+        fuelText = new TextBlock
+        {
+            Text = "Fuel:",
+            Foreground = GetBodyBrush(),
+            FontSize = 26
+        };
+
+        fuelStack = new StackPanel();
+        fuelStack.Children.Add(fuelText);
+        fuelStack.Children.Add(fuelBar);
+
+        fuelCard = CreateCard("Fuel", fuelStack); // 🟠 store reference but don't add yet
+    }
+
+    private async void Window_Loaded(object sender, RoutedEventArgs e)
+    {
+        var allScreens = Screen.AllScreens.ToList();
+        screen = allScreens.FirstOrDefault(s => s.DeviceName == appSettings.SelectedScreenId);
+
+        if (screen == null)
+        {
+            screen = await PromptUserToSelectScreenAsync(allScreens);
+            if (screen == null)
+            {
+                Application.Current.Shutdown();
+                return;
+            }
+
+            appSettings.SelectedScreenId = screen.DeviceName;
+            SettingsManager.Save(appSettings);
         }
 
-        return Task.FromResult<Screen?>(null);
-    }
+        ApplyScreenBounds(screen);
 
-    private void CloseButton_Click(object sender, RoutedEventArgs e)
-    {
-        this.Close();   
-    }
+        string gamePath = EliteDangerousPaths.GetSavedGamesPath();
+        gameState = new GameStateService(gamePath);
+        gameState.DataUpdated += GameState_DataUpdated;
+        // Get latest journal file
+        string latestJournal = Directory.GetFiles(gamePath, "Journal.*.log")
+            .OrderByDescending(File.GetLastWriteTime)
+            .FirstOrDefault();
 
-    private Border CreateCard(string title, UIElement content)
-    {
-        return new Border
+        if (!string.IsNullOrEmpty(latestJournal))
         {
-            Margin = new Thickness(0, 10, 10, 0),
-            Padding = new Thickness(12),
-            Background = (Brush)Application.Current.Resources["MaterialDesignCardBackground"],
-            CornerRadius = new CornerRadius(8),
-            Child = new StackPanel
-            {
-                Children =
-            {
-                new TextBlock
-                {
-                    Text = title,
-                    FontSize = 26,
-                    FontWeight = FontWeights.Bold,
-                    Foreground = Brushes.Orange,
-                    Margin = new Thickness(0, 0, 0, 8)
-                },
-                content
-            }
-            }
-        };
+            journalWatcher = new JournalWatcher(latestJournal);
+            journalWatcher.StartWatching();
+        }
+        SetupDisplayUi(); // build controls
+        SetupFuelCard();
+        GameState_DataUpdated(); // do an initial update
     }
 
+    #endregion Private Methods
 
+    #region Public Classes
+
+    public static class ProgressBarFix
+    {
+        #region Public Methods
+
+        public static void SetValueInstantly(ProgressBar bar, double value)
+        {
+            bar.BeginAnimation(System.Windows.Controls.Primitives.RangeBase.ValueProperty, null); // Cancel animation
+            bar.Value = value;
+        }
+
+        #endregion Public Methods
+    }
+
+    #endregion Public Classes
 }
-
