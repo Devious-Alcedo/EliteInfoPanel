@@ -25,6 +25,10 @@ public partial class MainWindow : Window
     private AppSettings appSettings = SettingsManager.Load();
     private GameStateService gameState;
     private TextBlock commanderText, shipText, fuelText, cargoText;
+    private StackPanel summaryPanel;
+    private StackPanel cargoPanel;
+    private StackPanel backpackPanel;
+
 
 
     public MainWindow()
@@ -66,23 +70,65 @@ public partial class MainWindow : Window
     {
         Dispatcher.Invoke(() =>
         {
+            summaryPanel.Children.Clear();
+            cargoPanel.Children.Clear();
+            backpackPanel.Children.Clear();
+
             var display = appSettings.DisplayOptions;
             var status = gameState.CurrentStatus;
             var cargo = gameState.CurrentCargo;
 
-            if (display.ShowCommanderName)
-                commanderText.Text = $"Commander: {status?.GameMode}"; // placeholder for Commander name
+            // Summary Card
+            if (display.ShowCommanderName || display.ShowShipInfo || display.ShowFuelLevel)
+            {
+                var summaryStack = new StackPanel();
 
-            if (display.ShowShipInfo)
-                shipText.Text = $"Ship: {status?.Ship ?? "N/A"}";
+                if (display.ShowCommanderName)
+                    summaryStack.Children.Add(new TextBlock { Text = $"Commander: {status?.GameMode}", Foreground = GetBodyBrush(), FontSize = 16 });
 
-            if (display.ShowFuelLevel)
-                fuelText.Text = $"Fuel: {status?.Fuel ?? "N/A"}";
+                if (display.ShowShipInfo)
+                    summaryStack.Children.Add(new TextBlock { Text = $"Ship: {status?.Ship}", Foreground = GetBodyBrush(), FontSize = 16 });
 
+                if (display.ShowFuelLevel)
+                    summaryStack.Children.Add(new TextBlock { Text = $"Fuel: {status?.Fuel}", Foreground = GetBodyBrush(), FontSize = 16 });
+
+                summaryPanel.Children.Add(CreateCard("Status", summaryStack));
+            }
+
+            // Cargo Card
             if (display.ShowCargo && cargo?.Inventory != null)
-                cargoText.Text = $"Cargo: {cargo.Inventory.Sum(i => i.Count)} items";
+            {
+                var cargoList = new StackPanel();
+
+                foreach (var item in cargo.Inventory.OrderByDescending(i => i.Count))
+                {
+                    cargoList.Children.Add(new TextBlock
+                    {
+                        Text = $"{item.Name}: {item.Count}",
+                        Foreground = GetBodyBrush(),
+                        FontSize = 14
+                    });
+                }
+
+                cargoPanel.Children.Add(CreateCard("Cargo", cargoList));
+            }
+
+            // Backpack / Materials Card (placeholder — add models later)
+            if (display.ShowBackpack)
+            {
+                var placeholder = new TextBlock
+                {
+                    Text = "(Backpack data not yet implemented)",
+                    Foreground = GetBodyBrush(),
+                    FontSize = 14
+                };
+                backpackPanel.Children.Add(CreateCard("Backpack", placeholder));
+            }
         });
     }
+    private Brush GetBodyBrush() =>
+    (Brush)Application.Current.Resources["MaterialDesignBody"];
+
     private void OpenOptions()
     {
         var options = new OptionsWindow();
@@ -112,16 +158,13 @@ public partial class MainWindow : Window
     {
         InfoPanel.Children.Clear();
 
-        commanderText = new TextBlock { FontSize = 18, Margin = new Thickness(0, 10, 0, 0) };
-        shipText = new TextBlock { FontSize = 18 };
-        fuelText = new TextBlock { FontSize = 18 };
-        cargoText = new TextBlock { FontSize = 18 };
+        summaryPanel = new StackPanel();
+        cargoPanel = new StackPanel();
+        backpackPanel = new StackPanel();
 
-        InfoPanel.Children.Add(commanderText);
-        InfoPanel.Children.Add(shipText);
-        InfoPanel.Children.Add(fuelText);
-        InfoPanel.Children.Add(cargoText);
-
+        InfoPanel.Children.Add(summaryPanel);
+        InfoPanel.Children.Add(cargoPanel);
+        InfoPanel.Children.Add(backpackPanel);
     }
 
 
@@ -155,5 +198,29 @@ public partial class MainWindow : Window
     {
         this.Close();   
     }
+
+    private Border CreateCard(string title, UIElement content)
+    {
+        return new Border
+        {
+            Margin = new Thickness(0, 10, 0, 0),
+            Padding = new Thickness(12),
+            Background = (Brush)Application.Current.Resources["MaterialDesignCardBackground"],
+            CornerRadius = new CornerRadius(8),
+            Child = new StackPanel
+            {
+                Children =
+            {
+                new TextBlock
+                {
+                    Text = title,
+                    Style = (Style)Application.Current.Resources["MaterialDesignSubtitle1"]
+                },
+                content
+            }
+            }
+        };
+    }
+
 }
 
