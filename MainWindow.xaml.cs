@@ -24,6 +24,7 @@ public partial class MainWindow : Window
     private StackPanel backpackContent;
     private StackPanel fcMaterialsContent;
     private StackPanel routeContent;
+    private StackPanel modulesContent;
 
     private StackPanel fuelStack;
     private TextBlock fuelText;
@@ -87,7 +88,9 @@ public partial class MainWindow : Window
             panelsToDisplay.Add(CreateCard("Fleet Carrier Materials", fcMaterialsContent));
         if (display.ShowRoute)
             panelsToDisplay.Add(CreateCard("Nav Route", routeContent));
+        
 
+        panelsToDisplay.Add(CreateCard("Ship Modules", modulesContent));
         int maxColumns = 6;
         for (int i = 0; i < Math.Min(panelsToDisplay.Count, maxColumns); i++)
             MainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -107,7 +110,7 @@ public partial class MainWindow : Window
         backpackContent ??= new StackPanel();
         fcMaterialsContent ??= new StackPanel();
         routeContent ??= new StackPanel();
-
+         modulesContent ??= new StackPanel();
         if (fuelText == null)
         {
             fuelText = new TextBlock
@@ -139,6 +142,18 @@ public partial class MainWindow : Window
             var display = appSettings.DisplayOptions;
             var status = gameState.CurrentStatus;
             var cargo = gameState.CurrentCargo;
+            if (gameState.CurrentLoadout?.Modules != null)
+            {
+                foreach (var module in gameState.CurrentLoadout.Modules.OrderByDescending(m => m.Health))
+                {
+                    modulesContent.Children.Add(new TextBlock
+                    {
+                        Text = $"{module.Slot}: {module.ItemLocalised ?? module.Item} ({module.Health:P0})",
+                        FontSize = 20,
+                        Foreground = GetBodyBrush()
+                    });
+                }
+            }
 
             if (display.ShowCommanderName)
             {

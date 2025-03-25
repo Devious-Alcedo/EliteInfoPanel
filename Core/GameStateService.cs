@@ -1,4 +1,5 @@
-﻿using System;
+﻿using EliteInfoPanel.Core.EliteInfoPanel.Core;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -26,6 +27,8 @@ namespace EliteInfoPanel.Core
         public TimeSpan? JumpCountdown => FleetCarrierJumpTime.HasValue ? FleetCarrierJumpTime.Value - DateTime.UtcNow : null;
         public string UserShipName { get; private set; }
         public string UserShipId { get; private set; }
+        // Add this property
+        public LoadoutJson? CurrentLoadout { get; private set; }
 
         public event Action DataUpdated;
 
@@ -154,12 +157,16 @@ namespace EliteInfoPanel.Core
 
                         else if (line.Contains("\"event\":\"Loadout\""))
                         {
-                            var json = JsonDocument.Parse(line);
-                            var root = json.RootElement;
-                            UserShipName = root.GetProperty("ShipName").GetString();
-                            UserShipId = root.GetProperty("ShipIdent").GetString();
+                            var loadout = JsonSerializer.Deserialize<LoadoutJson>(line, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                            if (loadout != null)
+                            {
+                                CurrentLoadout = loadout;
+                                UserShipName = loadout.ShipName;
+                                UserShipId = loadout.ShipIdent;
+                            }
                         }
-                        
+
+
 
 
 
