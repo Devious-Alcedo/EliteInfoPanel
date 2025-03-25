@@ -20,9 +20,12 @@ namespace EliteInfoPanel.Core
         public string ShipLocalised { get; private set; }
         public string ShipName { get; private set; }
         public string CurrentSystem { get; private set; }
+        public long? Balance => CurrentStatus?.Balance;
         public string SquadronName { get; private set; }
         public DateTime? FleetCarrierJumpTime { get; private set; }
         public TimeSpan? JumpCountdown => FleetCarrierJumpTime.HasValue ? FleetCarrierJumpTime.Value - DateTime.UtcNow : null;
+        public string UserShipName { get; private set; }
+        public string UserShipId { get; private set; }
 
         public event Action DataUpdated;
 
@@ -138,11 +141,27 @@ namespace EliteInfoPanel.Core
                             {
                                 CurrentSystem = sys.GetString();
                             }
+                        }
+
+                        else if (line.Contains("\"event\":\"SquadronStartup\""))
+                        {
+                            using var doc = JsonDocument.Parse(line);
                             if (doc.RootElement.TryGetProperty("SquadronName", out var squad))
                             {
                                 SquadronName = squad.GetString();
                             }
                         }
+
+                        else if (line.Contains("\"event\":\"Loadout\""))
+                        {
+                            var json = JsonDocument.Parse(line);
+                            var root = json.RootElement;
+                            UserShipName = root.GetProperty("ShipName").GetString();
+                            UserShipId = root.GetProperty("ShipIdent").GetString();
+                        }
+                        
+
+
 
                         if (CommanderName != null && ShipLocalised != null && FleetCarrierJumpTime.HasValue)
                             break;

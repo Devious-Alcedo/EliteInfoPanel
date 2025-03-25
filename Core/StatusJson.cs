@@ -9,7 +9,7 @@ namespace EliteInfoPanel.Core
     public class StatusJson
     {
         public FuelInfo Fuel { get; set; }
-
+         public long Balance { get; set; }
         public string ShipType { get; set; }
 
         public class FuelInfo
