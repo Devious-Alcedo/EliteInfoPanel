@@ -25,6 +25,8 @@ public partial class MainWindow : Window
     private StackPanel fcMaterialsContent;
     private StackPanel routeContent;
     private StackPanel modulesContent;
+    private StackPanel shipStatsContent;
+    private StackPanel sessionStatsContent;
 
     private StackPanel fuelStack;
     private TextBlock fuelText;
@@ -88,9 +90,11 @@ public partial class MainWindow : Window
             panelsToDisplay.Add(CreateCard("Fleet Carrier Materials", fcMaterialsContent));
         if (display.ShowRoute)
             panelsToDisplay.Add(CreateCard("Nav Route", routeContent));
-        
 
         panelsToDisplay.Add(CreateCard("Ship Modules", modulesContent));
+        panelsToDisplay.Add(CreateCard("Ship Status", shipStatsContent));
+        panelsToDisplay.Add(CreateCard("Session Stats", sessionStatsContent));
+
         int maxColumns = 6;
         for (int i = 0; i < Math.Min(panelsToDisplay.Count, maxColumns); i++)
             MainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -110,7 +114,10 @@ public partial class MainWindow : Window
         backpackContent ??= new StackPanel();
         fcMaterialsContent ??= new StackPanel();
         routeContent ??= new StackPanel();
-         modulesContent ??= new StackPanel();
+        modulesContent ??= new StackPanel();
+        shipStatsContent ??= new StackPanel();
+        sessionStatsContent ??= new StackPanel();
+
         if (fuelText == null)
         {
             fuelText = new TextBlock
@@ -138,22 +145,13 @@ public partial class MainWindow : Window
         Dispatcher.Invoke(() =>
         {
             summaryContent.Children.Clear();
+            modulesContent.Children.Clear();
+            shipStatsContent.Children.Clear();
+            sessionStatsContent.Children.Clear();
 
             var display = appSettings.DisplayOptions;
             var status = gameState.CurrentStatus;
             var cargo = gameState.CurrentCargo;
-            if (gameState.CurrentLoadout?.Modules != null)
-            {
-                foreach (var module in gameState.CurrentLoadout.Modules.OrderByDescending(m => m.Health))
-                {
-                    modulesContent.Children.Add(new TextBlock
-                    {
-                        Text = $"{module.Slot}: {module.ItemLocalised ?? module.Item} ({module.Health:P0})",
-                        FontSize = 20,
-                        Foreground = GetBodyBrush()
-                    });
-                }
-            }
 
             if (display.ShowCommanderName)
             {
@@ -221,6 +219,17 @@ public partial class MainWindow : Window
                 });
             }
 
+            if (gameState.IsOverheating)
+            {
+                summaryContent.Children.Add(new TextBlock
+                {
+                    Text = "WARNING: Ship Overheating!",
+                    Foreground = Brushes.Red,
+                    FontSize = 22,
+                    FontWeight = FontWeights.Bold
+                });
+            }
+
             if (display.ShowFuelLevel && status?.Fuel != null)
             {
                 fuelText.Text = $"Fuel: Main {status.Fuel.FuelMain:0.00} / Reserve {status.Fuel.FuelReservoir:0.00}";
@@ -229,75 +238,56 @@ public partial class MainWindow : Window
                 summaryContent.Children.Add(fuelStack);
             }
 
-            if (display.ShowCargo && cargo?.Inventory != null)
+            if (gameState.CurrentLoadout?.Modules != null)
             {
-                cargoContent.Children.Clear();
-                foreach (var item in cargo.Inventory.OrderByDescending(i => i.Count))
+                foreach (var module in gameState.CurrentLoadout.Modules.OrderByDescending(m => m.Health))
                 {
-                    cargoContent.Children.Add(new TextBlock
+                    modulesContent.Children.Add(new TextBlock
                     {
-                        Text = $"{item.Name}: {item.Count}",
-                        Foreground = GetBodyBrush(),
-                        FontSize = 26
-                    });
-                }
-            }
-
-            if (display.ShowBackpack)
-            {
-                backpackContent.Children.Clear();
-                var grouped = gameState.CurrentBackpack.Inventory.GroupBy(i => i.Category).OrderBy(g => g.Key);
-                foreach (var group in grouped)
-                {
-                    backpackContent.Children.Add(new TextBlock
-                    {
-                        Text = group.Key,
-                        FontWeight = FontWeights.Bold,
-                        Margin = new Thickness(0, 8, 0, 4),
-                        Foreground = GetBodyBrush()
-                    });
-                    foreach (var item in group.OrderByDescending(i => i.Count))
-                    {
-                        backpackContent.Children.Add(new TextBlock
-                        {
-                            Text = $"{item.Name_Localised ?? item.Name}: {item.Count}",
-                            FontSize = 20,
-                            Margin = new Thickness(8, 0, 0, 2),
-                            Foreground = GetBodyBrush()
-                        });
-                    }
-                }
-            }
-
-            if (display.ShowFCMaterials && gameState.CurrentMaterials?.Materials?.Any() == true)
-            {
-                fcMaterialsContent.Children.Clear();
-                foreach (var item in gameState.CurrentMaterials.Materials.OrderByDescending(i => i.Count))
-                {
-                    fcMaterialsContent.Children.Add(new TextBlock
-                    {
-                        Text = $"{item.Name_Localised ?? item.Name}: {item.Count}",
+                        Text = $"{module.Slot}: {module.ItemLocalised ?? module.Item} ({module.Health:P0})",
                         FontSize = 20,
-                        Margin = new Thickness(8, 0, 0, 2),
                         Foreground = GetBodyBrush()
                     });
                 }
             }
 
-            if (display.ShowRoute && gameState.CurrentRoute?.Route?.Any() == true)
+            if (status != null)
             {
-                routeContent.Children.Clear();
-                foreach (var jump in gameState.CurrentRoute.Route)
+                shipStatsContent.Children.Add(new TextBlock
                 {
-                    routeContent.Children.Add(new TextBlock
-                    {
-                        Text = $"{jump.StarSystem} ({jump.StarClass})",
-                        FontSize = 24,
-                        Margin = new Thickness(8, 0, 0, 2),
-                        Foreground = GetBodyBrush()
-                    });
-                }
+                    Text = $"Shields Up: {status.Flags.HasFlag(Flag.ShieldsUp)}",
+                    Foreground = GetBodyBrush(),
+                    FontSize = 20
+                });
+
+                shipStatsContent.Children.Add(new TextBlock
+                {
+                    Text = $"Supercruise: {status.Flags.HasFlag(Flag.Supercruise)}",
+                    Foreground = GetBodyBrush(),
+                    FontSize = 20
+                });
+
+                shipStatsContent.Children.Add(new TextBlock
+                {
+                    Text = $"Hardpoints Deployed: {status.Flags.HasFlag(Flag.HardpointsDeployed)}",
+                    Foreground = GetBodyBrush(),
+                    FontSize = 20
+                });
+
+                shipStatsContent.Children.Add(new TextBlock
+                {
+                    Text = $"Silent Running: {status.Flags.HasFlag(Flag.SilentRunning)}",
+                    Foreground = GetBodyBrush(),
+                    FontSize = 20
+                });
             }
+
+            sessionStatsContent.Children.Add(new TextBlock
+            {
+                Text = $"Session Started: {DateTime.Now:HH:mm:ss}",
+                FontSize = 20,
+                Foreground = GetBodyBrush()
+            });
         });
     }
 

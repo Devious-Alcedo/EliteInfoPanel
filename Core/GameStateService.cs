@@ -29,6 +29,7 @@ namespace EliteInfoPanel.Core
         public string UserShipId { get; private set; }
         // Add this property
         public LoadoutJson? CurrentLoadout { get; private set; }
+        public bool IsOverheating => CurrentStatus != null && CurrentStatus.Flags.HasFlag(Flag.OverHeating);
 
         public event Action DataUpdated;
 
