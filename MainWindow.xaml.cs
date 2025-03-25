@@ -128,17 +128,18 @@ public partial class MainWindow : Window
             // Ship Name and Type
             if (!string.IsNullOrEmpty(gameState?.ShipName) || !string.IsNullOrEmpty(gameState?.ShipLocalised))
             {
-                var shipLabel = $"Ship: {gameState.UserShipName ?? gameState.ShipName} ({gameState.ShipLocalised})";
+                var shipLabel = $"Ship: {gameState.UserShipName ?? gameState.ShipName} ";
                 if (!string.IsNullOrEmpty(gameState.UserShipId))
                 {
                     shipLabel += $" [{gameState.UserShipId}]";
                 }
+                shipLabel += $"\nType: {gameState.ShipLocalised}";
 
                 summaryStack.Children.Add(new TextBlock
                 {
                     Text = shipLabel,
                     Foreground = GetBodyBrush(),
-                    FontSize = 20
+                    FontSize = 24
                 });
             }
 
@@ -371,9 +372,9 @@ public partial class MainWindow : Window
         {
             Minimum = 0,
             Maximum = 32,
-            Height = 24,
+            Height = 34,
             Margin = new Thickness(0, 4, 0, 0),
-            Foreground = (Brush)Application.Current.Resources["PrimaryHueMidBrush"],
+            Foreground = Brushes.Orange,
             Background = Brushes.DarkSlateGray
         };
 
