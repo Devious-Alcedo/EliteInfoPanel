@@ -13,6 +13,8 @@ namespace EliteInfoPanel.Core
         public string Name { get; set; } // Used for Commander name
         public string Ship { get; set; }
         public string Ship_Localised { get; set; }
+        public string UserShipName { get; set; } // Used for Ship name
+        public string UserShipId { get; set; }
 
         // Removed conflicting property alias to fix JSON parsing error
     }

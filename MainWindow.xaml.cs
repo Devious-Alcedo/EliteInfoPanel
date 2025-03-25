@@ -109,7 +109,7 @@ public partial class MainWindow : Window
                 {
                     Text = $"Commander: {gameState?.CommanderName ?? "(Unknown)"}",
                     Foreground = GetBodyBrush(),
-                    FontSize = 26
+                    FontSize = 24
                 });
             }
 
@@ -120,20 +120,40 @@ public partial class MainWindow : Window
                 {
                     Text = $"System: {gameState.CurrentSystem}",
                     Foreground = GetBodyBrush(),
-                    FontSize = 20
+                    FontSize = 24
                 });
             }
+
 
             // Ship Name and Type
             if (!string.IsNullOrEmpty(gameState?.ShipName) || !string.IsNullOrEmpty(gameState?.ShipLocalised))
             {
+                var shipLabel = $"Ship: {gameState.UserShipName ?? gameState.ShipName} ({gameState.ShipLocalised})";
+                if (!string.IsNullOrEmpty(gameState.UserShipId))
+                {
+                    shipLabel += $" [{gameState.UserShipId}]";
+                }
+
                 summaryStack.Children.Add(new TextBlock
                 {
-                    Text = $"Ship: {gameState.ShipName} ({gameState.ShipLocalised})",
+                    Text = shipLabel,
                     Foreground = GetBodyBrush(),
                     FontSize = 20
                 });
             }
+
+
+            // Balance
+            if (gameState.Balance.HasValue)
+            {
+                summaryStack.Children.Add(new TextBlock
+                {
+                    Text = $"Balance: {gameState.Balance.Value:N0} CR",
+                    Foreground = GetBodyBrush(),
+                    FontSize = 24
+                });
+            }
+
 
             // Squadron
             if (!string.IsNullOrEmpty(gameState?.SquadronName))
@@ -142,7 +162,7 @@ public partial class MainWindow : Window
                 {
                     Text = $"Squadron: {gameState.SquadronName}",
                     Foreground = GetBodyBrush(),
-                    FontSize = 20
+                    FontSize = 24
                 });
             }
 
@@ -248,7 +268,7 @@ public partial class MainWindow : Window
                     routeStack.Children.Add(new TextBlock
                     {
                         Text = $"{jump.StarSystem} ({jump.StarClass})",
-                        FontSize = 20,
+                        FontSize = 24,
                         Margin = new Thickness(8, 0, 0, 2),
                         Foreground = GetBodyBrush()
                     });
