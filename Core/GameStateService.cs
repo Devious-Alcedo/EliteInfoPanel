@@ -76,19 +76,47 @@ namespace EliteInfoPanel.Core
                 var routePath = Path.Combine(gamePath, "NavRoute.json");
 
                 if (File.Exists(statusPath))
-                    CurrentStatus = JsonSerializer.Deserialize<StatusJson>(File.ReadAllText(statusPath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                {
+                    using var fs = new FileStream(statusPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    using var reader = new StreamReader(fs);
+                    string json = reader.ReadToEnd();
+                    CurrentStatus = JsonSerializer.Deserialize<StatusJson>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                }
 
-                if (File.Exists(cargoPath))
-                    CurrentCargo = JsonSerializer.Deserialize<CargoJson>(File.ReadAllText(cargoPath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                if (File.Exists(cargoPath)) { 
+                    using var carfs = new FileStream(cargoPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    using var reader = new StreamReader(carfs);
+                    string json = reader.ReadToEnd();
+                CurrentCargo = JsonSerializer.Deserialize<CargoJson>(File.ReadAllText(cargoPath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                }
 
                 if (File.Exists(backpackPath))
-                    CurrentBackpack = JsonSerializer.Deserialize<BackpackJson>(File.ReadAllText(backpackPath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                {
+                    {
+                        using var backfs = new FileStream(backpackPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                        using var reader = new StreamReader(backfs);
+                        string json = reader.ReadToEnd();
+                        CurrentBackpack = JsonSerializer.Deserialize<BackpackJson>(File.ReadAllText(backpackPath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    }
+                }
+
 
                 if (File.Exists(materialsPath))
+                {
+                    using var matfs = new FileStream(materialsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    using var reader = new StreamReader(matfs);
+                    string json = reader.ReadToEnd();
                     CurrentMaterials = JsonSerializer.Deserialize<FCMaterialsJson>(File.ReadAllText(materialsPath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                }
 
                 if (File.Exists(routePath))
+                {
+                    using var routefs = new FileStream(routePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    using var reader = new StreamReader(routefs);
+                    string json = reader.ReadToEnd();
                     CurrentRoute = JsonSerializer.Deserialize<NavRouteJson>(File.ReadAllText(routePath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                }
 
                 var latestJournal = Directory.GetFiles(gamePath, "Journal.*.log")
                     .OrderByDescending(File.GetLastWriteTime)
