@@ -150,6 +150,18 @@ public partial class MainWindow : Window
         if (!summaryContent.Children.Contains(flagsPanel2))
             summaryContent.Children.Add(flagsPanel2);
     }
+    private readonly Dictionary<Flag, string> FlagEmojiMap = new()
+{
+    { Flag.ShieldsUp, "🛡" },
+    { Flag.Supercruise, "🚀" },
+    { Flag.HardpointsDeployed, "🔫" },
+    { Flag.SilentRunning, "🤫" },
+    { Flag.Docked, "⚓" },
+    { Flag.CargoScoopDeployed, "📦" },
+    { Flag.FlightAssistOff, "🎮" },
+    { Flag.NightVision, "🌙" },
+    { Flag.OverHeating, "🔥" }
+};
 
     private void GameState_DataUpdated()
     {
@@ -208,18 +220,23 @@ public partial class MainWindow : Window
                 });
             }
 
-            if (status != null)
+            if (status != null && appSettings.DisplayOptions.VisibleFlags != null)
             {
-                AddFlagIcon(status.Flags.HasFlag(Flag.ShieldsUp), "🛡", "Shields Up", flagsPanel1);
-                AddFlagIcon(status.Flags.HasFlag(Flag.Supercruise), "🚀", "Supercruise", flagsPanel1);
-                AddFlagIcon(status.Flags.HasFlag(Flag.HardpointsDeployed), "🔫", "Hardpoints Deployed", flagsPanel1);
-                AddFlagIcon(status.Flags.HasFlag(Flag.SilentRunning), "🤫", "Silent Running", flagsPanel1);
-                AddFlagIcon(status.Flags.HasFlag(Flag.Docked), "⚓", "Docked", flagsPanel2);
-                AddFlagIcon(status.Flags.HasFlag(Flag.CargoScoopDeployed), "📦", "Cargo Scoop Deployed", flagsPanel2);
-                AddFlagIcon(status.Flags.HasFlag(Flag.FlightAssistOff), "🎮", "Flight Assist Off", flagsPanel2);
-                AddFlagIcon(status.Flags.HasFlag(Flag.NightVision), "🌙", "Night Vision", flagsPanel2);
-                AddFlagIcon(gameState.IsOverheating, "🔥", "Overheating", flagsPanel2);
+                foreach (var flag in appSettings.DisplayOptions.VisibleFlags)
+                {
+                    if (FlagEmojiMap.TryGetValue(flag, out var emoji))
+                    {
+                        bool isActive = flag == Flag.OverHeating
+                            ? gameState.IsOverheating
+                            : status.Flags.HasFlag(flag);
+
+                        // Grouping: first 4 flags in panel1, rest in panel2
+                        var targetPanel = flagsPanel1.Children.Count < 4 ? flagsPanel1 : flagsPanel2;
+                        AddFlagIcon(isActive, emoji, flag.ToString(), targetPanel);
+                    }
+                }
             }
+
 
             // Ship Modules
             modulesContent.Children.Clear();
