@@ -97,165 +97,199 @@ public partial class MainWindow : Window
     {
         Dispatcher.Invoke(() =>
         {
-            var display = appSettings.DisplayOptions;
             var status = gameState.CurrentStatus;
 
-            // Dynamic Panel Visibility Logic
-            bool shouldShowPanels = true;
-            Log.Debug("Evaluating dynamic visibility with flags: {Flags}", status.Flags);
-            if (display.EnableDynamicViewMode && status != null)
+            if (status == null || !appSettings.DisplayOptions.EnableDynamicViewMode)
             {
-                Log.Debug("Dynamic View Mode Enabled. Flags: {Flags}", status.Flags);
-                Log.Debug("ShowWhenDocked={ShowWhenDocked}, Docked={DockedFlag}",
-                    display.ShowWhenDocked, status.Flags.HasFlag(Flag.Docked));
-                Log.Debug("ShowWhenSupercruise={ShowWhenSupercruise}, Supercruise={SupercruiseFlag}",
-                    display.ShowWhenSupercruise, status.Flags.HasFlag(Flag.Supercruise));
-                Log.Debug("ShowWhenInSRV={ShowWhenInSRV}, InSRV={InSRVFlag}",
-                    display.ShowWhenInSRV, status.Flags.HasFlag(Flag.InSRV));
-                Log.Debug("ShowWhenOnFoot={ShowWhenOnFoot}, OnFoot={OnFootFlag}",
-                    display.ShowWhenOnFoot, status.Flags.HasFlag(Flag.OnFoot));
-                Log.Debug("ShowWhenInFighter={ShowWhenInFighter}, InFighter={InFighterFlag}",
-                    display.ShowWhenInFighter, status.Flags.HasFlag(Flag.InFighter));
+                MainGrid.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                bool showPanels = status.Flags.HasFlag(Flag.Docked) ||
+                                  status.Flags.HasFlag(Flag.Supercruise) ||
+                                  status.Flags.HasFlag(Flag.InSRV) ||
+                                  status.Flags.HasFlag(Flag.OnFoot) ||
+                                  status.Flags.HasFlag(Flag.InFighter);
 
-                shouldShowPanels = status.Flags.HasFlag(Flag.Docked) ||
-                               status.Flags.HasFlag(Flag.Supercruise) ||
-                               status.Flags.HasFlag(Flag.InSRV) ||
-                               status.Flags.HasFlag(Flag.OnFoot) ||
-                               status.Flags.HasFlag(Flag.InFighter);
+                MainGrid.Visibility = showPanels ? Visibility.Visible : Visibility.Collapsed;
+                Log.Information("MainGrid visibility set to: {Visible}", showPanels);
 
-                Log.Debug("Final visibility decision: {ShouldShowPanels}", shouldShowPanels);
-
-                if (!shouldShowPanels)
-                {
-                    MainGrid.Visibility = Visibility.Collapsed;
-                    Log.Information("Panels hidden due to dynamic visibility settings");
-                    return;
-                }
+                if (!showPanels) return;
             }
 
-
-            MainGrid.Visibility = Visibility.Visible;
-
-            var cargo = gameState.CurrentCargo;
-            var backpack = gameState.CurrentBackpack;
-            var materials = gameState.CurrentMaterials;
-            var route = gameState.CurrentRoute;
-
-            SetOrUpdateSummaryText("Commander", $"Commander: {gameState?.CommanderName ?? "(Unknown)"}");
-            SetOrUpdateSummaryText("System", $"System: {gameState?.CurrentSystem ?? "(Unknown)"}");
-
-            if (!string.IsNullOrEmpty(gameState?.ShipName) || !string.IsNullOrEmpty(gameState?.ShipLocalised))
-            {
-                var shipLabel = $"Ship: {gameState.UserShipName ?? gameState.ShipName}";
-                if (!string.IsNullOrEmpty(gameState.UserShipId))
-                    shipLabel += $" [{gameState.UserShipId}]";
-                shipLabel += $"\nType: {gameState.ShipLocalised}";
-                SetOrUpdateSummaryText("Ship", shipLabel);
-            }
-
-            if (gameState.Balance.HasValue)
-                SetOrUpdateSummaryText("Balance", $"Balance: {gameState.Balance.Value:N0} CR");
-
-            if (!string.IsNullOrEmpty(gameState?.SquadronName))
-                SetOrUpdateSummaryText("Squadron", $"Squadron: {gameState.SquadronName}");
-
-            if (gameState?.JumpCountdown != null && gameState.JumpCountdown.Value.TotalSeconds > 0)
-                SetOrUpdateSummaryText("CarrierJumpCountdown", $"Carrier Jump In: {gameState.JumpCountdown.Value:mm\\:ss}");
-
-            if (gameState.IsOverheating)
-                SetOrUpdateSummaryText("OverheatWarning", "WARNING: Ship Overheating!");
-
-            // Fuel Level
-            if (display.ShowFuelLevel && status?.Fuel != null)
-            {
-                double newValue = Math.Round(status.Fuel.FuelMain, 2);
-                if (Math.Abs(lastFuelValue - newValue) > 0.01)
-                {
-                    fuelBar.BeginAnimation(System.Windows.Controls.Primitives.RangeBase.ValueProperty, null);
-                    fuelBar.Value = newValue;
-                    lastFuelValue = newValue;
-                }
-                fuelText.Text = $"Fuel: Main {newValue:0.00} / Reserve {status.Fuel.FuelReservoir:0.00}";
-            }
-
-            // Flags, Cargo, Backpack, Materials, Modules, Route (use existing working logic here)
-
-            cargoContent.Children.Clear();
-            if (display.ShowCargo && cargo?.Inventory != null)
-            {
-                foreach (var item in cargo.Inventory.OrderByDescending(i => i.Count))
-                {
-                    cargoContent.Children.Add(new TextBlock
-                    {
-                        Text = $"{item.Name}: {item.Count}",
-                        Foreground = GetBodyBrush(),
-                        FontSize = 20
-                    });
-                }
-            }
-            backpackContent.Children.Clear();
-            if (display.ShowBackpack && backpack?.Inventory != null && status.Flags.HasFlag(Flag.OnFoot))
-            {
-                var grouped = backpack.Inventory.GroupBy(i => i.Category).OrderBy(g => g.Key);
-
-                foreach (var group in grouped)
-                {
-                    backpackContent.Children.Add(new TextBlock
-                    {
-                        Text = group.Key,
-                        FontWeight = FontWeights.Bold,
-                        Foreground = GetBodyBrush(),
-                        Margin = new Thickness(0, 10, 0, 4)
-                    });
-
-                    foreach (var item in group.OrderByDescending(i => i.Count))
-                    {
-                        backpackContent.Children.Add(new TextBlock
-                        {
-                            Text = $"{item.Name_Localised ?? item.Name}: {item.Count}",
-                            FontSize = 18,
-                            Margin = new Thickness(10, 0, 0, 2),
-                            Foreground = GetBodyBrush()
-                        });
-                    }
-                }
-            }
-
-            // Fleet Carrier Materials
-            fcMaterialsContent.Children.Clear();
-            if (display.ShowFCMaterials && materials?.Materials != null)
-            {
-                foreach (var item in materials.Materials.OrderByDescending(i => i.Count))
-                {
-                    fcMaterialsContent.Children.Add(new TextBlock
-                    {
-                        Text = $"{item.Name_Localised ?? item.Name}: {item.Count}",
-                        FontSize = 18,
-                        Foreground = GetBodyBrush()
-                    });
-                }
-            }
-
-            // Nav Route
-            routeContent.Children.Clear();
-            if (display.ShowRoute && route?.Route?.Any() == true)
-            {
-                foreach (var jump in route.Route)
-                {
-                    routeContent.Children.Add(new TextBlock
-                    {
-                        Text = $"{jump.StarSystem} ({jump.StarClass})",
-                        FontSize = 24,
-                        Margin = new Thickness(8, 0, 0, 2),
-                        Foreground = GetBodyBrush()
-                    });
-                }
-            }
-            // Repeat similar logic for Backpack, Materials, Ship Modules, Nav Route, etc.
-            // (copy your existing, working implementation here)
+            UpdateSummaryCard();
+            UpdateCargoCard(status);
+            UpdateBackpackCard(status);
+            UpdateModulesCard(status);
+            UpdateMaterialsCard();
+            UpdateRouteCard();
+            UpdateFuelDisplay(status);
         });
     }
 
+    #region cards
+
+    private void UpdateCargoCard(StatusJson status)
+    {
+        cargoContent.Children.Clear();
+        bool showCargo = status.Flags.HasFlag(Flag.InSRV) || status.Flags.HasFlag(Flag.InMainShip);
+        cargoContent.Visibility = showCargo ? Visibility.Visible : Visibility.Collapsed;
+
+        if (!showCargo || gameState.CurrentCargo?.Inventory == null) return;
+
+        foreach (var item in gameState.CurrentCargo.Inventory.OrderByDescending(i => i.Count))
+        {
+            cargoContent.Children.Add(new TextBlock
+            {
+                Text = $"{item.Name}: {item.Count}",
+                Foreground = GetBodyBrush(),
+                FontSize = 20
+            });
+        }
+    }
+    private void UpdateBackpackCard(StatusJson status)
+    {
+        backpackContent.Children.Clear();
+        bool showBackpack = status.Flags.HasFlag(Flag.OnFoot);
+        backpackContent.Visibility = showBackpack ? Visibility.Visible : Visibility.Collapsed;
+
+        if (!showBackpack || gameState.CurrentBackpack?.Inventory == null) return;
+
+        var grouped = gameState.CurrentBackpack.Inventory.GroupBy(i => i.Category).OrderBy(g => g.Key);
+
+        foreach (var group in grouped)
+        {
+            backpackContent.Children.Add(new TextBlock
+            {
+                Text = group.Key,
+                FontWeight = FontWeights.Bold,
+                Foreground = GetBodyBrush(),
+                Margin = new Thickness(0, 10, 0, 4)
+            });
+
+            foreach (var item in group.OrderByDescending(i => i.Count))
+            {
+                backpackContent.Children.Add(new TextBlock
+                {
+                    Text = $"{item.Name_Localised ?? item.Name}: {item.Count}",
+                    FontSize = 18,
+                    Margin = new Thickness(10, 0, 0, 2),
+                    Foreground = GetBodyBrush()
+                });
+            }
+        }
+    }
+    private void UpdateModulesCard(StatusJson status)
+    {
+        modulesContent.Children.Clear();
+        bool showModules = !status.Flags.HasFlag(Flag.OnFoot) &&
+                           !status.Flags.HasFlag(Flag.InSRV) &&
+                           !status.Flags.HasFlag(Flag.InFighter);
+        modulesContent.Visibility = showModules ? Visibility.Visible : Visibility.Collapsed;
+
+        if (!showModules || gameState.CurrentLoadout?.Modules == null) return;
+
+        foreach (var module in gameState.CurrentLoadout.Modules.OrderByDescending(m => m.Health))
+        {
+            modulesContent.Children.Add(new TextBlock
+            {
+                Text = $"{module.Slot}: {module.ItemLocalised ?? module.Item} ({module.Health:P0})",
+                FontSize = 20,
+                Foreground = GetBodyBrush()
+            });
+        }
+    }
+    private void UpdateSummaryCard()
+    {
+        SetOrUpdateSummaryText("Commander", $"Commander: {gameState?.CommanderName ?? "(Unknown)"}");
+        SetOrUpdateSummaryText("System", $"System: {gameState?.CurrentSystem ?? "(Unknown)"}");
+
+        if (!string.IsNullOrEmpty(gameState?.ShipName) || !string.IsNullOrEmpty(gameState?.ShipLocalised))
+        {
+            var shipLabel = $"Ship: {gameState.UserShipName ?? gameState.ShipName}";
+            if (!string.IsNullOrEmpty(gameState.UserShipId))
+                shipLabel += $" [{gameState.UserShipId}]";
+            shipLabel += $"\nType: {gameState.ShipLocalised}";
+            SetOrUpdateSummaryText("Ship", shipLabel);
+        }
+
+        if (gameState.Balance.HasValue)
+            SetOrUpdateSummaryText("Balance", $"Balance: {gameState.Balance.Value:N0} CR");
+
+        if (!string.IsNullOrEmpty(gameState?.SquadronName))
+            SetOrUpdateSummaryText("Squadron", $"Squadron: {gameState.SquadronName}");
+
+        if (gameState?.JumpCountdown != null && gameState.JumpCountdown.Value.TotalSeconds > 0)
+        {
+            string countdownText = gameState.JumpCountdown.Value.ToString(@"mm\:ss");
+            SetOrUpdateSummaryText("CarrierJumpCountdown", $"Carrier Jump In: {countdownText}");
+        }
+
+        if (gameState.IsOverheating)
+            SetOrUpdateSummaryText("OverheatWarning", "WARNING: Ship Overheating!");
+    }
+    private void UpdateMaterialsCard()
+    {
+        fcMaterialsContent.Children.Clear();
+        fcMaterialsContent.Visibility = gameState.CurrentMaterials?.Materials != null
+            ? Visibility.Visible : Visibility.Collapsed;
+
+        if (gameState.CurrentMaterials?.Materials == null) return;
+
+        foreach (var item in gameState.CurrentMaterials.Materials.OrderByDescending(i => i.Count))
+        {
+            fcMaterialsContent.Children.Add(new TextBlock
+            {
+                Text = $"{item.Name_Localised ?? item.Name}: {item.Count}",
+                FontSize = 18,
+                Foreground = GetBodyBrush()
+            });
+        }
+    }
+    private void UpdateRouteCard()
+    {
+        routeContent.Children.Clear();
+        routeContent.Visibility = gameState.CurrentRoute?.Route?.Any() == true
+            ? Visibility.Visible : Visibility.Collapsed;
+
+        if (gameState.CurrentRoute?.Route == null) return;
+
+        foreach (var jump in gameState.CurrentRoute.Route)
+        {
+            routeContent.Children.Add(new TextBlock
+            {
+                Text = $"{jump.StarSystem} ({jump.StarClass})",
+                FontSize = 24,
+                Margin = new Thickness(8, 0, 0, 2),
+                Foreground = GetBodyBrush()
+            });
+        }
+    }
+    private void UpdateFuelDisplay(StatusJson status)
+    {
+        if (status?.Fuel == null)
+        {
+            fuelBar.Visibility = Visibility.Collapsed;
+            fuelText.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        fuelBar.Visibility = Visibility.Visible;
+        fuelText.Visibility = Visibility.Visible;
+
+        double newValue = Math.Round(status.Fuel.FuelMain, 2);
+        if (Math.Abs(lastFuelValue - newValue) > 0.01)
+        {
+            fuelBar.BeginAnimation(System.Windows.Controls.Primitives.RangeBase.ValueProperty, null);
+            fuelBar.Value = newValue;
+            lastFuelValue = newValue;
+        }
+
+        fuelText.Text = $"Fuel: Main {newValue:0.00} / Reserve {status.Fuel.FuelReservoir:0.00}";
+    }
+
+
+    #endregion cards
 
     private Brush GetBodyBrush() => (Brush)System.Windows.Application.Current.Resources["MaterialDesignBody"];
 
@@ -348,20 +382,17 @@ public partial class MainWindow : Window
         MainGrid.Children.Clear();
         MainGrid.ColumnDefinitions.Clear();
 
-        var display = appSettings.DisplayOptions;
         var panelsToDisplay = new List<UIElement>();
 
+        // Always displayed panels
         panelsToDisplay.Add(CreateCard("Summary", summaryContent));
-        if (display.ShowCargo)
-            panelsToDisplay.Add(CreateCard("Cargo", cargoContent));
-        if (display.ShowBackpack)
-            panelsToDisplay.Add(CreateCard("Backpack", backpackContent));
-        if (display.ShowFCMaterials)
-            panelsToDisplay.Add(CreateCard("Fleet Carrier Materials", fcMaterialsContent));
-        if (display.ShowRoute)
-            panelsToDisplay.Add(CreateCard("Nav Route", routeContent));
 
-        panelsToDisplay.Add(CreateCard("Ship Modules", modulesContent));
+        // Dynamically controlled panels
+        panelsToDisplay.Add(CreateCard("Cargo", cargoContent)); // Visibility set dynamically
+        panelsToDisplay.Add(CreateCard("Backpack", backpackContent)); // Visibility set dynamically
+        panelsToDisplay.Add(CreateCard("Fleet Carrier Materials", fcMaterialsContent));
+        panelsToDisplay.Add(CreateCard("Nav Route", routeContent));
+        panelsToDisplay.Add(CreateCard("Ship Modules", modulesContent)); // Visibility set dynamically
 
         int maxColumns = 6;
         for (int i = 0; i < Math.Min(panelsToDisplay.Count, maxColumns); i++)
@@ -373,6 +404,7 @@ public partial class MainWindow : Window
             MainGrid.Children.Add(panelsToDisplay[i]);
         }
     }
+
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
         var allScreens = Screen.AllScreens.ToList();
