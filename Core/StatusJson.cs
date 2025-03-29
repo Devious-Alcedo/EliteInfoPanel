@@ -34,6 +34,7 @@ namespace EliteInfoPanel.Core
         FSDCooldown = 1 << 18,
         LowFuel = 1 << 19,
         OverHeating = 1 << 20,
+        OnFoot = 1 << 27,
         HasLatLong = 1 << 21,
         IsInDanger = 1 << 22,
         BeingInterdicted = 1 << 23,

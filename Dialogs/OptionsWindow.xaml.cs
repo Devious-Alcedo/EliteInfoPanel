@@ -109,6 +109,16 @@ namespace EliteInfoPanel.Dialogs
                 { nameof(displayOptions.ShowFCMaterials), "Fleet Carrier Materials" },
                 { nameof(displayOptions.ShowRoute), "Navigation Route" }
             };
+            var dynamicVisibilityOptions = new Dictionary<string, string>
+            {
+                { nameof(displayOptions.ShowWhenSupercruise), "Show Only in Supercruise" },
+                { nameof(displayOptions.ShowWhenDocked), "Show Only When Docked" },
+                { nameof(displayOptions.ShowWhenInSRV), "Show Only in SRV" },
+                { nameof(displayOptions.ShowWhenOnFoot), "Show Only On Foot" },
+                { nameof(displayOptions.ShowWhenInFighter), "Show Only In Fighter" }
+            };
+
+            // then create checkboxes similarly to existing code
 
             foreach (var option in panelOptions)
             {

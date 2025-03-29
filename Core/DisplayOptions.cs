@@ -38,6 +38,12 @@ namespace EliteInfoPanel.Core
         #endregion
 
         #region Public Properties
+        // Example additional properties
+        public bool ShowWhenSupercruise { get; set; }
+        public bool ShowWhenDocked { get; set; }
+        public bool ShowWhenInSRV { get; set; }
+        public bool ShowWhenOnFoot { get; set; }
+        public bool ShowWhenInFighter { get; set; }
 
         public bool ShowBackpack
         {

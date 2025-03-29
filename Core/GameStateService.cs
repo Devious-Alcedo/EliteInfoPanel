@@ -1,12 +1,10 @@
 ﻿using EliteInfoPanel.Core.EliteInfoPanel.Core;
-using System;
-using System.Collections.Generic;
+
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Text;
+
 using System.Text.Json;
-using System.Threading.Tasks;
+
 
 namespace EliteInfoPanel.Core
 {
@@ -75,48 +73,11 @@ namespace EliteInfoPanel.Core
                 var materialsPath = Path.Combine(gamePath, "FCMaterials.json");
                 var routePath = Path.Combine(gamePath, "NavRoute.json");
 
-                if (File.Exists(statusPath))
-                {
-                    using var fs = new FileStream(statusPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                    using var reader = new StreamReader(fs);
-                    string json = reader.ReadToEnd();
-                    CurrentStatus = JsonSerializer.Deserialize<StatusJson>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                }
-
-
-                if (File.Exists(cargoPath)) { 
-                    using var carfs = new FileStream(cargoPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                    using var reader = new StreamReader(carfs);
-                    string json = reader.ReadToEnd();
-                CurrentCargo = JsonSerializer.Deserialize<CargoJson>(File.ReadAllText(cargoPath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                }
-
-                if (File.Exists(backpackPath))
-                {
-                    {
-                        using var backfs = new FileStream(backpackPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                        using var reader = new StreamReader(backfs);
-                        string json = reader.ReadToEnd();
-                        CurrentBackpack = JsonSerializer.Deserialize<BackpackJson>(File.ReadAllText(backpackPath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                    }
-                }
-
-
-                if (File.Exists(materialsPath))
-                {
-                    using var matfs = new FileStream(materialsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                    using var reader = new StreamReader(matfs);
-                    string json = reader.ReadToEnd();
-                    CurrentMaterials = JsonSerializer.Deserialize<FCMaterialsJson>(File.ReadAllText(materialsPath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                }
-
-                if (File.Exists(routePath))
-                {
-                    using var routefs = new FileStream(routePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                    using var reader = new StreamReader(routefs);
-                    string json = reader.ReadToEnd();
-                    CurrentRoute = JsonSerializer.Deserialize<NavRouteJson>(File.ReadAllText(routePath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                    }
+                CurrentStatus = DeserializeJsonFile<StatusJson>(statusPath);
+                CurrentCargo = DeserializeJsonFile<CargoJson>(cargoPath);
+                CurrentBackpack = DeserializeJsonFile<BackpackJson>(backpackPath);
+                CurrentMaterials = DeserializeJsonFile<FCMaterialsJson>(materialsPath);
+                CurrentRoute = DeserializeJsonFile<NavRouteJson>(routePath);
 
                 var latestJournal = Directory.GetFiles(gamePath, "Journal.*.log")
                     .OrderByDescending(File.GetLastWriteTime)
@@ -124,83 +85,68 @@ namespace EliteInfoPanel.Core
 
                 if (!string.IsNullOrEmpty(latestJournal))
                 {
-                    using var fs = new FileStream(latestJournal, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                    using var sr = new StreamReader(fs);
-                    var lines = new List<string>();
-
-                    while (!sr.EndOfStream)
+                    try
                     {
-                        lines.Add(sr.ReadLine());
-                    }
+                        using var fs = new FileStream(latestJournal, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                        using var sr = new StreamReader(fs);
 
-                    foreach (var line in lines.AsEnumerable().Reverse())
-                    {
-                        if (line.Contains("\"event\":\"Commander\""))
+                        var lines = new List<string>();
+                        while (!sr.EndOfStream)
+                            lines.Add(sr.ReadLine());
+
+                        foreach (var line in lines.AsEnumerable().Reverse())
                         {
-                            var entry = JsonSerializer.Deserialize<JournalEntry>(line, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                            if (entry?.@event == "Commander")
+                            if (line.Contains("\"event\":\"Commander\""))
                             {
-                                CommanderName = entry.Name;
+                                var entry = JsonSerializer.Deserialize<JournalEntry>(line);
+                                CommanderName = entry?.Name ?? CommanderName;
                             }
-                        }
-                        else if (line.Contains("\"event\":\"LoadGame\""))
-                        {
-                            var entry = JsonSerializer.Deserialize<JournalEntry>(line, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                            if (entry?.@event == "LoadGame")
+                            else if (line.Contains("\"event\":\"LoadGame\""))
                             {
-                                if (!string.IsNullOrWhiteSpace(entry.Ship_Localised))
-                                {
-                                    ShipLocalised = entry.Ship_Localised;
-                                }
-                                ShipName = entry.Ship;
+                                var entry = JsonSerializer.Deserialize<JournalEntry>(line);
+                                ShipLocalised = entry?.Ship_Localised ?? ShipLocalised;
+                                ShipName = entry?.Ship ?? ShipName;
                             }
-                        }
-                        else if (line.Contains("\"event\":\"CarrierJumpRequest\""))
-                        {
-                            using var doc = JsonDocument.Parse(line);
-                            if (doc.RootElement.TryGetProperty("DepartureTime", out var departureTime))
+                            else if (line.Contains("\"event\":\"CarrierJumpRequest\""))
                             {
-                                if (DateTime.TryParse(departureTime.GetString(), out var dt))
+                                using var doc = JsonDocument.Parse(line);
+                                if (doc.RootElement.TryGetProperty("DepartureTime", out var departureTime))
                                 {
-                                    FleetCarrierJumpTime = dt;
+                                    if (DateTime.TryParse(departureTime.GetString(), out var dt))
+                                        FleetCarrierJumpTime = dt;
                                 }
                             }
-                        }
-                        else if (line.Contains("\"event\":\"Location\""))
-                        {
-                            using var doc = JsonDocument.Parse(line);
-                            if (doc.RootElement.TryGetProperty("StarSystem", out var sys))
+                            else if (line.Contains("\"event\":\"Location\""))
                             {
-                                CurrentSystem = sys.GetString();
+                                using var doc = JsonDocument.Parse(line);
+                                if (doc.RootElement.TryGetProperty("StarSystem", out var sys))
+                                    CurrentSystem = sys.GetString();
                             }
-                        }
-
-                        else if (line.Contains("\"event\":\"SquadronStartup\""))
-                        {
-                            using var doc = JsonDocument.Parse(line);
-                            if (doc.RootElement.TryGetProperty("SquadronName", out var squad))
+                            else if (line.Contains("\"event\":\"SquadronStartup\""))
                             {
-                                SquadronName = squad.GetString();
+                                using var doc = JsonDocument.Parse(line);
+                                if (doc.RootElement.TryGetProperty("SquadronName", out var squad))
+                                    SquadronName = squad.GetString();
                             }
-                        }
-
-                        else if (line.Contains("\"event\":\"Loadout\""))
-                        {
-                            var loadout = JsonSerializer.Deserialize<LoadoutJson>(line, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                            if (loadout != null)
+                            else if (line.Contains("\"event\":\"Loadout\""))
                             {
+                                var loadout = JsonSerializer.Deserialize<LoadoutJson>(line);
                                 CurrentLoadout = loadout;
-                                UserShipName = loadout.ShipName;
-                                UserShipId = loadout.ShipIdent;
+                                UserShipName = loadout?.ShipName;
+                                UserShipId = loadout?.ShipIdent;
                             }
+
+                            if (CommanderName != null && ShipLocalised != null && FleetCarrierJumpTime.HasValue)
+                                break;
                         }
-
-
-
-
-
-                        if (CommanderName != null && ShipLocalised != null && FleetCarrierJumpTime.HasValue)
-                            break;
+                    }
+                    catch (IOException ex)
+                    {
+                        Debug.WriteLine($"Journal file locked or unavailable temporarily: {ex.Message}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error parsing journal: {ex.Message}");
                     }
                 }
             }
@@ -209,6 +155,33 @@ namespace EliteInfoPanel.Core
                 Debug.WriteLine("Exception in LoadData: " + ex);
             }
         }
+
+        private T DeserializeJsonFile<T>(string filePath) where T : class
+        {
+            try
+            {
+                if (!File.Exists(filePath)) return null;
+
+                using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                if (stream.Length == 0) return null;
+
+                using var reader = new StreamReader(stream);
+                string json = reader.ReadToEnd();
+
+                if (string.IsNullOrWhiteSpace(json))
+                    return null;
+
+                return JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to deserialize {filePath}: {ex}");
+                return null;
+            }
+        }
+
+       
+
     }
 }
 
