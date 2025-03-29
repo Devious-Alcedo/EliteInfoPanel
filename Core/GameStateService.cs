@@ -1,5 +1,5 @@
 ﻿using EliteInfoPanel.Core.EliteInfoPanel.Core;
-
+using Serilog;
 using System.Diagnostics;
 using System.IO;
 
@@ -79,6 +79,9 @@ namespace EliteInfoPanel.Core
                 CurrentMaterials = DeserializeJsonFile<FCMaterialsJson>(materialsPath);
                 CurrentRoute = DeserializeJsonFile<NavRouteJson>(routePath);
 
+                Log.Debug("Raw Status.json: {RawStatus}", File.ReadAllText(statusPath));
+                Log.Debug("Parsed CurrentStatus.Flags: {Flags}", CurrentStatus?.Flags);
+
                 var latestJournal = Directory.GetFiles(gamePath, "Journal.*.log")
                     .OrderByDescending(File.GetLastWriteTime)
                     .FirstOrDefault();
@@ -142,19 +145,20 @@ namespace EliteInfoPanel.Core
                     }
                     catch (IOException ex)
                     {
-                        Debug.WriteLine($"Journal file locked or unavailable temporarily: {ex.Message}");
+                        Log.Warning("Journal file temporarily locked or unavailable: {Message}", ex.Message);
                     }
                     catch (Exception ex)
                     {
-                        Debug.WriteLine($"Error parsing journal: {ex.Message}");
+                        Log.Error(ex, "Error parsing journal file.");
                     }
                 }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine("Exception in LoadData: " + ex);
+                Log.Error(ex, "Exception in LoadData");
             }
         }
+
 
         private T DeserializeJsonFile<T>(string filePath) where T : class
         {
