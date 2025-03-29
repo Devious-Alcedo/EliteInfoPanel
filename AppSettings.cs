@@ -10,6 +10,8 @@ namespace EliteInfoPanel
     public class AppSettings
     {
         public string? SelectedScreenId { get; set; }
+        public string? LastOptionsScreenId { get; set; }
+
         public DisplayOptions DisplayOptions { get; set; } = new DisplayOptions();
     }
 

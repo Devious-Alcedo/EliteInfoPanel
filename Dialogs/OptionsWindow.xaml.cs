@@ -19,20 +19,32 @@ namespace EliteInfoPanel.Dialogs
         {
             InitializeComponent();
 
-            // Setup Serilog for logging
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Debug()
                 .WriteTo.File("EliteInfoPanel.log", rollingInterval: RollingInterval.Day)
                 .CreateLogger();
-
-            // Center window on screen
-            WindowStartupLocation = WindowStartupLocation.CenterScreen;
 
             Settings = SettingsManager.Load();
             Settings.DisplayOptions ??= new DisplayOptions();
             Settings.DisplayOptions.VisibleFlags ??= new List<Flag>();
 
             Log.Information("Loaded settings: {@Settings}", Settings);
+
+            // Determine which screen to open on
+            var mainWindowHandle = new System.Windows.Interop.WindowInteropHelper(System.Windows.Application.Current.MainWindow).Handle;
+            var mainScreen = WpfScreenHelper.Screen.FromHandle(mainWindowHandle);
+            var allScreens = WpfScreenHelper.Screen.AllScreens;
+
+            // Try to restore last used screen
+            var targetScreen = allScreens.FirstOrDefault(s => s.DeviceName == Settings.LastOptionsScreenId);
+
+            // If not found or not valid, choose a different one than main, or fallback to main
+            if (targetScreen == null || targetScreen.DeviceName == mainScreen.DeviceName)
+                targetScreen = allScreens.FirstOrDefault(s => s.DeviceName != mainScreen.DeviceName) ?? mainScreen;
+
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            this.Left = targetScreen.WpfBounds.Left + (targetScreen.WpfBounds.Width - this.Width) / 2;
+            this.Top = targetScreen.WpfBounds.Top + (targetScreen.WpfBounds.Height - this.Height) / 2;
 
             DataContext = Settings.DisplayOptions;
 
@@ -42,6 +54,7 @@ namespace EliteInfoPanel.Dialogs
                 PopulateFlagOptions();
             };
         }
+
 
         private void PopulateDisplayOptions()
         {
@@ -128,6 +141,9 @@ namespace EliteInfoPanel.Dialogs
 
         private void OkButton_Click(object sender, RoutedEventArgs e)
         {
+            var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            var currentScreen = WpfScreenHelper.Screen.FromHandle(handle);
+            Settings.LastOptionsScreenId = currentScreen.DeviceName;
             foreach (var kvp in flagCheckBoxes)
             {
                 var flag = kvp.Key;
