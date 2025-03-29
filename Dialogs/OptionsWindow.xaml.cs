@@ -3,6 +3,9 @@ using System.Windows.Controls;
 using EliteInfoPanel.Core;
 using System.Collections.Generic;
 using System.Linq;
+using Serilog;
+using Serilog.Events;
+using Serilog.Sinks.File;
 
 namespace EliteInfoPanel.Dialogs
 {
@@ -16,12 +19,20 @@ namespace EliteInfoPanel.Dialogs
         {
             InitializeComponent();
 
+            // Setup Serilog for logging
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Debug()
+                .WriteTo.File("EliteInfoPanel.log", rollingInterval: RollingInterval.Day)
+                .CreateLogger();
+
             // Center window on screen
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
 
             Settings = SettingsManager.Load();
-            if (Settings.DisplayOptions.VisibleFlags == null)
-                Settings.DisplayOptions.VisibleFlags = new List<Flag>();
+            Settings.DisplayOptions ??= new DisplayOptions();
+            Settings.DisplayOptions.VisibleFlags ??= new List<Flag>();
+
+            Log.Information("Loaded settings: {@Settings}", Settings);
 
             DataContext = Settings.DisplayOptions;
 
@@ -39,36 +50,33 @@ namespace EliteInfoPanel.Dialogs
             displayPanel.Children.Clear();
 
             var displayOptions = Settings.DisplayOptions;
-            var panelOptions = new Dictionary<string, bool>
+            var panelOptions = new Dictionary<string, string>
             {
-                { nameof(displayOptions.ShowCommanderName), displayOptions.ShowCommanderName },
-                { nameof(displayOptions.ShowFuelLevel), displayOptions.ShowFuelLevel },
-                { nameof(displayOptions.ShowCargo), displayOptions.ShowCargo },
-                { nameof(displayOptions.ShowBackpack), displayOptions.ShowBackpack },
-                { nameof(displayOptions.ShowFCMaterials), displayOptions.ShowFCMaterials },
-                { nameof(displayOptions.ShowRoute), displayOptions.ShowRoute }
+                { nameof(displayOptions.ShowCommanderName), "Commander Name" },
+                { nameof(displayOptions.ShowFuelLevel), "Fuel Level" },
+                { nameof(displayOptions.ShowCargo), "Cargo" },
+                { nameof(displayOptions.ShowBackpack), "Backpack" },
+                { nameof(displayOptions.ShowFCMaterials), "Fleet Carrier Materials" },
+                { nameof(displayOptions.ShowRoute), "Navigation Route" }
             };
 
             foreach (var option in panelOptions)
             {
+                var prop = typeof(DisplayOptions).GetProperty(option.Key);
+                bool value = (bool)(prop?.GetValue(displayOptions) ?? false);
+
+                Log.Debug("Loading DisplayOption {Option}: {Value}", option.Key, value);
+
                 var checkbox = new CheckBox
                 {
-                    Content = option.Key.Replace("Show", "Show "),
-                    IsChecked = option.Value,
+                    Content = option.Value,
+                    IsChecked = value,
                     Margin = new Thickness(5),
                     Tag = option.Key
                 };
 
-                checkbox.Checked += (s, e) =>
-                {
-                    var prop = typeof(DisplayOptions).GetProperty(option.Key);
-                    if (prop != null) prop.SetValue(displayOptions, true);
-                };
-                checkbox.Unchecked += (s, e) =>
-                {
-                    var prop = typeof(DisplayOptions).GetProperty(option.Key);
-                    if (prop != null) prop.SetValue(displayOptions, false);
-                };
+                checkbox.Checked += (s, e) => prop?.SetValue(displayOptions, true);
+                checkbox.Unchecked += (s, e) => prop?.SetValue(displayOptions, false);
 
                 displayPanel.Children.Add(checkbox);
             }
@@ -87,10 +95,13 @@ namespace EliteInfoPanel.Dialogs
             {
                 if (flag == Flag.None) continue;
 
+                var isChecked = visibleFlags.Contains(flag);
+                Log.Debug("Loading FlagOption {Flag}: {Checked}", flag, isChecked);
+
                 var checkBox = new CheckBox
                 {
                     Content = flag.ToString().Replace("_", " "),
-                    IsChecked = visibleFlags.Contains(flag),
+                    IsChecked = isChecked,
                     Margin = new Thickness(5),
                     Tag = flag
                 };
@@ -105,20 +116,18 @@ namespace EliteInfoPanel.Dialogs
 
         private void UpdateFlagSetting(Flag flag, bool isChecked)
         {
-            if (Settings.DisplayOptions.VisibleFlags == null)
-                Settings.DisplayOptions.VisibleFlags = new List<Flag>();
-
             var visibleFlags = Settings.DisplayOptions.VisibleFlags;
 
             if (isChecked && !visibleFlags.Contains(flag))
                 visibleFlags.Add(flag);
             else if (!isChecked && visibleFlags.Contains(flag))
                 visibleFlags.Remove(flag);
+
+            Log.Information("Flag {Flag} set to {Checked}", flag, isChecked);
         }
 
         private void OkButton_Click(object sender, RoutedEventArgs e)
         {
-            // Ensure we sync checkbox states before saving
             foreach (var kvp in flagCheckBoxes)
             {
                 var flag = kvp.Key;
@@ -126,6 +135,7 @@ namespace EliteInfoPanel.Dialogs
                 UpdateFlagSetting(flag, isChecked);
             }
 
+            Log.Information("Saving settings: {@Settings}", Settings);
             SettingsManager.Save(Settings);
             DialogResult = true;
             Close();

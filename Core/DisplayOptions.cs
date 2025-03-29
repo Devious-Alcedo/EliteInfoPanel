@@ -1,4 +1,5 @@
-﻿using System.ComponentModel;
+﻿using System.Collections.Generic;
+using System.ComponentModel;
 
 namespace EliteInfoPanel.Core
 {
@@ -7,27 +8,34 @@ namespace EliteInfoPanel.Core
         #region Private Fields
 
         private bool showBackpack;
-
         private bool showCargo;
-
         private bool showCommanderName;
-
         private bool showFuelLevel;
-
         private bool showRoute;
-
         private bool showShipInfo;
-
+        private bool enableDynamicViewMode;
         private List<Flag> visibleFlags = new();
 
-        #endregion Private Fields
+        private bool showFlag_ShieldsUp;
+        private bool showFlag_Supercruise;
+        private bool showFlag_HardpointsDeployed;
+        private bool showFlag_SilentRunning;
+        private bool showFlag_Docked;
+        private bool showFlag_CargoScoopDeployed;
+        private bool showFlag_FlightAssistOff;
+        private bool showFlag_NightVision;
+        private bool showFlag_Overheating;
+        private bool showFlag_LowFuel;
+        private bool showFlag_MassLocked;
+        private bool showFlag_LandingGear;
 
+        #endregion
 
         #region Public Events
 
         public event PropertyChangedEventHandler PropertyChanged;
 
-        #endregion Public Events
+        #endregion
 
         #region Public Properties
 
@@ -50,20 +58,11 @@ namespace EliteInfoPanel.Core
         }
 
         public bool ShowFCMaterials { get; set; } = true;
+
         public bool ShowFuelLevel
         {
             get => showFuelLevel;
             set { showFuelLevel = value; OnPropertyChanged(nameof(ShowFuelLevel)); }
-        }
-
-        public List<Flag> VisibleFlags
-        {
-            get => visibleFlags;
-            set
-            {
-                visibleFlags = value;
-                OnPropertyChanged(nameof(VisibleFlags));
-            }
         }
 
         public bool ShowRoute
@@ -77,15 +76,98 @@ namespace EliteInfoPanel.Core
             get => showShipInfo;
             set { showShipInfo = value; OnPropertyChanged(nameof(ShowShipInfo)); }
         }
-       
 
-        #endregion Public Properties
+        public bool EnableDynamicViewMode
+        {
+            get => enableDynamicViewMode;
+            set { enableDynamicViewMode = value; OnPropertyChanged(nameof(EnableDynamicViewMode)); }
+        }
+
+        public List<Flag> VisibleFlags
+        {
+            get => visibleFlags;
+            set { visibleFlags = value; OnPropertyChanged(nameof(VisibleFlags)); }
+        }
+
+        public bool ShowFlag_ShieldsUp
+        {
+            get => showFlag_ShieldsUp;
+            set { showFlag_ShieldsUp = value; OnPropertyChanged(nameof(ShowFlag_ShieldsUp)); }
+        }
+
+        public bool ShowFlag_Supercruise
+        {
+            get => showFlag_Supercruise;
+            set { showFlag_Supercruise = value; OnPropertyChanged(nameof(ShowFlag_Supercruise)); }
+        }
+
+        public bool ShowFlag_HardpointsDeployed
+        {
+            get => showFlag_HardpointsDeployed;
+            set { showFlag_HardpointsDeployed = value; OnPropertyChanged(nameof(ShowFlag_HardpointsDeployed)); }
+        }
+
+        public bool ShowFlag_SilentRunning
+        {
+            get => showFlag_SilentRunning;
+            set { showFlag_SilentRunning = value; OnPropertyChanged(nameof(ShowFlag_SilentRunning)); }
+        }
+
+        public bool ShowFlag_Docked
+        {
+            get => showFlag_Docked;
+            set { showFlag_Docked = value; OnPropertyChanged(nameof(ShowFlag_Docked)); }
+        }
+
+        public bool ShowFlag_CargoScoopDeployed
+        {
+            get => showFlag_CargoScoopDeployed;
+            set { showFlag_CargoScoopDeployed = value; OnPropertyChanged(nameof(ShowFlag_CargoScoopDeployed)); }
+        }
+
+        public bool ShowFlag_FlightAssistOff
+        {
+            get => showFlag_FlightAssistOff;
+            set { showFlag_FlightAssistOff = value; OnPropertyChanged(nameof(ShowFlag_FlightAssistOff)); }
+        }
+
+        public bool ShowFlag_NightVision
+        {
+            get => showFlag_NightVision;
+            set { showFlag_NightVision = value; OnPropertyChanged(nameof(ShowFlag_NightVision)); }
+        }
+
+        public bool ShowFlag_Overheating
+        {
+            get => showFlag_Overheating;
+            set { showFlag_Overheating = value; OnPropertyChanged(nameof(ShowFlag_Overheating)); }
+        }
+
+        public bool ShowFlag_LowFuel
+        {
+            get => showFlag_LowFuel;
+            set { showFlag_LowFuel = value; OnPropertyChanged(nameof(ShowFlag_LowFuel)); }
+        }
+
+        public bool ShowFlag_MassLocked
+        {
+            get => showFlag_MassLocked;
+            set { showFlag_MassLocked = value; OnPropertyChanged(nameof(ShowFlag_MassLocked)); }
+        }
+
+        public bool ShowFlag_LandingGear
+        {
+            get => showFlag_LandingGear;
+            set { showFlag_LandingGear = value; OnPropertyChanged(nameof(ShowFlag_LandingGear)); }
+        }
+
+        #endregion
 
         #region Protected Methods
 
         protected void OnPropertyChanged(string propertyName)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
-        #endregion Protected Methods
+        #endregion
     }
 }

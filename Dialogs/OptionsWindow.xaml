@@ -2,11 +2,10 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
-        Title="Options" Height="546" Width="426"
+        Title="Options" Height="546" Width="479"
         WindowStartupLocation="Manual"
         Background="{DynamicResource MaterialDesignPaper}"
         WindowStyle="SingleBorderWindow"
-        
         TextOptions.TextFormattingMode="Ideal"
         TextElement.Foreground="{DynamicResource MaterialDesign.Brush.Foreground}"
         FontFamily="{materialDesign:MaterialDesignFont}"
@@ -30,7 +29,7 @@
 
             <!-- Flag Icons -->
             <GroupBox Header="Status Flags to Show" Margin="0,0,0,10">
-                <UniformGrid Columns="2">
+                <UniformGrid Columns="3">
                     <CheckBox Content="Shields Up" IsChecked="{Binding ShowFlag_ShieldsUp}"/>
                     <CheckBox Content="Supercruise" IsChecked="{Binding ShowFlag_Supercruise}"/>
                     <CheckBox Content="Hardpoints Deployed" IsChecked="{Binding ShowFlag_HardpointsDeployed}"/>
@@ -40,6 +39,9 @@
                     <CheckBox Content="Flight Assist Off" IsChecked="{Binding ShowFlag_FlightAssistOff}"/>
                     <CheckBox Content="Night Vision" IsChecked="{Binding ShowFlag_NightVision}"/>
                     <CheckBox Content="Overheating" IsChecked="{Binding ShowFlag_Overheating}"/>
+                    <CheckBox Content="Low Fuel" IsChecked="{Binding ShowFlag_LowFuel}"/>
+                    <CheckBox Content="Mass Locked" IsChecked="{Binding ShowFlag_MassLocked}"/>
+                    <CheckBox Content="Landing Gear" IsChecked="{Binding ShowFlag_LandingGear}"/>
                 </UniformGrid>
             </GroupBox>
 
@@ -47,7 +49,6 @@
             <GroupBox Header="Dynamic View Modes">
                 <StackPanel>
                     <CheckBox Content="Enable Mode-Based Display (e.g., Supercruise, Combat)" IsChecked="{Binding EnableDynamicViewMode}"/>
-                    <!-- You could add dropdowns or additional toggles per mode later -->
                 </StackPanel>
             </GroupBox>
 
@@ -58,4 +59,3 @@
         </StackPanel>
     </ScrollViewer>
 </Window>
-
