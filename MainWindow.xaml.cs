@@ -13,37 +13,54 @@ namespace EliteInfoPanel;
 
 public partial class MainWindow : Window
 {
+
+
     #region Private Fields
 
+    private readonly Dictionary<Flag, string> FlagEmojiMap = new()
+{
+    { Flag.ShieldsUp, "🛡" },
+    { Flag.Supercruise, "🚀" },
+    { Flag.HardpointsDeployed, "🔫" },
+    { Flag.SilentRunning, "🤫" },
+    { Flag.Docked, "⚓" },
+    { Flag.CargoScoopDeployed, "📦" },
+    { Flag.FlightAssistOff, "🎮" },
+    { Flag.NightVision, "🌙" },
+    { Flag.OverHeating, "🔥" }
+};
+
     private AppSettings appSettings = SettingsManager.Load();
-    private Screen screen;
-    private GameStateService gameState;
-    private JournalWatcher journalWatcher;
-
-    private StackPanel summaryContent;
-    private StackPanel cargoContent;
     private StackPanel backpackContent;
+    private StackPanel cargoContent;
     private StackPanel fcMaterialsContent;
-    private StackPanel routeContent;
-    private StackPanel modulesContent;
-    private StackPanel shipStatsContent;
-
-    private StackPanel fuelStack;
-    private TextBlock fuelText;
-    private ProgressBar fuelBar;
-
     private StackPanel flagsPanel1;
     private StackPanel flagsPanel2;
-
+    private ProgressBar fuelBar;
+    private StackPanel fuelStack;
+    private TextBlock fuelText;
+    private GameStateService gameState;
+    private JournalWatcher journalWatcher;
     private double lastFuelValue = -1;
+    private StackPanel modulesContent;
+    private StackPanel routeContent;
+    private Screen screen;
+    private StackPanel shipStatsContent;
+    private StackPanel summaryContent;
 
     #endregion Private Fields
+
+    #region Public Constructors
 
     public MainWindow()
     {
         InitializeComponent();
         Loaded += Window_Loaded;
     }
+
+    #endregion Public Constructors
+
+    #region Private Methods
 
     private void ApplyScreenBounds(Screen targetScreen)
     {
@@ -74,94 +91,6 @@ public partial class MainWindow : Window
 
         return new Card { Margin = new Thickness(5), Padding = new Thickness(5), Content = panel };
     }
-
-    private void SetupDisplayUi()
-    {
-        InitializeCards();
-
-        MainGrid.Children.Clear();
-        MainGrid.ColumnDefinitions.Clear();
-
-        var display = appSettings.DisplayOptions;
-        var panelsToDisplay = new List<UIElement>();
-
-        panelsToDisplay.Add(CreateCard("Summary", summaryContent));
-        if (display.ShowCargo)
-            panelsToDisplay.Add(CreateCard("Cargo", cargoContent));
-        if (display.ShowBackpack)
-            panelsToDisplay.Add(CreateCard("Backpack", backpackContent));
-        if (display.ShowFCMaterials)
-            panelsToDisplay.Add(CreateCard("Fleet Carrier Materials", fcMaterialsContent));
-        if (display.ShowRoute)
-            panelsToDisplay.Add(CreateCard("Nav Route", routeContent));
-
-        panelsToDisplay.Add(CreateCard("Ship Modules", modulesContent));
-
-        int maxColumns = 6;
-        for (int i = 0; i < Math.Min(panelsToDisplay.Count, maxColumns); i++)
-            MainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        for (int i = 0; i < panelsToDisplay.Count && i < maxColumns; i++)
-        {
-            Grid.SetColumn(panelsToDisplay[i], i);
-            MainGrid.Children.Add(panelsToDisplay[i]);
-        }
-    }
-
-    private void InitializeCards()
-    {
-        summaryContent ??= new StackPanel();
-        fuelStack ??= new StackPanel();
-        cargoContent ??= new StackPanel();
-        backpackContent ??= new StackPanel();
-        fcMaterialsContent ??= new StackPanel();
-        routeContent ??= new StackPanel();
-        modulesContent ??= new StackPanel();
-        shipStatsContent ??= new StackPanel();
-        flagsPanel1 ??= new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-        flagsPanel2 ??= new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 5, 0, 0) };
-
-        if (fuelText == null)
-        {
-            fuelText = new TextBlock
-            {
-                Text = "Fuel:",
-                Foreground = GetBodyBrush(),
-                FontSize = 26
-            };
-            fuelBar = new ProgressBar
-            {
-                Minimum = 0,
-                Maximum = 32,
-                Height = 34,
-                Margin = new Thickness(0, 4, 0, 0),
-                Foreground = Brushes.Orange,
-                Background = Brushes.DarkSlateGray
-            };
-            fuelStack.Children.Add(fuelText);
-            fuelStack.Children.Add(fuelBar);
-        }
-
-        if (!summaryContent.Children.Contains(fuelStack))
-            summaryContent.Children.Add(fuelStack);
-
-        if (!summaryContent.Children.Contains(flagsPanel1))
-            summaryContent.Children.Add(flagsPanel1);
-        if (!summaryContent.Children.Contains(flagsPanel2))
-            summaryContent.Children.Add(flagsPanel2);
-    }
-    private readonly Dictionary<Flag, string> FlagEmojiMap = new()
-{
-    { Flag.ShieldsUp, "🛡" },
-    { Flag.Supercruise, "🚀" },
-    { Flag.HardpointsDeployed, "🔫" },
-    { Flag.SilentRunning, "🤫" },
-    { Flag.Docked, "⚓" },
-    { Flag.CargoScoopDeployed, "📦" },
-    { Flag.FlightAssistOff, "🎮" },
-    { Flag.NightVision, "🌙" },
-    { Flag.OverHeating, "🔥" }
-};
 
     private void GameState_DataUpdated()
     {
@@ -347,8 +276,50 @@ public partial class MainWindow : Window
         });
     }
 
-
     private Brush GetBodyBrush() => (Brush)System.Windows.Application.Current.Resources["MaterialDesignBody"];
+
+    private void InitializeCards()
+    {
+        summaryContent ??= new StackPanel();
+        fuelStack ??= new StackPanel();
+        cargoContent ??= new StackPanel();
+        backpackContent ??= new StackPanel();
+        fcMaterialsContent ??= new StackPanel();
+        routeContent ??= new StackPanel();
+        modulesContent ??= new StackPanel();
+        shipStatsContent ??= new StackPanel();
+        flagsPanel1 ??= new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
+        flagsPanel2 ??= new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 5, 0, 0) };
+
+        if (fuelText == null)
+        {
+            fuelText = new TextBlock
+            {
+                Text = "Fuel:",
+                Foreground = GetBodyBrush(),
+                FontSize = 26
+            };
+            fuelBar = new ProgressBar
+            {
+                Minimum = 0,
+                Maximum = 32,
+                Height = 34,
+                Margin = new Thickness(0, 4, 0, 0),
+                Foreground = Brushes.Orange,
+                Background = Brushes.DarkSlateGray
+            };
+            fuelStack.Children.Add(fuelText);
+            fuelStack.Children.Add(fuelBar);
+        }
+
+        if (!summaryContent.Children.Contains(fuelStack))
+            summaryContent.Children.Add(fuelStack);
+
+        if (!summaryContent.Children.Contains(flagsPanel1))
+            summaryContent.Children.Add(flagsPanel1);
+        if (!summaryContent.Children.Contains(flagsPanel2))
+            summaryContent.Children.Add(flagsPanel2);
+    }
 
     private void OptionsButton_Click(object sender, RoutedEventArgs e)
     {
@@ -367,6 +338,60 @@ public partial class MainWindow : Window
         return Task.FromResult(dialog.ShowDialog() == true ? dialog.SelectedScreen : null);
     }
 
+    private void SetOrUpdateSummaryText(string key, string content, int fontSize = 24, Brush? foreground = null)
+    {
+        var existing = summaryContent.Children
+            .OfType<TextBlock>()
+            .FirstOrDefault(tb => tb.Tag?.ToString() == key);
+
+        if (existing != null)
+        {
+            existing.Text = content;
+        }
+        else
+        {
+            summaryContent.Children.Insert(0, new TextBlock
+            {
+                Text = content,
+                FontSize = fontSize,
+                Foreground = foreground ?? GetBodyBrush(),
+                Tag = key
+            });
+        }
+    }
+
+    private void SetupDisplayUi()
+    {
+        InitializeCards();
+
+        MainGrid.Children.Clear();
+        MainGrid.ColumnDefinitions.Clear();
+
+        var display = appSettings.DisplayOptions;
+        var panelsToDisplay = new List<UIElement>();
+
+        panelsToDisplay.Add(CreateCard("Summary", summaryContent));
+        if (display.ShowCargo)
+            panelsToDisplay.Add(CreateCard("Cargo", cargoContent));
+        if (display.ShowBackpack)
+            panelsToDisplay.Add(CreateCard("Backpack", backpackContent));
+        if (display.ShowFCMaterials)
+            panelsToDisplay.Add(CreateCard("Fleet Carrier Materials", fcMaterialsContent));
+        if (display.ShowRoute)
+            panelsToDisplay.Add(CreateCard("Nav Route", routeContent));
+
+        panelsToDisplay.Add(CreateCard("Ship Modules", modulesContent));
+
+        int maxColumns = 6;
+        for (int i = 0; i < Math.Min(panelsToDisplay.Count, maxColumns); i++)
+            MainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        for (int i = 0; i < panelsToDisplay.Count && i < maxColumns; i++)
+        {
+            Grid.SetColumn(panelsToDisplay[i], i);
+            MainGrid.Children.Add(panelsToDisplay[i]);
+        }
+    }
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
         var allScreens = Screen.AllScreens.ToList();
@@ -401,34 +426,22 @@ public partial class MainWindow : Window
         GameState_DataUpdated();
     }
 
-    private void SetOrUpdateSummaryText(string key, string content, int fontSize = 24, Brush? foreground = null)
-    {
-        var existing = summaryContent.Children
-            .OfType<TextBlock>()
-            .FirstOrDefault(tb => tb.Tag?.ToString() == key);
+    #endregion Private Methods
 
-        if (existing != null)
-        {
-            existing.Text = content;
-        }
-        else
-        {
-            summaryContent.Children.Insert(0, new TextBlock
-            {
-                Text = content,
-                FontSize = fontSize,
-                Foreground = foreground ?? GetBodyBrush(),
-                Tag = key
-            });
-        }
-    }
+    #region Public Classes
 
     public static class ProgressBarFix
     {
+        #region Public Methods
+
         public static void SetValueInstantly(ProgressBar bar, double value)
         {
             bar.BeginAnimation(System.Windows.Controls.Primitives.RangeBase.ValueProperty, null);
             bar.Value = value;
         }
+
+        #endregion Public Methods
     }
+
+    #endregion Public Classes
 }

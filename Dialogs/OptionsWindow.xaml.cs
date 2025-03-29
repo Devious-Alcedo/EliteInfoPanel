@@ -11,9 +11,13 @@ namespace EliteInfoPanel.Dialogs
 {
     public partial class OptionsWindow : Window
     {
-        public AppSettings Settings { get; set; }
+        #region Private Fields
 
         private Dictionary<Flag, CheckBox> flagCheckBoxes = new();
+
+        #endregion Private Fields
+
+        #region Public Constructors
 
         public OptionsWindow()
         {
@@ -55,6 +59,39 @@ namespace EliteInfoPanel.Dialogs
             };
         }
 
+        #endregion Public Constructors
+
+        #region Public Properties
+
+        public AppSettings Settings { get; set; }
+
+        #endregion Public Properties
+
+        #region Private Methods
+
+        private void CancelButton_Click(object sender, RoutedEventArgs e)
+        {
+            DialogResult = false;
+            Close();
+        }
+
+        private void OkButton_Click(object sender, RoutedEventArgs e)
+        {
+            var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            var currentScreen = WpfScreenHelper.Screen.FromHandle(handle);
+            Settings.LastOptionsScreenId = currentScreen.DeviceName;
+            foreach (var kvp in flagCheckBoxes)
+            {
+                var flag = kvp.Key;
+                var isChecked = kvp.Value.IsChecked == true;
+                UpdateFlagSetting(flag, isChecked);
+            }
+
+            Log.Information("Saving settings: {@Settings}", Settings);
+            SettingsManager.Save(Settings);
+            DialogResult = true;
+            Close();
+        }
 
         private void PopulateDisplayOptions()
         {
@@ -139,28 +176,6 @@ namespace EliteInfoPanel.Dialogs
             Log.Information("Flag {Flag} set to {Checked}", flag, isChecked);
         }
 
-        private void OkButton_Click(object sender, RoutedEventArgs e)
-        {
-            var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-            var currentScreen = WpfScreenHelper.Screen.FromHandle(handle);
-            Settings.LastOptionsScreenId = currentScreen.DeviceName;
-            foreach (var kvp in flagCheckBoxes)
-            {
-                var flag = kvp.Key;
-                var isChecked = kvp.Value.IsChecked == true;
-                UpdateFlagSetting(flag, isChecked);
-            }
-
-            Log.Information("Saving settings: {@Settings}", Settings);
-            SettingsManager.Save(Settings);
-            DialogResult = true;
-            Close();
-        }
-
-        private void CancelButton_Click(object sender, RoutedEventArgs e)
-        {
-            DialogResult = false;
-            Close();
-        }
+        #endregion Private Methods
     }
 }

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Text.Json.Serialization;
+
 namespace EliteInfoPanel.Core
 {
     [Flags]
@@ -48,22 +49,26 @@ namespace EliteInfoPanel.Core
 
     public class StatusJson
     {
-        [JsonPropertyName("Heat")]
-        public float Heat { get; set; }
+        public long Balance { get; set; }
+
         [JsonPropertyName("Flags")]
         public Flag Flags { get; set; }
 
-
         public FuelInfo Fuel { get; set; }
-         public long Balance { get; set; }
+
+        [JsonPropertyName("Heat")]
+        public float Heat { get; set; }
+
         public string ShipType { get; set; }
-        
+
         public class FuelInfo
         {
+            #region Public Properties
+
             public float FuelMain { get; set; }
             public float FuelReservoir { get; set; }
+
+            #endregion Public Properties
         }
     }
-
-
 }
