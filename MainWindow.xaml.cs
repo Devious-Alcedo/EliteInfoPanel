@@ -29,7 +29,7 @@ public partial class MainWindow : Window
     { Flag.NightVision, "🌙" },
     { Flag.OverHeating, "🔥" }
 };
-
+    private Dictionary<string, Card> cardMap = new();
     private AppSettings appSettings = SettingsManager.Load();
     private StackPanel backpackContent;
     private StackPanel cargoContent;
@@ -95,45 +95,42 @@ public partial class MainWindow : Window
 
     private void GameState_DataUpdated()
     {
+        
         Dispatcher.Invoke(() =>
         {
             var status = gameState.CurrentStatus;
+            Log.Information("Data updated: {@Status}", status);
+            bool showPanels = status != null && (
+                status.Flags.HasFlag(Flag.Docked) ||
+                status.Flags.HasFlag(Flag.Supercruise) ||
+                status.Flags.HasFlag(Flag.InSRV) ||
+                status.Flags.HasFlag(Flag.OnFoot) ||
+                status.Flags.HasFlag(Flag.InFighter));
 
-            if (status == null || !appSettings.DisplayOptions.EnableDynamicViewMode)
-            {
-                MainGrid.Visibility = Visibility.Visible;
-            }
-            else
-            {
-                bool showPanels = status.Flags.HasFlag(Flag.Docked) ||
-                                  status.Flags.HasFlag(Flag.Supercruise) ||
-                                  status.Flags.HasFlag(Flag.InSRV) ||
-                                  status.Flags.HasFlag(Flag.OnFoot) ||
-                                  status.Flags.HasFlag(Flag.InFighter);
-
-                MainGrid.Visibility = showPanels ? Visibility.Visible : Visibility.Collapsed;
-                Log.Information("MainGrid visibility set to: {Visible}", showPanels);
-
-                if (!showPanels) return;
-            }
+            MainGrid.Visibility = showPanels ? Visibility.Visible : Visibility.Collapsed;
+            Log.Information("MainGrid visibility set to: {Visible}", showPanels);
+            if (!showPanels) return;
 
             UpdateSummaryCard();
-            UpdateCargoCard(status);
-            UpdateBackpackCard(status);
-            UpdateModulesCard(status);
             UpdateMaterialsCard();
             UpdateRouteCard();
             UpdateFuelDisplay(status);
+
+            // Card-level visibility managed here
+            UpdateCargoCard(status, cardMap["Cargo"]);
+            UpdateBackpackCard(status, cardMap["Backpack"]);
+            UpdateModulesCard(status, cardMap["Ship Modules"]);
         });
     }
 
+
     #region cards
 
-    private void UpdateCargoCard(StatusJson status)
+    private void UpdateCargoCard(StatusJson status, Card cargoCard)
     {
         cargoContent.Children.Clear();
         bool showCargo = status.Flags.HasFlag(Flag.InSRV) || status.Flags.HasFlag(Flag.InMainShip);
-        cargoContent.Visibility = showCargo ? Visibility.Visible : Visibility.Collapsed;
+        cargoCard.Visibility = showCargo ? Visibility.Visible : Visibility.Collapsed;
 
         if (!showCargo || gameState.CurrentCargo?.Inventory == null) return;
 
@@ -147,58 +144,64 @@ public partial class MainWindow : Window
             });
         }
     }
-    private void UpdateBackpackCard(StatusJson status)
+    private void UpdateBackpackCard(StatusJson status, Card backpackCard)
     {
         backpackContent.Children.Clear();
-        bool showBackpack = status.Flags.HasFlag(Flag.OnFoot);
-        backpackContent.Visibility = showBackpack ? Visibility.Visible : Visibility.Collapsed;
+        bool showBackpack = status != null && status.Flags.HasFlag(Flag.OnFoot);
+        backpackCard.Visibility = showBackpack ? Visibility.Visible : Visibility.Collapsed;
 
-        if (!showBackpack || gameState.CurrentBackpack?.Inventory == null) return;
-
-        var grouped = gameState.CurrentBackpack.Inventory.GroupBy(i => i.Category).OrderBy(g => g.Key);
-
-        foreach (var group in grouped)
+        if (showBackpack && gameState.CurrentBackpack?.Inventory != null)
         {
-            backpackContent.Children.Add(new TextBlock
-            {
-                Text = group.Key,
-                FontWeight = FontWeights.Bold,
-                Foreground = GetBodyBrush(),
-                Margin = new Thickness(0, 10, 0, 4)
-            });
-
-            foreach (var item in group.OrderByDescending(i => i.Count))
+            var grouped = gameState.CurrentBackpack.Inventory.GroupBy(i => i.Category).OrderBy(g => g.Key);
+            foreach (var group in grouped)
             {
                 backpackContent.Children.Add(new TextBlock
                 {
-                    Text = $"{item.Name_Localised ?? item.Name}: {item.Count}",
-                    FontSize = 18,
-                    Margin = new Thickness(10, 0, 0, 2),
+                    Text = group.Key,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = GetBodyBrush(),
+                    Margin = new Thickness(0, 10, 0, 4)
+                });
+
+                foreach (var item in group.OrderByDescending(i => i.Count))
+                {
+                    backpackContent.Children.Add(new TextBlock
+                    {
+                        Text = $"{item.Name_Localised ?? item.Name}: {item.Count}",
+                        FontSize = 18,
+                        Margin = new Thickness(10, 0, 0, 2),
+                        Foreground = GetBodyBrush()
+                    });
+                }
+            }
+        }
+    }
+
+    private void UpdateModulesCard(StatusJson status, Card modulesCard)
+    {
+        modulesContent.Children.Clear();
+        bool showModules = status != null &&
+                           !status.Flags.HasFlag(Flag.OnFoot) &&
+                           !status.Flags.HasFlag(Flag.InSRV) &&
+                           !status.Flags.HasFlag(Flag.InFighter);
+
+        modulesCard.Visibility = showModules ? Visibility.Visible : Visibility.Collapsed;
+        Log.Debug("Modules Visibility: {Visibility}, Modules loaded: {Count}", showModules, gameState.CurrentLoadout?.Modules?.Count ?? 0);
+
+        if (showModules && gameState.CurrentLoadout?.Modules != null)
+        {
+            foreach (var module in gameState.CurrentLoadout.Modules.OrderByDescending(m => m.Health))
+            {
+                modulesContent.Children.Add(new TextBlock
+                {
+                    Text = $"{module.Slot}: {module.ItemLocalised ?? module.Item} ({module.Health:P0})",
+                    FontSize = 20,
                     Foreground = GetBodyBrush()
                 });
             }
         }
     }
-    private void UpdateModulesCard(StatusJson status)
-    {
-        modulesContent.Children.Clear();
-        bool showModules = !status.Flags.HasFlag(Flag.OnFoot) &&
-                           !status.Flags.HasFlag(Flag.InSRV) &&
-                           !status.Flags.HasFlag(Flag.InFighter);
-        modulesContent.Visibility = showModules ? Visibility.Visible : Visibility.Collapsed;
 
-        if (!showModules || gameState.CurrentLoadout?.Modules == null) return;
-
-        foreach (var module in gameState.CurrentLoadout.Modules.OrderByDescending(m => m.Health))
-        {
-            modulesContent.Children.Add(new TextBlock
-            {
-                Text = $"{module.Slot}: {module.ItemLocalised ?? module.Item} ({module.Health:P0})",
-                FontSize = 20,
-                Foreground = GetBodyBrush()
-            });
-        }
-    }
     private void UpdateSummaryCard()
     {
         SetOrUpdateSummaryText("Commander", $"Commander: {gameState?.CommanderName ?? "(Unknown)"}");
@@ -287,7 +290,6 @@ public partial class MainWindow : Window
 
         fuelText.Text = $"Fuel: Main {newValue:0.00} / Reserve {status.Fuel.FuelReservoir:0.00}";
     }
-
 
     #endregion cards
 
@@ -381,28 +383,31 @@ public partial class MainWindow : Window
 
         MainGrid.Children.Clear();
         MainGrid.ColumnDefinitions.Clear();
+        cardMap.Clear();
 
-        var panelsToDisplay = new List<UIElement>();
+        AddCard("Summary", summaryContent);
+        AddCard("Cargo", cargoContent);
+        AddCard("Backpack", backpackContent);
+        AddCard("Fleet Carrier Materials", fcMaterialsContent);
+        AddCard("Nav Route", routeContent);
+        AddCard("Ship Modules", modulesContent);
 
-        // Always displayed panels
-        panelsToDisplay.Add(CreateCard("Summary", summaryContent));
-
-        // Dynamically controlled panels
-        panelsToDisplay.Add(CreateCard("Cargo", cargoContent)); // Visibility set dynamically
-        panelsToDisplay.Add(CreateCard("Backpack", backpackContent)); // Visibility set dynamically
-        panelsToDisplay.Add(CreateCard("Fleet Carrier Materials", fcMaterialsContent));
-        panelsToDisplay.Add(CreateCard("Nav Route", routeContent));
-        panelsToDisplay.Add(CreateCard("Ship Modules", modulesContent)); // Visibility set dynamically
-
-        int maxColumns = 6;
-        for (int i = 0; i < Math.Min(panelsToDisplay.Count, maxColumns); i++)
+        int maxColumns = cardMap.Count;
+        for (int i = 0; i < maxColumns; i++)
             MainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        for (int i = 0; i < panelsToDisplay.Count && i < maxColumns; i++)
+        int index = 0;
+        foreach (var card in cardMap.Values)
         {
-            Grid.SetColumn(panelsToDisplay[i], i);
-            MainGrid.Children.Add(panelsToDisplay[i]);
+            Grid.SetColumn(card, index++);
+            MainGrid.Children.Add(card);
         }
+    }
+
+    private void AddCard(string title, StackPanel contentPanel)
+    {
+        var card = CreateCard(title, contentPanel);
+        cardMap[title] = card;
     }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
