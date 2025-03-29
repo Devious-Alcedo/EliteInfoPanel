@@ -29,15 +29,16 @@ public partial class MainWindow : Window
     { Flag.CargoScoopDeployed, "📦" },
     { Flag.FlightAssistOff, "🎮" },
     { Flag.NightVision, "🌙" },
-    { Flag.OverHeating, "🔥" }
+    { Flag.OverHeating, "🔥" },
+    { Flag.LandingGearDown, "🛬" },
+    { Flag.LightsOn, "💡" },
+    { Flag.LowFuel, "⛽" }
 };
     private Dictionary<string, Card> cardMap = new();
     private AppSettings appSettings = SettingsManager.Load();
     private StackPanel backpackContent;
     private StackPanel cargoContent;
     private StackPanel fcMaterialsContent;
-    private StackPanel flagsPanel1;
-    private StackPanel flagsPanel2;
     private ProgressBar fuelBar;
     private StackPanel fuelStack;
     private TextBlock fuelText;
@@ -52,6 +53,8 @@ public partial class MainWindow : Window
     private Grid fuelBarGrid;
     private Rectangle fuelBarFilled;
     private Rectangle fuelBarEmpty;
+    private WrapPanel flagsPanel1;
+    private WrapPanel flagsPanel2;
 
     #endregion Private Fields
 
@@ -120,16 +123,151 @@ public partial class MainWindow : Window
             UpdateMaterialsCard();
             UpdateRouteCard();
             UpdateFuelDisplay(status);
-
+            UpdateFlagChips(status);
             UpdateCargoCard(status, cardMap["Cargo"]);
             UpdateBackpackCard(status, cardMap["Backpack"]);
             UpdateModulesCard(status, cardMap["Ship Modules"]);
-
+            UpdateFlagsCard(status);
             // Call to dynamically rearrange the UI based on the visible cards
             RefreshCardsLayout();
         });
     }
     #region cards
+    private void UpdateFlagChips(StatusJson? status)
+    {
+        if (status == null) return;
+
+        Log.Debug("Active flags: {Flags}", status.Flags); // ← Add this here
+
+        if (flagsPanel1 == null)
+            flagsPanel1 = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 5) };
+
+        if (flagsPanel2 == null)
+            flagsPanel2 = new WrapPanel { Orientation = Orientation.Horizontal };
+
+        flagsPanel1.Children.Clear();
+        flagsPanel2.Children.Clear();
+
+        if (status == null) return;
+
+        var activeFlags = Enum.GetValues(typeof(Flag))
+     .Cast<Flag>()
+     .Where(flag => status.Flags.HasFlag(flag))
+     .ToList();
+
+        for (int i = 0; i < activeFlags.Count; i++)
+        {
+            var chip = new Chip
+            {
+                Content = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Children =
+                {
+                    new PackIcon
+                    {
+                        Kind = PackIconKind.CheckCircleOutline,
+                        Width = 24,
+                        Height = 24,
+                        Margin = new Thickness(0, 0, 6, 0)
+                    },
+                    new TextBlock
+                    {
+                        Text = activeFlags[i].ToString(),
+                        FontSize = 18,
+                        FontWeight = FontWeights.SemiBold,
+                        Foreground = Brushes.White
+                    }
+                }
+                },
+                Margin = new Thickness(6),
+                ToolTip = activeFlags[i].ToString(),
+                Background = new SolidColorBrush(Color.FromRgb(33, 150, 243)),
+                Foreground = Brushes.White
+            };
+
+            if (i < 5)
+                flagsPanel1.Children.Add(chip);
+            else
+                flagsPanel2.Children.Add(chip);
+        }
+    }
+
+    private void UpdateFlagsCard(StatusJson? status)
+    {
+        if (status == null) return;
+
+        var flags1 = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 5) };
+        var flags2 = new WrapPanel { Orientation = Orientation.Horizontal };
+
+        var activeFlags = Enum.GetValues(typeof(Flag))
+            .Cast<Flag>()
+            .Where(flag => status.Flags.HasFlag(flag))
+            .ToList();
+
+        for (int i = 0; i < activeFlags.Count; i++)
+        {
+            var chip = new Chip
+            {
+                Content = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Children =
+                {
+                    new PackIcon
+                    {
+                        Kind = PackIconKind.CheckCircleOutline,
+                        Width = 24,
+                        Height = 24,
+                        Margin = new Thickness(0, 0, 6, 0)
+                    },
+                    new TextBlock
+                    {
+                        Text = activeFlags[i].ToString(),
+                        FontSize = 18,
+                        FontWeight = FontWeights.SemiBold,
+                        Foreground = Brushes.White
+                    }
+                }
+                },
+                Margin = new Thickness(6),
+                ToolTip = activeFlags[i].ToString(),
+                Background = new SolidColorBrush(Color.FromRgb(33, 150, 243)),
+                Foreground = Brushes.White
+            };
+
+            if (i < 5)
+                flags1.Children.Add(chip);
+            else
+                flags2.Children.Add(chip);
+        }
+
+        var content = new StackPanel();
+        content.Children.Add(flags1);
+        content.Children.Add(flags2);
+
+        if (!cardMap.ContainsKey("Status Flags"))
+        {
+            AddCard("Status Flags", content);
+        }
+        else
+        {
+            cardMap["Status Flags"].Content = new StackPanel
+            {
+                Children =
+            {
+                new TextBlock
+                {
+                    Text = "Status Flags",
+                    FontWeight = FontWeights.Bold,
+                    Margin = new Thickness(0, 0, 0, 5)
+                },
+                content
+            }
+            };
+        }
+    }
+
 
     private void InitializeCards()
     {
@@ -140,7 +278,15 @@ public partial class MainWindow : Window
         routeContent ??= new StackPanel();
         modulesContent ??= new StackPanel();
         fuelStack ??= new StackPanel();
+        if (flagsPanel1 == null)
+            flagsPanel1 ??= new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
 
+        if (flagsPanel2 == null)
+            flagsPanel2 ??= new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 5, 0, 0) };
+
+
+
+       
         if (fuelText == null)
         {
             fuelText = new TextBlock
