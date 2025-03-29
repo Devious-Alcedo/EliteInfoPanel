@@ -6,8 +6,10 @@ using MaterialDesignThemes.Wpf;
 using WpfScreenHelper;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Dialogs;
+using System.Windows.Shapes;
 using Serilog;
 using EliteInfoPanel.Util;
+using System.Windows.Data;
 
 namespace EliteInfoPanel;
 
@@ -47,6 +49,9 @@ public partial class MainWindow : Window
     private Screen screen;
     private StackPanel shipStatsContent;
     private StackPanel summaryContent;
+    private Grid fuelBarGrid;
+    private Rectangle fuelBarFilled;
+    private Rectangle fuelBarEmpty;
 
     #endregion Private Fields
 
@@ -124,42 +129,129 @@ public partial class MainWindow : Window
             RefreshCardsLayout();
         });
     }
+    #region cards
 
-
-    private void RefreshCardsLayout()
+    private void InitializeCards()
     {
-        MainGrid.Children.Clear();
-        MainGrid.ColumnDefinitions.Clear();
+        summaryContent ??= new StackPanel();
+        cargoContent ??= new StackPanel();
+        backpackContent ??= new StackPanel();
+        fcMaterialsContent ??= new StackPanel();
+        routeContent ??= new StackPanel();
+        modulesContent ??= new StackPanel();
+        fuelStack ??= new StackPanel();
 
-        var visibleCards = new List<Card>();
-
-        void AddVisibleCard(string key, StackPanel contentPanel, bool isVisible)
+        if (fuelText == null)
         {
-            if (isVisible)
+            fuelText = new TextBlock
             {
-                visibleCards.Add(cardMap[key]);
-            }
+                Text = "Fuel:",
+                Foreground = GetBodyBrush(),
+                FontSize = 26
+            };
+
+            fuelBarFilled = new Rectangle
+            {
+                Fill = Brushes.Orange,
+                RadiusX = 2,
+                RadiusY = 2
+            };
+
+            fuelBarEmpty = new Rectangle
+            {
+                Fill = Brushes.DarkSlateGray,
+                RadiusX = 2,
+                RadiusY = 2
+            };
+
+            fuelBarGrid = new Grid
+            {
+                Height = 34,
+                Margin = new Thickness(0, 4, 0, 0),
+                ClipToBounds = true,
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+
+            fuelBarGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            fuelBarGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0, GridUnitType.Star) });
+
+            Grid.SetColumn(fuelBarFilled, 0);
+            Grid.SetColumn(fuelBarEmpty, 1);
+
+            fuelBarGrid.Children.Add(fuelBarFilled);
+            fuelBarGrid.Children.Add(fuelBarEmpty);
+
+            fuelStack.Children.Add(fuelText);
+            fuelStack.Children.Add(fuelBarGrid);
         }
 
-        var status = gameState.CurrentStatus;
 
-        AddVisibleCard("Summary", summaryContent, true);
-        AddVisibleCard("Cargo", cargoContent, status.Flags.HasFlag(Flag.InSRV) || status.Flags.HasFlag(Flag.InMainShip));
-        AddVisibleCard("Backpack", backpackContent, status.OnFoot);
-        AddVisibleCard("Fleet Carrier Materials", fcMaterialsContent, fcMaterialsContent.Children.Count > 0);
-        AddVisibleCard("Nav Route", routeContent, routeContent.Children.Count > 0);
-        AddVisibleCard("Ship Modules", modulesContent, modulesContent.Children.Count > 0);
+        if (!summaryContent.Children.Contains(fuelStack))
+            summaryContent.Children.Add(fuelStack);
+    }
+    private ControlTemplate CreateNonAnimatedProgressBarTemplate()
+    {
+        var template = new ControlTemplate(typeof(ProgressBar));
 
-        int columnIndex = 0;
-        foreach (var card in visibleCards)
+        var gridFactory = new FrameworkElementFactory(typeof(Grid));
+        var backgroundFactory = new FrameworkElementFactory(typeof(Rectangle));
+        backgroundFactory.SetValue(Rectangle.FillProperty, Brushes.DarkSlateGray);
+        gridFactory.AppendChild(backgroundFactory);
+
+        var progressFactory = new FrameworkElementFactory(typeof(Rectangle));
+        progressFactory.Name = "PART_Track";
+        progressFactory.SetValue(Rectangle.FillProperty, Brushes.Orange);
+        progressFactory.SetValue(Rectangle.HorizontalAlignmentProperty, HorizontalAlignment.Left);
+        progressFactory.SetValue(Rectangle.VerticalAlignmentProperty, VerticalAlignment.Stretch);
+        progressFactory.SetBinding(Rectangle.WidthProperty, new System.Windows.Data.Binding("Value")
         {
-            MainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            Grid.SetColumn(card, columnIndex++);
-            MainGrid.Children.Add(card);
-        }
+            RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent),
+            Converter = new ProgressToWidthConverter(),
+            ConverterParameter = 32 // Max value — keep in sync
+        });
+
+        gridFactory.AppendChild(progressFactory);
+        template.VisualTree = gridFactory;
+
+        return template;
     }
 
-    #region cards
+    private Style CreateNonAnimatingProgressBarStyle()
+    {
+        Style style = new Style(typeof(ProgressBar), null);
+
+        // Disable animation for the Value property completely
+        var animationSetter = new Setter(ProgressBar.TemplateProperty, null);
+        style.Setters.Add(animationSetter);
+
+        return style;
+    }
+    private void RefreshCardsLayout()
+    {
+        var status = gameState.CurrentStatus;
+
+        // Set visibility directly on cards
+        cardMap["Summary"].Visibility = Visibility.Visible;
+        cardMap["Cargo"].Visibility = (status.Flags.HasFlag(Flag.InSRV) || status.Flags.HasFlag(Flag.InMainShip))
+            ? Visibility.Visible : Visibility.Collapsed;
+        cardMap["Backpack"].Visibility = status.OnFoot ? Visibility.Visible : Visibility.Collapsed;
+        cardMap["Fleet Carrier Materials"].Visibility = fcMaterialsContent.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        cardMap["Nav Route"].Visibility = routeContent.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        cardMap["Ship Modules"].Visibility = modulesContent.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        // Rearrange visible cards dynamically WITHOUT CLEARING THE GRID
+        var visibleCards = cardMap.Values.Where(card => card.Visibility == Visibility.Visible).ToList();
+
+        MainGrid.ColumnDefinitions.Clear();
+        MainGrid.Children.Clear(); // Now we do this carefully and ONCE here.
+
+        for (int i = 0; i < visibleCards.Count; i++)
+        {
+            MainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            Grid.SetColumn(visibleCards[i], i);
+            MainGrid.Children.Add(visibleCards[i]);
+        }
+    }
 
     private void UpdateCargoCard(StatusJson status, Card cargoCard)
     {
@@ -215,8 +307,6 @@ public partial class MainWindow : Window
             }
         }
     }
-
-
     private void UpdateModulesCard(StatusJson status, Card modulesCard)
     {
         modulesContent.Children.Clear();
@@ -238,7 +328,6 @@ public partial class MainWindow : Window
             }
         }
     }
-
     private void UpdateSummaryCard()
     {
         SetOrUpdateSummaryText("Commander", $"Commander: {gameState?.CommanderName ?? "(Unknown)"}");
@@ -307,73 +396,31 @@ public partial class MainWindow : Window
     }
     private void UpdateFuelDisplay(StatusJson status)
     {
-        if (status?.Fuel == null)
+        var display = appSettings.DisplayOptions;
+        if (display.ShowFuelLevel && status?.Fuel != null)
         {
-            fuelBar.Visibility = Visibility.Collapsed;
-            fuelText.Visibility = Visibility.Collapsed;
-            return;
+            double value = Math.Round(status.Fuel.FuelMain, 2);
+            double max = Math.Round(status.Fuel.FuelCapacity, 2); // ← USE journal-derived max
+
+            if (max <= 0) return; // avoid divide by zero
+
+            double ratio = Math.Min(1.0, value / max);
+            lastFuelValue = value;
+
+            fuelText.Text = $"Fuel: Main {value:0.00} / Reserve {status.Fuel.FuelReservoir:0.00}";
+
+            // Update fuel bar width based on ratio
+            fuelBarGrid.ColumnDefinitions[0].Width = new GridLength(ratio, GridUnitType.Star);
+            fuelBarGrid.ColumnDefinitions[1].Width = new GridLength(1 - ratio, GridUnitType.Star);
         }
-
-        fuelBar.Visibility = Visibility.Visible;
-        fuelText.Visibility = Visibility.Visible;
-
-        double newValue = Math.Round(status.Fuel.FuelMain, 2);
-        if (Math.Abs(lastFuelValue - newValue) > 0.01)
-        {
-            fuelBar.BeginAnimation(System.Windows.Controls.Primitives.RangeBase.ValueProperty, null);
-            fuelBar.Value = newValue;
-            lastFuelValue = newValue;
-        }
-
-        fuelText.Text = $"Fuel: Main {newValue:0.00} / Reserve {status.Fuel.FuelReservoir:0.00}";
     }
+
 
     #endregion cards
 
     private Brush GetBodyBrush() => (Brush)System.Windows.Application.Current.Resources["MaterialDesignBody"];
 
-    private void InitializeCards()
-    {
-        summaryContent ??= new StackPanel();
-        fuelStack ??= new StackPanel();
-        cargoContent ??= new StackPanel();
-        backpackContent ??= new StackPanel();
-        fcMaterialsContent ??= new StackPanel();
-        routeContent ??= new StackPanel();
-        modulesContent ??= new StackPanel();
-        shipStatsContent ??= new StackPanel();
-        flagsPanel1 ??= new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-        flagsPanel2 ??= new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 5, 0, 0) };
-
-        if (fuelText == null)
-        {
-            fuelText = new TextBlock
-            {
-                Text = "Fuel:",
-                Foreground = GetBodyBrush(),
-                FontSize = 26
-            };
-            fuelBar = new ProgressBar
-            {
-                Minimum = 0,
-                Maximum = 32,
-                Height = 34,
-                Margin = new Thickness(0, 4, 0, 0),
-                Foreground = Brushes.Orange,
-                Background = Brushes.DarkSlateGray
-            };
-            fuelStack.Children.Add(fuelText);
-            fuelStack.Children.Add(fuelBar);
-        }
-
-        if (!summaryContent.Children.Contains(fuelStack))
-            summaryContent.Children.Add(fuelStack);
-
-        if (!summaryContent.Children.Contains(flagsPanel1))
-            summaryContent.Children.Add(flagsPanel1);
-        if (!summaryContent.Children.Contains(flagsPanel2))
-            summaryContent.Children.Add(flagsPanel2);
-    }
+ 
 
     private void OptionsButton_Click(object sender, RoutedEventArgs e)
     {
@@ -497,6 +544,7 @@ public partial class MainWindow : Window
 
         #endregion Public Methods
     }
+   
 
     #endregion Public Classes
 }

@@ -60,6 +60,7 @@ namespace EliteInfoPanel.Core
         public bool OnFoot => (Flags2 & 1) != 0;
         [JsonPropertyName("Heat")]
         public float Heat { get; set; }
+       
 
         public string ShipType { get; set; }
 
@@ -69,7 +70,8 @@ namespace EliteInfoPanel.Core
 
             public float FuelMain { get; set; }
             public float FuelReservoir { get; set; }
-
+            [JsonPropertyName("FuelCapacity")]
+            public double FuelCapacity { get; set; } // ← Add this if not present
             #endregion Public Properties
         }
     }
