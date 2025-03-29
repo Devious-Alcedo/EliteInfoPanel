@@ -101,11 +101,13 @@ public partial class MainWindow : Window
             var status = gameState.CurrentStatus;
             Log.Information("Data updated: {@Status}", status);
             bool showPanels = status != null && (
-                status.Flags.HasFlag(Flag.Docked) ||
-                status.Flags.HasFlag(Flag.Supercruise) ||
-                status.Flags.HasFlag(Flag.InSRV) ||
-                status.Flags.HasFlag(Flag.OnFoot) ||
-                status.Flags.HasFlag(Flag.InFighter));
+             status.Flags.HasFlag(Flag.Docked) ||
+             status.Flags.HasFlag(Flag.Supercruise) ||
+             status.Flags.HasFlag(Flag.InSRV) ||
+             status.OnFoot ||
+             status.Flags.HasFlag(Flag.InFighter) ||
+             status.Flags.HasFlag(Flag.InMainShip));
+
 
             MainGrid.Visibility = showPanels ? Visibility.Visible : Visibility.Collapsed;
             Log.Information("MainGrid visibility set to: {Visible}", showPanels);
@@ -147,12 +149,16 @@ public partial class MainWindow : Window
     private void UpdateBackpackCard(StatusJson status, Card backpackCard)
     {
         backpackContent.Children.Clear();
-        bool showBackpack = status != null && status.Flags.HasFlag(Flag.OnFoot);
+
+        bool showBackpack = status != null && status.OnFoot; // <-- Use the direct property from StatusJson
         backpackCard.Visibility = showBackpack ? Visibility.Visible : Visibility.Collapsed;
 
         if (showBackpack && gameState.CurrentBackpack?.Inventory != null)
         {
-            var grouped = gameState.CurrentBackpack.Inventory.GroupBy(i => i.Category).OrderBy(g => g.Key);
+            var grouped = gameState.CurrentBackpack.Inventory
+                .GroupBy(i => i.Category)
+                .OrderBy(g => g.Key);
+
             foreach (var group in grouped)
             {
                 backpackContent.Children.Add(new TextBlock
@@ -177,18 +183,16 @@ public partial class MainWindow : Window
         }
     }
 
+
     private void UpdateModulesCard(StatusJson status, Card modulesCard)
     {
         modulesContent.Children.Clear();
-        bool showModules = status != null &&
-                           !status.Flags.HasFlag(Flag.OnFoot) &&
+        bool showModules = status.Flags.HasFlag(Flag.InMainShip) &&
+                           !status.OnFoot &&
                            !status.Flags.HasFlag(Flag.InSRV) &&
                            !status.Flags.HasFlag(Flag.InFighter);
 
-        modulesCard.Visibility = showModules ? Visibility.Visible : Visibility.Collapsed;
-        Log.Debug("Modules Visibility: {Visibility}, Modules loaded: {Count}", showModules, gameState.CurrentLoadout?.Modules?.Count ?? 0);
-
-        if (showModules && gameState.CurrentLoadout?.Modules != null)
+        if (gameState.CurrentLoadout?.Modules != null && showModules)
         {
             foreach (var module in gameState.CurrentLoadout.Modules.OrderByDescending(m => m.Health))
             {

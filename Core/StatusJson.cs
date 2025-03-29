@@ -8,43 +8,44 @@ using System.Text.Json.Serialization;
 namespace EliteInfoPanel.Core
 {
     [Flags]
-    public enum Flag : long
+    public enum Flag : uint  // <-- Change to uint
     {
         None = 0,
-        Docked = 1 << 0,                    // 1
-        Landed = 1 << 1,                    // 2
-        LandingGearDown = 1 << 2,           // 4
-        ShieldsUp = 1 << 3,                 // 8
-        Supercruise = 1 << 4,               // 16
-        FlightAssistOff = 1 << 5,           // 32
-        HardpointsDeployed = 1 << 6,        // 64
-        InWing = 1 << 7,                    // 128
-        LightsOn = 1 << 8,                  // 256
-        CargoScoopDeployed = 1 << 9,        // 512
-        SilentRunning = 1 << 10,            // 1024
-        ScoopingFuel = 1 << 11,             // 2048
-        SRVHandbrake = 1 << 12,             // 4096
-        SRVUsingTurretView = 1 << 13,       // 8192
-        SRVTurretRetracted = 1 << 14,       // 16384
-        SRVDriveAssist = 1 << 15,           // 32768
-        FSDMassLocked = 1 << 16,            // 65536
-        FSDCharging = 1 << 17,              // 131072
-        FSDCooldown = 1 << 18,              // 262144
-        LowFuel = 1 << 19,                  // 524288
-        OverHeating = 1 << 20,              // 1048576
-        HasLatLong = 1 << 21,               // 2097152
-        IsInDanger = 1 << 22,               // 4194304
-        BeingInterdicted = 1 << 23,         // 8388608
-        InMainShip = 1 << 24,               // 16777216
-        InFighter = 1 << 25,                // 33554432
-        InSRV = 1 << 26,                    // 67108864
-        OnFoot = 1 << 27,                   // 134217728
-        HudInAnalysisMode = 1 << 28,        // 268435456
-        NightVision = 1 << 29,              // 536870912
-        AltitudeFromAverageRadius = 1 << 30,// 1073741824
-        FSDJump = 1L << 31,                 // 2147483648
-        SRVHighBeam = 1L << 32              // 4294967296
+        Docked = 1,
+        Landed = 2,
+        LandingGearDown = 4,
+        ShieldsUp = 8,
+        Supercruise = 16,
+        FlightAssistOff = 32,
+        HardpointsDeployed = 64,
+        InWing = 128,
+        LightsOn = 256,
+        CargoScoopDeployed = 512,
+        SilentRunning = 1024,
+        ScoopingFuel = 2048,
+        SrvHandbrake = 4096,
+        SrvTurret = 8192,
+        SrvUnderShip = 16384,
+        SrvDriveAssist = 32768,
+        FSDMassLocked = 65536,
+        FSDCharging = 131072,
+        FSDCooldown = 262144,
+        LowFuel = 524288,
+        OverHeating = 1048576,
+        HasLatLong = 2097152,
+        IsInDanger = 4194304,
+        BeingInterdicted = 8388608,
+        InMainShip = 16777216,
+        InFighter = 33554432,
+        InSRV = 67108864,
+        HudInAnalysisMode = 134217728,
+        NightVision = 268435456,
+        AltitudeFromAverageRadius = 536870912,
+        FSDSupercharging = 1073741824,
+        FSDJump = 2147483648,
     }
+
+
 
 
 
@@ -54,9 +55,9 @@ namespace EliteInfoPanel.Core
 
         [JsonPropertyName("Flags")]
         public Flag Flags { get; set; }
-
+        public int Flags2 { get; set; }
         public FuelInfo Fuel { get; set; }
-
+        public bool OnFoot => (Flags2 & 1) != 0;
         [JsonPropertyName("Heat")]
         public float Heat { get; set; }
 

@@ -144,14 +144,16 @@ namespace EliteInfoPanel.Dialogs
 
         private void PopulateFlagOptions()
         {
+            var appSettings = SettingsManager.Load();
+
             if (FindName("FlagOptionsPanel") is not StackPanel flagPanel) return;
 
             flagPanel.Children.Clear();
             flagCheckBoxes.Clear();
 
-            var visibleFlags = Settings.DisplayOptions.VisibleFlags ?? new List<Flag>();
+            var visibleFlags = appSettings.DisplayOptions.VisibleFlags ?? new List<Flag>();
 
-            foreach (Flag flag in System.Enum.GetValues(typeof(Flag)))
+            foreach (Flag flag in Enum.GetValues(typeof(Flag)))
             {
                 if (flag == Flag.None) continue;
 
@@ -173,6 +175,9 @@ namespace EliteInfoPanel.Dialogs
                 flagCheckBoxes[flag] = checkBox;
             }
         }
+
+
+
 
         private void UpdateFlagSetting(Flag flag, bool isChecked)
         {
