@@ -116,7 +116,7 @@ namespace EliteInfoPanel.Core
                     using var reader = new StreamReader(routefs);
                     string json = reader.ReadToEnd();
                     CurrentRoute = JsonSerializer.Deserialize<NavRouteJson>(File.ReadAllText(routePath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                }
+                    }
 
                 var latestJournal = Directory.GetFiles(gamePath, "Journal.*.log")
                     .OrderByDescending(File.GetLastWriteTime)

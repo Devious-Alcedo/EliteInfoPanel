@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 namespace EliteInfoPanel.Core
 {
     [Flags]
-    public enum Flag
+    public enum Flag : long
     {
         None = 0,
         Docked = 1 << 0,
@@ -21,9 +21,29 @@ namespace EliteInfoPanel.Core
         LightsOn = 1 << 8,
         CargoScoopDeployed = 1 << 9,
         SilentRunning = 1 << 10,
+        ScoopingFuel = 1 << 11,
+        SRVHandbrake = 1 << 12,
+        SRVTurret = 1 << 13,
+        SRVTurretRetracted = 1 << 14,
+        SRVDriveAssist = 1 << 15,
+        FSDMassLocked = 1 << 16,
+        FSDCharging = 1 << 17,
+        FSDCooldown = 1 << 18,
+        LowFuel = 1 << 19,
         OverHeating = 1 << 20,
-        // Add more flags if needed
+        HasLatLong = 1 << 21,
+        IsInDanger = 1 << 22,
+        BeingInterdicted = 1 << 23,
+        InMainShip = 1 << 24,
+        InFighter = 1 << 25,
+        InSRV = 1 << 26,
+        HudInAnalysisMode = 1 << 27,
+        NightVision = 1 << 28,
+        AltFromAvgRad = 1 << 29,
+        FSDJump = 1 << 30,
+        SRVHighBeam = 1 << 31
     }
+
     public class StatusJson
     {
         [JsonPropertyName("Heat")]

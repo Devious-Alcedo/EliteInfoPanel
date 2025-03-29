@@ -6,6 +6,7 @@ using MaterialDesignThemes.Wpf;
 using WpfScreenHelper;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Dialogs;
+using static System.Net.Mime.MediaTypeNames;
 using System.Linq;
 
 namespace EliteInfoPanel;
@@ -30,6 +31,11 @@ public partial class MainWindow : Window
     private StackPanel fuelStack;
     private TextBlock fuelText;
     private ProgressBar fuelBar;
+
+    private StackPanel flagsPanel1;
+    private StackPanel flagsPanel2;
+
+    private double lastFuelValue = -1;
 
     #endregion Private Fields
 
@@ -90,7 +96,6 @@ public partial class MainWindow : Window
             panelsToDisplay.Add(CreateCard("Nav Route", routeContent));
 
         panelsToDisplay.Add(CreateCard("Ship Modules", modulesContent));
-        panelsToDisplay.Add(CreateCard("Ship Status", shipStatsContent));
 
         int maxColumns = 6;
         for (int i = 0; i < Math.Min(panelsToDisplay.Count, maxColumns); i++)
@@ -113,6 +118,8 @@ public partial class MainWindow : Window
         routeContent ??= new StackPanel();
         modulesContent ??= new StackPanel();
         shipStatsContent ??= new StackPanel();
+        flagsPanel1 ??= new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
+        flagsPanel2 ??= new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 5, 0, 0) };
 
         if (fuelText == null)
         {
@@ -134,120 +141,88 @@ public partial class MainWindow : Window
             fuelStack.Children.Add(fuelText);
             fuelStack.Children.Add(fuelBar);
         }
+
+        if (!summaryContent.Children.Contains(fuelStack))
+            summaryContent.Children.Add(fuelStack);
+
+        if (!summaryContent.Children.Contains(flagsPanel1))
+            summaryContent.Children.Add(flagsPanel1);
+        if (!summaryContent.Children.Contains(flagsPanel2))
+            summaryContent.Children.Add(flagsPanel2);
     }
 
     private void GameState_DataUpdated()
     {
         Dispatcher.Invoke(() =>
         {
-            summaryContent.Children.Clear();
-            modulesContent.Children.Clear();
-            shipStatsContent.Children.Clear();
-            routeContent.Children.Clear();
-
             var display = appSettings.DisplayOptions;
             var status = gameState.CurrentStatus;
             var cargo = gameState.CurrentCargo;
+            var backpack = gameState.CurrentBackpack;
+            var materials = gameState.CurrentMaterials;
+            var route = gameState.CurrentRoute;
 
-            if (display.ShowCommanderName)
-            {
-                summaryContent.Children.Add(new TextBlock
-                {
-                    Text = $"Commander: {gameState?.CommanderName ?? "(Unknown)"}",
-                    Foreground = GetBodyBrush(),
-                    FontSize = 24
-                });
-            }
-
-            if (!string.IsNullOrEmpty(gameState?.CurrentSystem))
-            {
-                summaryContent.Children.Add(new TextBlock
-                {
-                    Text = $"System: {gameState.CurrentSystem}",
-                    Foreground = GetBodyBrush(),
-                    FontSize = 24
-                });
-            }
-
+            SetOrUpdateSummaryText("Commander", $"Commander: {gameState?.CommanderName ?? "(Unknown)"}");
+            SetOrUpdateSummaryText("System", $"System: {gameState?.CurrentSystem ?? "(Unknown)"}");
             if (!string.IsNullOrEmpty(gameState?.ShipName) || !string.IsNullOrEmpty(gameState?.ShipLocalised))
             {
                 var shipLabel = $"Ship: {gameState.UserShipName ?? gameState.ShipName} ";
                 if (!string.IsNullOrEmpty(gameState.UserShipId))
                     shipLabel += $" [{gameState.UserShipId}]";
                 shipLabel += $"\nType: {gameState.ShipLocalised}";
-
-                summaryContent.Children.Add(new TextBlock
-                {
-                    Text = shipLabel,
-                    Foreground = GetBodyBrush(),
-                    FontSize = 24
-                });
+                SetOrUpdateSummaryText("Ship", shipLabel);
             }
-
             if (gameState.Balance.HasValue)
-            {
-                summaryContent.Children.Add(new TextBlock
-                {
-                    Text = $"Balance: {gameState.Balance.Value:N0} CR",
-                    Foreground = GetBodyBrush(),
-                    FontSize = 24
-                });
-            }
-
+                SetOrUpdateSummaryText("Balance", $"Balance: {gameState.Balance.Value:N0} CR");
             if (!string.IsNullOrEmpty(gameState?.SquadronName))
-            {
-                summaryContent.Children.Add(new TextBlock
-                {
-                    Text = $"Squadron: {gameState.SquadronName}",
-                    Foreground = GetBodyBrush(),
-                    FontSize = 24
-                });
-            }
-
+                SetOrUpdateSummaryText("Squadron", $"Squadron: {gameState.SquadronName}");
             if (gameState?.JumpCountdown != null && gameState.JumpCountdown.Value.TotalSeconds > 0)
-            {
-                summaryContent.Children.Add(new TextBlock
-                {
-                    Text = $"Carrier Jump In: {gameState.JumpCountdown.Value:mm\\:ss}",
-                    Foreground = Brushes.Orange,
-                    FontSize = 22,
-                    FontWeight = FontWeights.Bold
-                });
-            }
-
+                SetOrUpdateSummaryText("CarrierJumpCountdown", $"Carrier Jump In: {gameState.JumpCountdown.Value:mm\\:ss}");
             if (gameState.IsOverheating)
-            {
-                summaryContent.Children.Add(new TextBlock
-                {
-                    Text = "WARNING: Ship Overheating!",
-                    Foreground = Brushes.Red,
-                    FontSize = 22,
-                    FontWeight = FontWeights.Bold
-                });
-            }
+                SetOrUpdateSummaryText("OverheatWarning", "WARNING: Ship Overheating!");
 
             if (display.ShowFuelLevel && status?.Fuel != null)
             {
-                fuelText.Text = $"Fuel: Main {status.Fuel.FuelMain:0.00} / Reserve {status.Fuel.FuelReservoir:0.00}";
-                if (Math.Abs(fuelBar.Value - status.Fuel.FuelMain) > 0.01)
-                    ProgressBarFix.SetValueInstantly(fuelBar, status.Fuel.FuelMain);
-                if (!summaryContent.Children.Contains(fuelStack))
-                    summaryContent.Children.Add(fuelStack);
-            }
-            if (appSettings.DisplayOptions.ShowCargo && gameState.CurrentCargo?.Inventory?.Any() == true)
-            {
-                cargoContent.Children.Clear();
-                foreach (var item in gameState.CurrentCargo.Inventory.OrderByDescending(i => i.Count))
+                double newValue = Math.Round(status.Fuel.FuelMain, 2);
+                if (Math.Abs(lastFuelValue - newValue) > 0.01)
                 {
-                    cargoContent.Children.Add(new TextBlock
-                    {
-                        Text = $"{item.Name}: {item.Count}",
-                        FontSize = 20,
-                        Foreground = GetBodyBrush()
-                    });
+                    fuelBar.BeginAnimation(System.Windows.Controls.Primitives.RangeBase.ValueProperty, null);
+                    fuelBar.Value = newValue;
+                    lastFuelValue = newValue;
                 }
+                fuelText.Text = $"Fuel: Main {newValue:0.00} / Reserve {status.Fuel.FuelReservoir:0.00}";
             }
 
+            flagsPanel1.Children.Clear();
+            flagsPanel2.Children.Clear();
+
+            void AddFlagIcon(bool condition, string emoji, string tooltip, StackPanel target)
+            {
+                target.Children.Add(new TextBlock
+                {
+                    Text = emoji,
+                    FontSize = 24,
+                    ToolTip = tooltip,
+                    Margin = new Thickness(4, 0, 4, 0),
+                    Foreground = condition ? Brushes.LightGreen : Brushes.Gray
+                });
+            }
+
+            if (status != null)
+            {
+                AddFlagIcon(status.Flags.HasFlag(Flag.ShieldsUp), "🛡", "Shields Up", flagsPanel1);
+                AddFlagIcon(status.Flags.HasFlag(Flag.Supercruise), "🚀", "Supercruise", flagsPanel1);
+                AddFlagIcon(status.Flags.HasFlag(Flag.HardpointsDeployed), "🔫", "Hardpoints Deployed", flagsPanel1);
+                AddFlagIcon(status.Flags.HasFlag(Flag.SilentRunning), "🤫", "Silent Running", flagsPanel1);
+                AddFlagIcon(status.Flags.HasFlag(Flag.Docked), "⚓", "Docked", flagsPanel2);
+                AddFlagIcon(status.Flags.HasFlag(Flag.CargoScoopDeployed), "📦", "Cargo Scoop Deployed", flagsPanel2);
+                AddFlagIcon(status.Flags.HasFlag(Flag.FlightAssistOff), "🎮", "Flight Assist Off", flagsPanel2);
+                AddFlagIcon(status.Flags.HasFlag(Flag.NightVision), "🌙", "Night Vision", flagsPanel2);
+                AddFlagIcon(gameState.IsOverheating, "🔥", "Overheating", flagsPanel2);
+            }
+
+            // Ship Modules
+            modulesContent.Children.Clear();
             if (gameState.CurrentLoadout?.Modules != null)
             {
                 foreach (var module in gameState.CurrentLoadout.Modules.OrderByDescending(m => m.Health))
@@ -261,24 +236,70 @@ public partial class MainWindow : Window
                 }
             }
 
-            if (status != null)
+            // Cargo
+            cargoContent.Children.Clear();
+            if (display.ShowCargo && cargo?.Inventory != null)
             {
-                AddStatusFlag("Docked", Flag.Docked);
-                AddStatusFlag("Landed", Flag.Landed);
-                AddStatusFlag("Landing Gear Down", Flag.LandingGearDown);
-                AddStatusFlag("Shields Up", Flag.ShieldsUp);
-                AddStatusFlag("Supercruise", Flag.Supercruise);
-                AddStatusFlag("Flight Assist Off", Flag.FlightAssistOff);
-                AddStatusFlag("Hardpoints Deployed", Flag.HardpointsDeployed);
-                AddStatusFlag("In Wing", Flag.InWing);
-                AddStatusFlag("Lights On", Flag.LightsOn);
-                AddStatusFlag("Cargo Scoop Deployed", Flag.CargoScoopDeployed);
-                AddStatusFlag("Silent Running", Flag.SilentRunning);
+                foreach (var item in cargo.Inventory.OrderByDescending(i => i.Count))
+                {
+                    cargoContent.Children.Add(new TextBlock
+                    {
+                        Text = $"{item.Name}: {item.Count}",
+                        Foreground = GetBodyBrush(),
+                        FontSize = 20
+                    });
+                }
             }
 
-            if (display.ShowRoute && gameState.CurrentRoute?.Route?.Any() == true)
+            // Backpack
+            backpackContent.Children.Clear();
+            if (display.ShowBackpack && backpack?.Inventory != null)
             {
-                foreach (var jump in gameState.CurrentRoute.Route)
+                var grouped = backpack.Inventory.GroupBy(i => i.Category).OrderBy(g => g.Key);
+
+                foreach (var group in grouped)
+                {
+                    backpackContent.Children.Add(new TextBlock
+                    {
+                        Text = group.Key,
+                        FontWeight = FontWeights.Bold,
+                        Foreground = GetBodyBrush(),
+                        Margin = new Thickness(0, 10, 0, 4)
+                    });
+
+                    foreach (var item in group.OrderByDescending(i => i.Count))
+                    {
+                        backpackContent.Children.Add(new TextBlock
+                        {
+                            Text = $"{item.Name_Localised ?? item.Name}: {item.Count}",
+                            FontSize = 18,
+                            Margin = new Thickness(10, 0, 0, 2),
+                            Foreground = GetBodyBrush()
+                        });
+                    }
+                }
+            }
+
+            // Fleet Carrier Materials
+            fcMaterialsContent.Children.Clear();
+            if (display.ShowFCMaterials && materials?.Materials != null)
+            {
+                foreach (var item in materials.Materials.OrderByDescending(i => i.Count))
+                {
+                    fcMaterialsContent.Children.Add(new TextBlock
+                    {
+                        Text = $"{item.Name_Localised ?? item.Name}: {item.Count}",
+                        FontSize = 18,
+                        Foreground = GetBodyBrush()
+                    });
+                }
+            }
+
+            // Nav Route
+            routeContent.Children.Clear();
+            if (display.ShowRoute && route?.Route?.Any() == true)
+            {
+                foreach (var jump in route.Route)
                 {
                     routeContent.Children.Add(new TextBlock
                     {
@@ -292,20 +313,7 @@ public partial class MainWindow : Window
         });
     }
 
-    private void AddStatusFlag(string label, Flag flag)
-    {
-        if (gameState.CurrentStatus != null)
-        {
-            shipStatsContent.Children.Add(new TextBlock
-            {
-                Text = $"{label}: {gameState.CurrentStatus.Flags.HasFlag(flag)}",
-                Foreground = GetBodyBrush(),
-                FontSize = 20
-            });
-        }
-    }
-
-    private Brush GetBodyBrush() => (Brush)Application.Current.Resources["MaterialDesignBody"];
+    private Brush GetBodyBrush() => (Brush)System.Windows.Application.Current.Resources["MaterialDesignBody"];
 
     private void OptionsButton_Click(object sender, RoutedEventArgs e)
     {
@@ -332,7 +340,7 @@ public partial class MainWindow : Window
         if (screen == null)
         {
             screen = await PromptUserToSelectScreenAsync(allScreens);
-            if (screen == null) { Application.Current.Shutdown(); return; }
+            if (screen == null) { System.Windows.Application.Current.Shutdown(); return; }
 
             appSettings.SelectedScreenId = screen.DeviceName;
             SettingsManager.Save(appSettings);
@@ -356,6 +364,28 @@ public partial class MainWindow : Window
         }
 
         GameState_DataUpdated();
+    }
+
+    private void SetOrUpdateSummaryText(string key, string content, int fontSize = 24, Brush? foreground = null)
+    {
+        var existing = summaryContent.Children
+            .OfType<TextBlock>()
+            .FirstOrDefault(tb => tb.Tag?.ToString() == key);
+
+        if (existing != null)
+        {
+            existing.Text = content;
+        }
+        else
+        {
+            summaryContent.Children.Insert(0, new TextBlock
+            {
+                Text = content,
+                FontSize = fontSize,
+                Foreground = foreground ?? GetBodyBrush(),
+                Tag = key
+            });
+        }
     }
 
     public static class ProgressBarFix
