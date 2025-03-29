@@ -176,6 +176,7 @@ public partial class MainWindow : Window
 
             SetOrUpdateSummaryText("Commander", $"Commander: {gameState?.CommanderName ?? "(Unknown)"}");
             SetOrUpdateSummaryText("System", $"System: {gameState?.CurrentSystem ?? "(Unknown)"}");
+
             if (!string.IsNullOrEmpty(gameState?.ShipName) || !string.IsNullOrEmpty(gameState?.ShipLocalised))
             {
                 var shipLabel = $"Ship: {gameState.UserShipName ?? gameState.ShipName} ";
@@ -184,12 +185,16 @@ public partial class MainWindow : Window
                 shipLabel += $"\nType: {gameState.ShipLocalised}";
                 SetOrUpdateSummaryText("Ship", shipLabel);
             }
+
             if (gameState.Balance.HasValue)
                 SetOrUpdateSummaryText("Balance", $"Balance: {gameState.Balance.Value:N0} CR");
+
             if (!string.IsNullOrEmpty(gameState?.SquadronName))
                 SetOrUpdateSummaryText("Squadron", $"Squadron: {gameState.SquadronName}");
+
             if (gameState?.JumpCountdown != null && gameState.JumpCountdown.Value.TotalSeconds > 0)
                 SetOrUpdateSummaryText("CarrierJumpCountdown", $"Carrier Jump In: {gameState.JumpCountdown.Value:mm\\:ss}");
+
             if (gameState.IsOverheating)
                 SetOrUpdateSummaryText("OverheatWarning", "WARNING: Ship Overheating!");
 
@@ -220,23 +225,35 @@ public partial class MainWindow : Window
                 });
             }
 
-            if (status != null && appSettings.DisplayOptions.VisibleFlags != null)
+            if (status != null)
             {
-                foreach (var flag in appSettings.DisplayOptions.VisibleFlags)
-                {
-                    if (FlagEmojiMap.TryGetValue(flag, out var emoji))
-                    {
-                        bool isActive = flag == Flag.OverHeating
-                            ? gameState.IsOverheating
-                            : status.Flags.HasFlag(flag);
+                var allFlagEntries = new List<(bool show, bool active, string emoji, string tooltip)>
+            {
+                (display.ShowFlag_ShieldsUp, status.Flags.HasFlag(Flag.ShieldsUp), "🛡", "Shields Up"),
+                (display.ShowFlag_Supercruise, status.Flags.HasFlag(Flag.Supercruise), "🚀", "Supercruise"),
+                (display.ShowFlag_HardpointsDeployed, status.Flags.HasFlag(Flag.HardpointsDeployed), "🔫", "Hardpoints Deployed"),
+                (display.ShowFlag_SilentRunning, status.Flags.HasFlag(Flag.SilentRunning), "🤫", "Silent Running"),
+                (display.ShowFlag_Docked, status.Flags.HasFlag(Flag.Docked), "⚓", "Docked"),
+                (display.ShowFlag_CargoScoopDeployed, status.Flags.HasFlag(Flag.CargoScoopDeployed), "📦", "Cargo Scoop Deployed"),
+                (display.ShowFlag_FlightAssistOff, status.Flags.HasFlag(Flag.FlightAssistOff), "🎮", "Flight Assist Off"),
+                (display.ShowFlag_NightVision, status.Flags.HasFlag(Flag.NightVision), "🌙", "Night Vision"),
+                (display.ShowFlag_Overheating, gameState.IsOverheating, "🔥", "Overheating"),
+                (display.ShowFlag_LowFuel, status.Flags.HasFlag(Flag.LowFuel), "⛽", "Low Fuel"),
+                (display.ShowFlag_MassLocked, status.Flags.HasFlag(Flag.MassLocked), "🧲", "Mass Locked"),
+                (display.ShowFlag_LandingGear, status.Flags.HasFlag(Flag.LandingGearDeployed), "🛬", "Landing Gear")
+            };
 
-                        // Grouping: first 4 flags in panel1, rest in panel2
-                        var targetPanel = flagsPanel1.Children.Count < 4 ? flagsPanel1 : flagsPanel2;
-                        AddFlagIcon(isActive, emoji, flag.ToString(), targetPanel);
-                    }
+                int count = 0;
+                var currentPanel = flagsPanel1;
+                foreach (var (show, active, emoji, tooltip) in allFlagEntries)
+                {
+                    if (!show) continue;
+                    AddFlagIcon(active, emoji, tooltip, currentPanel);
+                    count++;
+                    if (count % 6 == 0)
+                        currentPanel = (currentPanel == flagsPanel1) ? flagsPanel2 : flagsPanel1;
                 }
             }
-
 
             // Ship Modules
             modulesContent.Children.Clear();
@@ -329,6 +346,7 @@ public partial class MainWindow : Window
             }
         });
     }
+
 
     private Brush GetBodyBrush() => (Brush)System.Windows.Application.Current.Resources["MaterialDesignBody"];
 
