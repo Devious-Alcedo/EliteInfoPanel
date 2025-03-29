@@ -95,36 +95,69 @@ public partial class MainWindow : Window
 
     private void GameState_DataUpdated()
     {
-        
         Dispatcher.Invoke(() =>
         {
             var status = gameState.CurrentStatus;
-            Log.Information("Data updated: {@Status}", status);
-            bool showPanels = status != null && (
-             status.Flags.HasFlag(Flag.Docked) ||
-             status.Flags.HasFlag(Flag.Supercruise) ||
-             status.Flags.HasFlag(Flag.InSRV) ||
-             status.OnFoot ||
-             status.Flags.HasFlag(Flag.InFighter) ||
-             status.Flags.HasFlag(Flag.InMainShip));
 
+            bool shouldShowPanels = status != null && (
+                status.Flags.HasFlag(Flag.Docked) ||
+                status.Flags.HasFlag(Flag.Supercruise) ||
+                status.Flags.HasFlag(Flag.InSRV) ||
+                status.OnFoot ||
+                status.Flags.HasFlag(Flag.InFighter) ||
+                status.Flags.HasFlag(Flag.InMainShip));
 
-            MainGrid.Visibility = showPanels ? Visibility.Visible : Visibility.Collapsed;
-            Log.Information("MainGrid visibility set to: {Visible}", showPanels);
-            if (!showPanels) return;
+            MainGrid.Visibility = shouldShowPanels ? Visibility.Visible : Visibility.Collapsed;
+
+            if (!shouldShowPanels) return;
 
             UpdateSummaryCard();
             UpdateMaterialsCard();
             UpdateRouteCard();
             UpdateFuelDisplay(status);
 
-            // Card-level visibility managed here
             UpdateCargoCard(status, cardMap["Cargo"]);
             UpdateBackpackCard(status, cardMap["Backpack"]);
             UpdateModulesCard(status, cardMap["Ship Modules"]);
+
+            // Call to dynamically rearrange the UI based on the visible cards
+            RefreshCardsLayout();
         });
     }
 
+
+    private void RefreshCardsLayout()
+    {
+        MainGrid.Children.Clear();
+        MainGrid.ColumnDefinitions.Clear();
+
+        var visibleCards = new List<Card>();
+
+        void AddVisibleCard(string key, StackPanel contentPanel, bool isVisible)
+        {
+            if (isVisible)
+            {
+                visibleCards.Add(cardMap[key]);
+            }
+        }
+
+        var status = gameState.CurrentStatus;
+
+        AddVisibleCard("Summary", summaryContent, true);
+        AddVisibleCard("Cargo", cargoContent, status.Flags.HasFlag(Flag.InSRV) || status.Flags.HasFlag(Flag.InMainShip));
+        AddVisibleCard("Backpack", backpackContent, status.OnFoot);
+        AddVisibleCard("Fleet Carrier Materials", fcMaterialsContent, fcMaterialsContent.Children.Count > 0);
+        AddVisibleCard("Nav Route", routeContent, routeContent.Children.Count > 0);
+        AddVisibleCard("Ship Modules", modulesContent, modulesContent.Children.Count > 0);
+
+        int columnIndex = 0;
+        foreach (var card in visibleCards)
+        {
+            MainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            Grid.SetColumn(card, columnIndex++);
+            MainGrid.Children.Add(card);
+        }
+    }
 
     #region cards
 
