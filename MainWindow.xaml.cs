@@ -12,6 +12,7 @@ using EliteInfoPanel.Util;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Diagnostics;
+using System.Windows.Media.Animation;
 
 namespace EliteInfoPanel;
 
@@ -412,7 +413,7 @@ public partial class MainWindow : Window
             loadingText = new TextBlock
             {
                 Text = "Waiting for Elite to Load...",
-                FontSize = 32,
+                FontSize = 64,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = Brushes.White,
                 TextAlignment = TextAlignment.Center,
@@ -420,27 +421,39 @@ public partial class MainWindow : Window
                 VerticalAlignment = VerticalAlignment.Center
             };
 
+            var spinner = new ProgressBar
+            {
+                IsIndeterminate = true,
+                Width = 160,
+                Height = 16,
+                Foreground = Brushes.DeepSkyBlue,
+                Margin = new Thickness(0, 20, 0, 0)
+            };
+
+            var stack = new StackPanel
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Children = { loadingText, spinner }
+            };
+
             loadingOverlay = new Grid
             {
-                Background = new SolidColorBrush(Color.FromArgb(200, 0, 0, 0)), // optional
+                Background = new SolidColorBrush(Color.FromArgb(200, 0, 0, 0)), // dark overlay
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 VerticalAlignment = VerticalAlignment.Stretch,
                 Visibility = Visibility.Visible
             };
 
-            loadingOverlay.Children.Add(loadingText);
+            loadingOverlay.Children.Add(stack);
             Grid.SetRowSpan(loadingOverlay, int.MaxValue);
             Grid.SetColumnSpan(loadingOverlay, int.MaxValue);
-            MainGrid.Children.Add(loadingOverlay); // ✅ Only this line is needed
-            Log.Debug("Added loading overlay");
+            MainGrid.Children.Add(loadingOverlay);
+
+            Log.Debug("Added loading overlay with indeterminate progress bar");
         }
 
 
-
-        if (!MainGrid.Children.Contains(loadingText))
-        {
-            Grid.SetColumnSpan(loadingText, 10); // Span all columns if needed
-        }
 
     }
     private ControlTemplate CreateNonAnimatedProgressBarTemplate()
@@ -776,6 +789,17 @@ public partial class MainWindow : Window
 
         ApplyScreenBounds(screen);
         SetupDisplayUi();
+   
+
+        var rotate = new System.Windows.Media.Animation.DoubleAnimation
+        {
+            From = 0,
+            To = 360,
+            Duration = new Duration(TimeSpan.FromSeconds(1.2)),
+            RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever
+        };
+
+
 
         string gamePath = EliteDangerousPaths.GetSavedGamesPath();
         gameState = new GameStateService(gamePath);
