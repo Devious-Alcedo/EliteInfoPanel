@@ -10,7 +10,9 @@
         Title="Elite Info Panel" Height="480" Width="1920">
 
     <Grid x:Name="RootGrid">
-        <Grid x:Name="MainGrid" Background="{DynamicResource MaterialDesignPaper}">
+        <Grid x:Name="MainGrid" HorizontalAlignment="Stretch" Background="{DynamicResource MaterialDesignPaper}"
+             
+            VerticalAlignment="Stretch">
         </Grid>
 
 

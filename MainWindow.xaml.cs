@@ -10,6 +10,8 @@ using System.Windows.Shapes;
 using Serilog;
 using EliteInfoPanel.Util;
 using System.Windows.Data;
+using System.Windows.Input;
+using System.Diagnostics;
 
 namespace EliteInfoPanel;
 
@@ -34,6 +36,7 @@ public partial class MainWindow : Window
     { Flag.LightsOn, "💡" },
     { Flag.LowFuel, "⛽" }
 };
+    private TextBlock loadingText;
     private Dictionary<string, Card> cardMap = new();
     private AppSettings appSettings = SettingsManager.Load();
     private StackPanel backpackContent;
@@ -43,6 +46,7 @@ public partial class MainWindow : Window
     private StackPanel fuelStack;
     private TextBlock fuelText;
     private GameStateService gameState;
+    private Grid loadingOverlay;
     private JournalWatcher journalWatcher;
     private double lastFuelValue = -1;
     private StackPanel modulesContent;
@@ -65,11 +69,58 @@ public partial class MainWindow : Window
         InitializeComponent();
         LoggingConfig.Configure();
         Loaded += Window_Loaded;
+        PreviewKeyDown += MainWindow_PreviewKeyDown;
     }
 
     #endregion Public Constructors
 
     #region Private Methods
+    private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.F12)
+        {
+            {
+                OpenCurrentLogFile();
+            }
+        }
+    }
+    private void OpenCurrentLogFile()
+    {
+        try
+        {
+            string appDataFolder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string logDirectory = System.IO.Path.Combine(appDataFolder, "EliteInfoPanel");
+
+            if (!Directory.Exists(logDirectory))
+            {
+                MessageBox.Show("Log directory not found.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // Find the most recently modified log file matching the pattern
+            var latestLog = Directory.GetFiles(logDirectory, "EliteInfoPanel_Log*.log")
+                                     .OrderByDescending(File.GetLastWriteTime)
+                                     .FirstOrDefault();
+
+            if (latestLog == null)
+            {
+                MessageBox.Show("No log files found.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = latestLog,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Could not open log file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+
 
     private void ApplyScreenBounds(Screen targetScreen)
     {
@@ -115,7 +166,17 @@ public partial class MainWindow : Window
                 status.Flags.HasFlag(Flag.InFighter) ||
                 status.Flags.HasFlag(Flag.InMainShip));
 
-            MainGrid.Visibility = shouldShowPanels ? Visibility.Visible : Visibility.Collapsed;
+            MainGrid.Visibility = Visibility.Visible;
+
+            foreach (var card in cardMap.Values)
+            {
+                card.Visibility = shouldShowPanels ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            if (loadingOverlay != null)
+            {
+                loadingOverlay.Visibility = shouldShowPanels ? Visibility.Collapsed : Visibility.Visible;
+            }
 
             if (!shouldShowPanels) return;
 
@@ -291,9 +352,14 @@ public partial class MainWindow : Window
         if (flagsPanel2 == null)
             flagsPanel2 ??= new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 5, 0, 0) };
 
+        if (MainGrid.RowDefinitions.Count == 0)
+            MainGrid.RowDefinitions.Add(new RowDefinition());
+
+        if (MainGrid.ColumnDefinitions.Count == 0)
+            MainGrid.ColumnDefinitions.Add(new ColumnDefinition());
 
 
-       
+
         if (fuelText == null)
         {
             fuelText = new TextBlock
@@ -341,6 +407,41 @@ public partial class MainWindow : Window
 
         if (!summaryContent.Children.Contains(fuelStack))
             summaryContent.Children.Add(fuelStack);
+        if (loadingOverlay == null)
+        {
+            loadingText = new TextBlock
+            {
+                Text = "Waiting for Elite to Load...",
+                FontSize = 32,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = Brushes.White,
+                TextAlignment = TextAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            loadingOverlay = new Grid
+            {
+                Background = new SolidColorBrush(Color.FromArgb(200, 0, 0, 0)), // optional
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                Visibility = Visibility.Visible
+            };
+
+            loadingOverlay.Children.Add(loadingText);
+            Grid.SetRowSpan(loadingOverlay, int.MaxValue);
+            Grid.SetColumnSpan(loadingOverlay, int.MaxValue);
+            MainGrid.Children.Add(loadingOverlay); // ✅ Only this line is needed
+            Log.Debug("Added loading overlay");
+        }
+
+
+
+        if (!MainGrid.Children.Contains(loadingText))
+        {
+            Grid.SetColumnSpan(loadingText, 10); // Span all columns if needed
+        }
+
     }
     private ControlTemplate CreateNonAnimatedProgressBarTemplate()
     {
@@ -399,13 +500,19 @@ public partial class MainWindow : Window
         var visibleCards = cardMap.Values.Where(card => card.Visibility == Visibility.Visible).ToList();
 
         MainGrid.ColumnDefinitions.Clear();
-        MainGrid.Children.Clear(); // Now we do this carefully and ONCE here.
+        var preserveLoadingOverlay = loadingOverlay;
+        MainGrid.Children.Clear();
+        if (preserveLoadingOverlay != null && !MainGrid.Children.Contains(preserveLoadingOverlay))
+            MainGrid.Children.Add(preserveLoadingOverlay);
+
 
         for (int i = 0; i < visibleCards.Count; i++)
         {
             MainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             Grid.SetColumn(visibleCards[i], i);
             MainGrid.Children.Add(visibleCards[i]);
+           
+
         }
     }
 
@@ -620,7 +727,11 @@ public partial class MainWindow : Window
     {
         InitializeCards();
 
+        var preserveLoadingOverlay = loadingOverlay;
         MainGrid.Children.Clear();
+        if (preserveLoadingOverlay != null && !MainGrid.Children.Contains(preserveLoadingOverlay))
+            MainGrid.Children.Add(preserveLoadingOverlay);
+
         MainGrid.ColumnDefinitions.Clear();
         cardMap.Clear();
 
