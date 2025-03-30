@@ -9,34 +9,18 @@ using EliteInfoPanel.Dialogs;
 using System.Windows.Shapes;
 using Serilog;
 using EliteInfoPanel.Util;
-using System.Windows.Data;
+
 using System.Windows.Input;
 using System.Diagnostics;
-using System.Windows.Media.Animation;
+using System.Text.Json;
+
 
 namespace EliteInfoPanel;
 
 public partial class MainWindow : Window
 {
-
-
     #region Private Fields
 
-    private readonly Dictionary<Flag, string> FlagEmojiMap = new()
-{
-    { Flag.ShieldsUp, "🛡" },
-    { Flag.Supercruise, "🚀" },
-    { Flag.HardpointsDeployed, "🔫" },
-    { Flag.SilentRunning, "🤫" },
-    { Flag.Docked, "⚓" },
-    { Flag.CargoScoopDeployed, "📦" },
-    { Flag.FlightAssistOff, "🎮" },
-    { Flag.NightVision, "🌙" },
-    
-    { Flag.LandingGearDown, "🛬" },
-    { Flag.LightsOn, "💡" },
-    { Flag.LowFuel, "⛽" }
-};
     private TextBlock loadingText;
     private Dictionary<string, Card> cardMap = new();
     private AppSettings appSettings = SettingsManager.Load();
@@ -60,6 +44,7 @@ public partial class MainWindow : Window
     private Rectangle fuelBarEmpty;
     private WrapPanel flagsPanel1;
     private WrapPanel flagsPanel2;
+    private Dictionary<string, string> moduleNameMap = new();
 
     #endregion Private Fields
 
@@ -76,6 +61,7 @@ public partial class MainWindow : Window
     #endregion Public Constructors
 
     #region Private Methods
+
     private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.F12)
@@ -85,6 +71,7 @@ public partial class MainWindow : Window
             }
         }
     }
+
     private void OpenCurrentLogFile()
     {
         try
@@ -121,8 +108,6 @@ public partial class MainWindow : Window
         }
     }
 
-
-
     private void ApplyScreenBounds(Screen targetScreen)
     {
         this.Left = targetScreen.WpfBounds.Left;
@@ -135,23 +120,6 @@ public partial class MainWindow : Window
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
-
-    private Card CreateCard(string title, UIElement content)
-    {
-        var parent = LogicalTreeHelper.GetParent(content) as Panel;
-        parent?.Children.Remove(content);
-
-        var panel = new StackPanel();
-        panel.Children.Add(new TextBlock
-        {
-            Text = title,
-            FontWeight = FontWeights.Bold,
-            Margin = new Thickness(0, 0, 0, 5)
-        });
-        panel.Children.Add(content);
-
-        return new Card { Margin = new Thickness(5), Padding = new Thickness(5), Content = panel };
-    }
 
     private void GameState_DataUpdated()
     {
@@ -194,7 +162,27 @@ public partial class MainWindow : Window
             RefreshCardsLayout();
         });
     }
+
     #region cards
+    private Card CreateCard(string title, UIElement content)
+    {
+        var parent = LogicalTreeHelper.GetParent(content) as Panel;
+        parent?.Children.Remove(content);
+
+        var panel = new StackPanel();
+        panel.Children.Add(new TextBlock
+        {
+            Text = title,
+            FontSize = 24,
+            FontWeight = FontWeights.Bold,
+            Foreground = Brushes.Orange,
+            Margin = new Thickness(0, 0, 0, 5)
+        });
+        panel.Children.Add(content);
+
+        return new Card { Margin = new Thickness(5), Padding = new Thickness(5), Content = panel };
+    }
+
     private void UpdateFlagChips(StatusJson? status)
     {
         if (status == null) return;
@@ -263,7 +251,6 @@ public partial class MainWindow : Window
         }
     }
 
-
     private void UpdateFlagsCard(StatusJson? status)
     {
         if (status == null) return;
@@ -295,7 +282,7 @@ public partial class MainWindow : Window
                     new TextBlock
                     {
                         Text = activeFlags[i].ToString(),
-                        FontSize = 18,
+                        FontSize = 24,
                         FontWeight = FontWeights.SemiBold,
                         Foreground = Brushes.White
                     }
@@ -330,13 +317,14 @@ public partial class MainWindow : Window
                 {
                     Text = "Status Flags",
                     FontWeight = FontWeights.Bold,
+                    Foreground = Brushes.Orange,
+                    FontSize = 24,
                     Margin = new Thickness(0, 0, 0, 5)
                 });
                 cardPanel.Children.Add(content);
             }
         }
     }
-
 
     private void InitializeCards()
     {
@@ -358,8 +346,6 @@ public partial class MainWindow : Window
 
         if (MainGrid.ColumnDefinitions.Count == 0)
             MainGrid.ColumnDefinitions.Add(new ColumnDefinition());
-
-
 
         if (fuelText == null)
         {
@@ -404,7 +390,6 @@ public partial class MainWindow : Window
             fuelStack.Children.Add(fuelText);
             fuelStack.Children.Add(fuelBarGrid);
         }
-
 
         if (!summaryContent.Children.Contains(fuelStack))
             summaryContent.Children.Add(fuelStack);
@@ -452,47 +437,8 @@ public partial class MainWindow : Window
 
             Log.Debug("Added loading overlay with indeterminate progress bar");
         }
-
-
-
-    }
-    private ControlTemplate CreateNonAnimatedProgressBarTemplate()
-    {
-        var template = new ControlTemplate(typeof(ProgressBar));
-
-        var gridFactory = new FrameworkElementFactory(typeof(Grid));
-        var backgroundFactory = new FrameworkElementFactory(typeof(Rectangle));
-        backgroundFactory.SetValue(Rectangle.FillProperty, Brushes.DarkSlateGray);
-        gridFactory.AppendChild(backgroundFactory);
-
-        var progressFactory = new FrameworkElementFactory(typeof(Rectangle));
-        progressFactory.Name = "PART_Track";
-        progressFactory.SetValue(Rectangle.FillProperty, Brushes.Orange);
-        progressFactory.SetValue(Rectangle.HorizontalAlignmentProperty, HorizontalAlignment.Left);
-        progressFactory.SetValue(Rectangle.VerticalAlignmentProperty, VerticalAlignment.Stretch);
-        progressFactory.SetBinding(Rectangle.WidthProperty, new System.Windows.Data.Binding("Value")
-        {
-            RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent),
-            Converter = new ProgressToWidthConverter(),
-            ConverterParameter = 32 // Max value — keep in sync
-        });
-
-        gridFactory.AppendChild(progressFactory);
-        template.VisualTree = gridFactory;
-
-        return template;
     }
 
-    private Style CreateNonAnimatingProgressBarStyle()
-    {
-        Style style = new Style(typeof(ProgressBar), null);
-
-        // Disable animation for the Value property completely
-        var animationSetter = new Setter(ProgressBar.TemplateProperty, null);
-        style.Setters.Add(animationSetter);
-
-        return style;
-    }
     private void RefreshCardsLayout()
     {
         var status = gameState.CurrentStatus;
@@ -518,14 +464,11 @@ public partial class MainWindow : Window
         if (preserveLoadingOverlay != null && !MainGrid.Children.Contains(preserveLoadingOverlay))
             MainGrid.Children.Add(preserveLoadingOverlay);
 
-
         for (int i = 0; i < visibleCards.Count; i++)
         {
             MainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             Grid.SetColumn(visibleCards[i], i);
             MainGrid.Children.Add(visibleCards[i]);
-           
-
         }
     }
 
@@ -547,6 +490,7 @@ public partial class MainWindow : Window
             });
         }
     }
+
     private void UpdateBackpackCard(StatusJson status, Card backpackCard)
     {
         backpackContent.Children.Clear();
@@ -583,6 +527,7 @@ public partial class MainWindow : Window
             }
         }
     }
+
     private void UpdateModulesCard(StatusJson status, Card modulesCard)
     {
         modulesContent.Children.Clear();
@@ -595,15 +540,23 @@ public partial class MainWindow : Window
         {
             foreach (var module in gameState.CurrentLoadout.Modules.OrderByDescending(m => m.Health))
             {
+                string rawName = module.ItemLocalised ?? module.Item;
+                string displayName = ModuleNameMapper.GetFriendlyName(rawName);
+
                 modulesContent.Children.Add(new TextBlock
                 {
-                    Text = $"{module.Slot}: {module.ItemLocalised ?? module.Item} ({module.Health:P0})",
+                    Text = $"{displayName} ({module.Health:P0})",
                     FontSize = 20,
-                    Foreground = GetBodyBrush()
+                    Foreground = new SolidColorBrush(
+                    module.Health < 0.7 ? Colors.Red :
+                    module.Health <= 0.95 ? Colors.Orange :
+                    Colors.White
+      )
                 });
             }
         }
     }
+
     private void UpdateSummaryCard()
     {
         SetOrUpdateSummaryText("Commander", $"Commander: {gameState?.CommanderName ?? "(Unknown)"}");
@@ -629,9 +582,8 @@ public partial class MainWindow : Window
             string countdownText = gameState.JumpCountdown.Value.ToString(@"mm\:ss");
             SetOrUpdateSummaryText("CarrierJumpCountdown", $"Carrier Jump In: {countdownText}");
         }
-
-       
     }
+
     private void UpdateMaterialsCard()
     {
         fcMaterialsContent.Children.Clear();
@@ -650,6 +602,7 @@ public partial class MainWindow : Window
             });
         }
     }
+
     private void UpdateRouteCard()
     {
         routeContent.Children.Clear();
@@ -669,6 +622,7 @@ public partial class MainWindow : Window
             });
         }
     }
+
     private void UpdateFuelDisplay(StatusJson status)
     {
         var display = appSettings.DisplayOptions;
@@ -690,12 +644,15 @@ public partial class MainWindow : Window
         }
     }
 
+    private void AddCard(string title, StackPanel contentPanel)
+    {
+        var card = CreateCard(title, contentPanel);
+        cardMap[title] = card;
+    }
 
     #endregion cards
 
     private Brush GetBodyBrush() => (Brush)System.Windows.Application.Current.Resources["MaterialDesignBody"];
-
- 
 
     private void OptionsButton_Click(object sender, RoutedEventArgs e)
     {
@@ -767,12 +724,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private void AddCard(string title, StackPanel contentPanel)
-    {
-        var card = CreateCard(title, contentPanel);
-        cardMap[title] = card;
-    }
-
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
         var allScreens = Screen.AllScreens.ToList();
@@ -786,10 +737,15 @@ public partial class MainWindow : Window
             appSettings.SelectedScreenId = screen.DeviceName;
             SettingsManager.Save(appSettings);
         }
+        string mapPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ModuleNameMap.json");
+        if (File.Exists(mapPath))
+        {
+            string json = File.ReadAllText(mapPath);
+            moduleNameMap = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+        }
 
         ApplyScreenBounds(screen);
         SetupDisplayUi();
-   
 
         var rotate = new System.Windows.Media.Animation.DoubleAnimation
         {
@@ -798,8 +754,6 @@ public partial class MainWindow : Window
             Duration = new Duration(TimeSpan.FromSeconds(1.2)),
             RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever
         };
-
-
 
         string gamePath = EliteDangerousPaths.GetSavedGamesPath();
         gameState = new GameStateService(gamePath);
@@ -825,21 +779,4 @@ public partial class MainWindow : Window
 
     #endregion Private Methods
 
-    #region Public Classes
-
-    public static class ProgressBarFix
-    {
-        #region Public Methods
-
-        public static void SetValueInstantly(ProgressBar bar, double value)
-        {
-            bar.BeginAnimation(System.Windows.Controls.Primitives.RangeBase.ValueProperty, null);
-            bar.Value = value;
-        }
-
-        #endregion Public Methods
-    }
-   
-
-    #endregion Public Classes
 }

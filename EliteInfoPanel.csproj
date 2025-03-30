@@ -16,7 +16,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="ModuleNameMap.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="elite-dangerous-icon.ico" />
+    <Content Include="ModuleNameMap.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

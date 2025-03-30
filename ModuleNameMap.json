@@ -1,0 +1,21 @@
+{
+    "int_powerplant_size5_class5": "Power Plant (5A)",
+    "int_engine_size5_class5": "Thrusters (5A)",
+    "int_hyperdrive_overcharge_size5_class5": "Frame Shift Drive (5A Overcharged)",
+    "int_lifesupport_size3_class2": "Life Support (3B)",
+    "int_powerdistributor_size4_class5": "Power Distributor (4A)",
+    "int_sensors_size3_class2": "Sensors (3B)",
+    "int_fueltank_size5_class3": "Fuel Tank (5C)",
+    "int_planetapproachsuite_advanced": "Planetary Approach Suite",
+    "int_cargorack_size7_class1": "Cargo Rack (7E)",
+    "int_shieldgenerator_size5_class5": "Shield Generator (5A)",
+    "int_fuelscoop_size5_class5": "Fuel Scoop (5A)",
+    "int_dockingcomputer_advanced": "Advanced Docking Computer",
+    "hpt_multicannon_turret_small": "Small Turret Multi-Cannon",
+    "hpt_pulselaser_turret_medium": "Medium Turret Pulse Laser",
+    "hpt_heatsinklauncher_turret_tiny": "Heat Sink Launcher",
+    "hpt_shieldbooster_size0_class5": "Shield Booster",
+    "hpt_plasmapointdefence_turret_tiny": "Plasma Point Defence Turret",
+    "type8_cockpit": "Type-8 Cockpit",
+    "paintjob_type8_haulage_12": "Haulage Paint Job"
+}

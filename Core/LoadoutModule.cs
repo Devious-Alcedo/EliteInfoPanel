@@ -8,9 +8,9 @@ namespace EliteInfoPanel.Core
 {
     public class LoadoutModule
     {
-        public string Slot { get; set; }
-        public string Item { get; set; }
-        public string ItemLocalised { get; set; }  // ← Add this line
+        public string? Slot { get; set; }
+        public string? Item { get; set; }
+        public string? ItemLocalised { get; set; }  
         public bool On { get; set; }
         public int? Priority { get; set; }
         public int? AmmoInClip { get; set; }
