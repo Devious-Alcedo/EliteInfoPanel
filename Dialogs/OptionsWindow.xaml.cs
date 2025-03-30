@@ -6,6 +6,7 @@ using System.Linq;
 using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.File;
+using EliteInfoPanel.Util;
 
 namespace EliteInfoPanel.Dialogs
 {

@@ -758,20 +758,26 @@ public partial class MainWindow : Window
         string gamePath = EliteDangerousPaths.GetSavedGamesPath();
         gameState = new GameStateService(gamePath);
         gameState.DataUpdated += GameState_DataUpdated;
-
-        string latestJournal = Directory.GetFiles(gamePath, "Journal.*.log")
-            .OrderByDescending(File.GetLastWriteTime)
-            .FirstOrDefault();
-
-        if (!string.IsNullOrEmpty(latestJournal))
+        try
         {
-            journalWatcher = new JournalWatcher(latestJournal);
-            journalWatcher.LoadoutReceived += loadout =>
+            string latestJournal = Directory.GetFiles(gamePath, "Journal.*.log")
+                .OrderByDescending(File.GetLastWriteTime)
+                .FirstOrDefault();
+
+            if (!string.IsNullOrEmpty(latestJournal))
             {
-                gameState.CurrentLoadout = loadout;
-                Log.Debug("Received Loadout: FuelCapacity={FuelCapacity}", loadout.FuelCapacity);
-            };
-            journalWatcher.StartWatching();
+                journalWatcher = new JournalWatcher(latestJournal);
+                journalWatcher.LoadoutReceived += loadout =>
+                {
+                    gameState.CurrentLoadout = loadout;
+                    Log.Debug("Received Loadout: FuelCapacity={FuelCapacity}", loadout.FuelCapacity);
+                };
+                journalWatcher.StartWatching();
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error starting journal watcher");
         }
 
         GameState_DataUpdated();

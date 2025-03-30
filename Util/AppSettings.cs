@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace EliteInfoPanel
+namespace EliteInfoPanel.Util
 {
     public class AppSettings
     {

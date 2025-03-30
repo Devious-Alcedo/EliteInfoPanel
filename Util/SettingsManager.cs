@@ -6,7 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-namespace EliteInfoPanel
+namespace EliteInfoPanel.Util
 {
     public static class SettingsManager
     {
