@@ -25,11 +25,15 @@ namespace EliteInfoPanel.Core
         public TimeSpan? JumpCountdown => FleetCarrierJumpTime.HasValue ? FleetCarrierJumpTime.Value - DateTime.UtcNow : null;
         public string UserShipName { get; private set; }
         public string UserShipId { get; private set; }
+
+
         // Add this property
-        public LoadoutJson? CurrentLoadout { get; private set; }
-        public bool IsOverheating => CurrentStatus != null && CurrentStatus.Flags.HasFlag(Flag.OverHeating);
+        public LoadoutJson CurrentLoadout { get; internal set; }
+
+
 
         public event Action DataUpdated;
+       
 
         private string gamePath;
         private FileSystemWatcher watcher;
@@ -61,6 +65,10 @@ namespace EliteInfoPanel.Core
                     await Task.Delay(2000);
                 }
             });
+        }
+        public void UpdateLoadout(LoadoutJson loadout)
+        {
+            CurrentLoadout = loadout;
         }
 
         private void LoadData()

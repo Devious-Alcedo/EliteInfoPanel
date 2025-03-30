@@ -29,7 +29,7 @@ public partial class MainWindow : Window
     { Flag.CargoScoopDeployed, "📦" },
     { Flag.FlightAssistOff, "🎮" },
     { Flag.NightVision, "🌙" },
-    { Flag.OverHeating, "🔥" },
+    
     { Flag.LandingGearDown, "🛬" },
     { Flag.LightsOn, "💡" },
     { Flag.LowFuel, "⛽" }
@@ -137,7 +137,7 @@ public partial class MainWindow : Window
     {
         if (status == null) return;
 
-        Log.Debug("Active flags: {Flags}", status.Flags); // ← Add this here
+        Log.Debug("Active flags: {Flags}", status.Flags);
 
         if (flagsPanel1 == null)
             flagsPanel1 = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 5) };
@@ -148,15 +148,23 @@ public partial class MainWindow : Window
         flagsPanel1.Children.Clear();
         flagsPanel2.Children.Clear();
 
-        if (status == null) return;
-
+        // Start with the real flags
         var activeFlags = Enum.GetValues(typeof(Flag))
-     .Cast<Flag>()
-     .Where(flag => status.Flags.HasFlag(flag))
-     .ToList();
+            .Cast<Flag>()
+            .Where(flag => status.Flags.HasFlag(flag))
+            .ToList();
 
+        // Inject synthetic HudInCombatMode flag
+        if (!status.Flags.HasFlag(Flag.HudInAnalysisMode))
+        {
+            activeFlags.Add((Flag)9999); // 9999 is placeholder for synthetic flag
+        }
+
+        // Display chips
         for (int i = 0; i < activeFlags.Count; i++)
         {
+            string displayText = activeFlags[i] == (Flag)9999 ? "HudInCombatMode" : activeFlags[i].ToString();
+
             var chip = new Chip
             {
                 Content = new StackPanel
@@ -173,7 +181,7 @@ public partial class MainWindow : Window
                     },
                     new TextBlock
                     {
-                        Text = activeFlags[i].ToString(),
+                        Text = displayText,
                         FontSize = 18,
                         FontWeight = FontWeights.SemiBold,
                         Foreground = Brushes.White
@@ -181,7 +189,7 @@ public partial class MainWindow : Window
                 }
                 },
                 Margin = new Thickness(6),
-                ToolTip = activeFlags[i].ToString(),
+                ToolTip = displayText,
                 Background = new SolidColorBrush(Color.FromRgb(33, 150, 243)),
                 Foreground = Brushes.White
             };
@@ -192,6 +200,7 @@ public partial class MainWindow : Window
                 flagsPanel2.Children.Add(chip);
         }
     }
+
 
     private void UpdateFlagsCard(StatusJson? status)
     {
@@ -252,19 +261,17 @@ public partial class MainWindow : Window
         }
         else
         {
-            cardMap["Status Flags"].Content = new StackPanel
+            if (cardMap["Status Flags"].Content is StackPanel cardPanel)
             {
-                Children =
-            {
-                new TextBlock
+                cardPanel.Children.Clear();
+                cardPanel.Children.Add(new TextBlock
                 {
                     Text = "Status Flags",
                     FontWeight = FontWeights.Bold,
                     Margin = new Thickness(0, 0, 0, 5)
-                },
-                content
+                });
+                cardPanel.Children.Add(content);
             }
-            };
         }
     }
 
@@ -375,11 +382,14 @@ public partial class MainWindow : Window
     private void RefreshCardsLayout()
     {
         var status = gameState.CurrentStatus;
+        if (status == null)
+            return;
 
         // Set visibility directly on cards
         cardMap["Summary"].Visibility = Visibility.Visible;
-        cardMap["Cargo"].Visibility = (status.Flags.HasFlag(Flag.InSRV) || status.Flags.HasFlag(Flag.InMainShip))
-            ? Visibility.Visible : Visibility.Collapsed;
+        cardMap["Cargo"].Visibility = (status?.Flags.HasFlag(Flag.InSRV) == true || status?.Flags.HasFlag(Flag.InMainShip) == true)
+     ? Visibility.Visible : Visibility.Collapsed;
+
         cardMap["Backpack"].Visibility = status.OnFoot ? Visibility.Visible : Visibility.Collapsed;
         cardMap["Fleet Carrier Materials"].Visibility = fcMaterialsContent.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         cardMap["Nav Route"].Visibility = routeContent.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -500,8 +510,7 @@ public partial class MainWindow : Window
             SetOrUpdateSummaryText("CarrierJumpCountdown", $"Carrier Jump In: {countdownText}");
         }
 
-        if (gameState.IsOverheating)
-            SetOrUpdateSummaryText("OverheatWarning", "WARNING: Ship Overheating!");
+       
     }
     private void UpdateMaterialsCard()
     {
@@ -546,7 +555,7 @@ public partial class MainWindow : Window
         if (display.ShowFuelLevel && status?.Fuel != null)
         {
             double value = Math.Round(status.Fuel.FuelMain, 2);
-            double max = Math.Round(status.Fuel.FuelCapacity, 2); // ← USE journal-derived max
+            double max = Math.Round(gameState.CurrentLoadout?.FuelCapacity?.Main ?? 0, 2);
 
             if (max <= 0) return; // avoid divide by zero
 
@@ -668,6 +677,11 @@ public partial class MainWindow : Window
         if (!string.IsNullOrEmpty(latestJournal))
         {
             journalWatcher = new JournalWatcher(latestJournal);
+            journalWatcher.LoadoutReceived += loadout =>
+            {
+                gameState.CurrentLoadout = loadout;
+                Log.Debug("Received Loadout: FuelCapacity={FuelCapacity}", loadout.FuelCapacity);
+            };
             journalWatcher.StartWatching();
         }
 
