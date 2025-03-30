@@ -2,32 +2,60 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
-        Title="Options" Height="400" Width="300"
+        Title="Options" Height="546" Width="479"
         WindowStartupLocation="Manual"
         Background="{DynamicResource MaterialDesignPaper}"
         WindowStyle="SingleBorderWindow"
-        
         TextOptions.TextFormattingMode="Ideal"
         TextElement.Foreground="{DynamicResource MaterialDesign.Brush.Foreground}"
         FontFamily="{materialDesign:MaterialDesignFont}"
         TextOptions.TextRenderingMode="Auto">
 
-    <Grid Margin="16">
-        <StackPanel>
-            <TextBlock Text="Display Options" FontSize="20" Margin="0 0 0 16" Style="{DynamicResource MaterialDesignHeadline6}"/>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="20">
+            <TextBlock Text="Display Settings" FontWeight="Bold" FontSize="18" Margin="0,0,0,10"/>
 
-            <CheckBox Content="Commander Name" Foreground="{DynamicResource MaterialDesignBody}" IsChecked="{Binding ShowCommanderName}" Style="{DynamicResource MaterialDesignCheckbox}" Margin="0 8"/>
-            <CheckBox Content="Ship Info" Foreground="{DynamicResource MaterialDesignBody}" IsChecked="{Binding ShowShipInfo}" Style="{DynamicResource MaterialDesignCheckbox}" Margin="0 8"/>
-            <CheckBox Content="Fuel Level" Foreground="{DynamicResource MaterialDesignBody}" IsChecked="{Binding ShowFuelLevel}" Style="{DynamicResource MaterialDesignCheckbox}" Margin="0 8"/>
-            <CheckBox Content="Current Route" Foreground="{DynamicResource MaterialDesignBody}" IsChecked="{Binding ShowRoute}" Style="{DynamicResource MaterialDesignCheckbox}" Margin="0 8"/>
-            <CheckBox Content="Cargo Manifest" Foreground="{DynamicResource MaterialDesignBody}" IsChecked="{Binding ShowCargo}" Style="{DynamicResource MaterialDesignCheckbox}" Margin="0 8"/>
-            <CheckBox Content="Backpack / Materials" Foreground="{DynamicResource MaterialDesignBody}"  IsChecked="{Binding ShowBackpack}" Style="{DynamicResource MaterialDesignCheckbox}" Margin="0 8"/>
-            <CheckBox Content="Show Fleet Carrier Materials" Foreground="{DynamicResource MaterialDesignBody}" IsChecked="{Binding ShowFCMaterials}" Style="{DynamicResource MaterialDesignCheckbox}" Margin="0,8,0,0"/>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 24 0 0">
-                <Button Content="Cancel" Click="Cancel_Click" Style="{DynamicResource MaterialDesignFlatButton}" Margin="0 0 8 0" />
-                <Button Content="Save" Click="Save_Click" Style="{DynamicResource MaterialDesignRaisedButton}" />
+            <!-- General Panels -->
+            <GroupBox Header="General Panels" Margin="0,0,0,10">
+                <StackPanel>
+                    <CheckBox Content="Show Commander Name" IsChecked="{Binding ShowCommanderName}"/>
+                    <CheckBox Content="Show Fuel Level" IsChecked="{Binding ShowFuelLevel}"/>
+                    <CheckBox Content="Show Cargo" IsChecked="{Binding ShowCargo}"/>
+                    <CheckBox Content="Show Backpack" IsChecked="{Binding ShowBackpack}"/>
+                    <CheckBox Content="Show Fleet Carrier Materials" IsChecked="{Binding ShowFCMaterials}"/>
+                    <CheckBox Content="Show Nav Route" IsChecked="{Binding ShowRoute}"/>
+                </StackPanel>
+            </GroupBox>
+
+            <!-- Flag Icons -->
+            <GroupBox Header="Status Flags to Show" Margin="0,0,0,10">
+                <UniformGrid Columns="3">
+                    <CheckBox Content="Shields Up" IsChecked="{Binding ShowFlag_ShieldsUp}"/>
+                    <CheckBox Content="Supercruise" IsChecked="{Binding ShowFlag_Supercruise}"/>
+                    <CheckBox Content="Hardpoints Deployed" IsChecked="{Binding ShowFlag_HardpointsDeployed}"/>
+                    <CheckBox Content="Silent Running" IsChecked="{Binding ShowFlag_SilentRunning}"/>
+                    <CheckBox Content="Docked" IsChecked="{Binding ShowFlag_Docked}"/>
+                    <CheckBox Content="Cargo Scoop Deployed" IsChecked="{Binding ShowFlag_CargoScoopDeployed}"/>
+                    <CheckBox Content="Flight Assist Off" IsChecked="{Binding ShowFlag_FlightAssistOff}"/>
+                    <CheckBox Content="Night Vision" IsChecked="{Binding ShowFlag_NightVision}"/>
+                    <CheckBox Content="Overheating" IsChecked="{Binding ShowFlag_Overheating}"/>
+                    <CheckBox Content="Low Fuel" IsChecked="{Binding ShowFlag_LowFuel}"/>
+                    <CheckBox Content="Mass Locked" IsChecked="{Binding ShowFlag_MassLocked}"/>
+                    <CheckBox Content="Landing Gear" IsChecked="{Binding ShowFlag_LandingGear}"/>
+                </UniformGrid>
+            </GroupBox>
+
+            <!-- Mode Switching -->
+            <GroupBox Header="Dynamic View Modes">
+                <StackPanel>
+                    <CheckBox Content="Enable Mode-Based Display (e.g., Supercruise, Combat)" IsChecked="{Binding EnableDynamicViewMode}"/>
+                </StackPanel>
+            </GroupBox>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+                <Button Width="80" Margin="0,0,10,0" Content="OK" Click="OkButton_Click" Style="{DynamicResource MaterialDesignRaisedButton}" />
+                <Button Width="80" Content="Cancel" Click="CancelButton_Click" Style="{DynamicResource MaterialDesignRaisedButton}"/>
             </StackPanel>
         </StackPanel>
-    </Grid>
+    </ScrollViewer>
 </Window>
-

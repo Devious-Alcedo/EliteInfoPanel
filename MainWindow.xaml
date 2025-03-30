@@ -10,7 +10,44 @@
         Title="Elite Info Panel" Height="480" Width="1920">
 
     <Grid x:Name="RootGrid">
-        <Grid x:Name="MainGrid" Background="{DynamicResource MaterialDesignPaper}">
+        <Grid x:Name="LoadingOverlay"
+      Background="#AA000000"
+      Visibility="Collapsed"
+      HorizontalAlignment="Stretch"
+      VerticalAlignment="Stretch"
+      Panel.ZIndex="9999">
+            <StackPanel HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Orientation="Vertical"
+                Margin="20">
+                <Viewbox Width="64" Height="64">
+                    <Canvas Width="100" Height="100">
+                        <Path Stroke="White"
+                      StrokeThickness="6"
+                      StrokeDashArray="2,3"
+                      StrokeDashCap="Round"
+                      RenderTransformOrigin="0.5,0.5">
+                            <Path.RenderTransform>
+                                <RotateTransform x:Name="SpinnerRotate" />
+                            </Path.RenderTransform>
+                            <Path.Data>
+                                <EllipseGeometry Center="50,50" RadiusX="45" RadiusY="45" />
+                            </Path.Data>
+                        </Path>
+                    </Canvas>
+                </Viewbox>
+                <TextBlock Text="Waiting for Elite to Load..."
+                   Foreground="White"
+                   FontSize="24"
+                   FontWeight="SemiBold"
+                   TextAlignment="Center"
+                   Margin="0,20,0,0"/>
+            </StackPanel>
+        </Grid>
+
+        <Grid x:Name="MainGrid" HorizontalAlignment="Stretch" Background="{DynamicResource MaterialDesignPaper}"
+             
+            VerticalAlignment="Stretch">
         </Grid>
 
 

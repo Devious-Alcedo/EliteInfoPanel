@@ -6,12 +6,18 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-namespace EliteInfoPanel
+namespace EliteInfoPanel.Util
 {
     public static class SettingsManager
     {
+        #region Private Fields
+
         private static readonly string SettingsPath =
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EliteInfoPanel", "settings.json");
+
+        #endregion Private Fields
+
+        #region Public Methods
 
         public static AppSettings Load()
         {
@@ -35,5 +41,7 @@ namespace EliteInfoPanel
             string json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(SettingsPath, json);
         }
+
+        #endregion Public Methods
     }
 }

@@ -5,12 +5,17 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace EliteInfoPanel
+namespace EliteInfoPanel.Util
 {
     public class AppSettings
     {
-        public string? SelectedScreenId { get; set; }
+        #region Public Properties
+
         public DisplayOptions DisplayOptions { get; set; } = new DisplayOptions();
+        public string? LastOptionsScreenId { get; set; }
+        public string? SelectedScreenId { get; set; }
+
+        #endregion Public Properties
     }
 
 }

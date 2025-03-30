@@ -1,4 +1,5 @@
-﻿using System;
+﻿using EliteInfoPanel.Core.EliteInfoPanel.Core;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -15,6 +16,7 @@ namespace EliteInfoPanel.Core
         public string CommanderName { get; private set; }
         public string ShipLocalised { get; private set; }
         public event Action<JournalEntry> NewEntry;
+        public event Action<LoadoutJson> LoadoutReceived;
 
         public JournalWatcher(string filePath)
         {
@@ -36,18 +38,37 @@ namespace EliteInfoPanel.Core
                         string line = await reader.ReadLineAsync();
                         if (!string.IsNullOrWhiteSpace(line))
                         {
-                            var entry = JsonSerializer.Deserialize<JournalEntry>(line, new JsonSerializerOptions
+                            try
                             {
-                                PropertyNameCaseInsensitive = true
-                            });
-                            NewEntry?.Invoke(entry);
-                            if (entry.@event == "LoadGame" && !string.IsNullOrEmpty(entry.Name))
+                                using JsonDocument doc = JsonDocument.Parse(line);
+                                string eventType = doc.RootElement.GetProperty("event").GetString();
+
+                                if (eventType == "LoadGame")
+                                {
+                                    var entry = JsonSerializer.Deserialize<JournalEntry>(line);
+                                    CommanderName = entry?.Name;
+                                    ShipLocalised = entry?.Ship_Localised;
+                                    NewEntry?.Invoke(entry);
+                                }
+                                else if (eventType == "Loadout")
+                                {
+                                    var loadout = JsonSerializer.Deserialize<LoadoutJson>(line);
+                                    if (loadout != null)
+                                        LoadoutReceived?.Invoke(loadout);
+                                }
+                                else
+                                {
+                                    var entry = JsonSerializer.Deserialize<JournalEntry>(line);
+                                    if (entry != null)
+                                        NewEntry?.Invoke(entry);
+                                }
+                            }
+                            catch (Exception ex)
                             {
-                                CommanderName = entry.Name;
-                                ShipLocalised = entry.Ship_Localised;
+                                // Optional: log error parsing journal line
+                                Console.WriteLine($"Error parsing journal line: {ex.Message}");
                             }
                         }
-                       
                     }
 
                     lastPosition = stream.Position;

@@ -8,6 +8,8 @@ namespace EliteInfoPanel.Core
 {
     public class FCMaterialsJson
     {
+        #region Public Properties
+
         public List<MaterialItem> Items { get; set; } = new();
 
         public List<MaterialItem> Materials => Items.Select(i =>
@@ -16,16 +18,28 @@ namespace EliteInfoPanel.Core
             return i;
         }).ToList();
 
+        #endregion Public Properties
+
+        #region Public Classes
+
         public class MaterialItem
         {
+            #region Public Properties
+
+            public string Category { get; set; }
+            public int Count => Stock;
+            public int Demand { get; set; }
             public int id { get; set; }
             public string Name { get; set; }
             public string Name_Localised { get; set; }
             public int Price { get; set; }
             public int Stock { get; set; }
-            public int Demand { get; set; }
-            public string Category { get; set; }
-            public int Count => Stock; // for display reuse
+
+            #endregion Public Properties
+
+            // for display reuse
         }
+
+        #endregion Public Classes
     }
 }
