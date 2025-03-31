@@ -131,6 +131,11 @@ public partial class MainWindow : Window
         Dispatcher.Invoke(() =>
         {
             var status = gameState.CurrentStatus;
+            if (status == null)
+            {
+                Log.Warning("GameState.CurrentStatus was null during update cycle.");
+                return;
+            }
 
             bool shouldShowPanels = status != null && (
                 status.Flags.HasFlag(Flag.Docked) ||
@@ -560,6 +565,8 @@ public partial class MainWindow : Window
 
     private void UpdateModulesCard(StatusJson status, Card modulesCard)
     {
+        if (status == null || gameState.CurrentLoadout?.Modules == null)
+            return;
         modulesContent.Children.Clear();
         bool showModules = status.Flags.HasFlag(Flag.InMainShip) &&
                            !status.OnFoot &&
@@ -680,6 +687,16 @@ public partial class MainWindow : Window
             ? Visibility.Visible : Visibility.Collapsed;
 
         if (gameState.CurrentRoute?.Route == null) return;
+        if (!string.IsNullOrWhiteSpace(gameState?.CurrentStatus?.Destination?.Name))
+        {
+            routeContent.Children.Add(new TextBlock
+            {
+                Text = $"Destination Body: {gameState.CurrentStatus.Destination.Name}",
+                FontSize = 20,
+                Margin = new Thickness(0, 0, 0, 6),
+                Foreground = GetBodyBrush()
+            });
+        }
 
         foreach (var jump in gameState.CurrentRoute.Route)
         {
@@ -696,23 +713,38 @@ public partial class MainWindow : Window
     private void UpdateFuelDisplay(StatusJson status)
     {
         var display = appSettings.DisplayOptions;
-        if (display.ShowFuelLevel && status?.Fuel != null)
+
+        if (display.ShowFuelLevel && status != null)
         {
-            double value = Math.Round(status.Fuel.FuelMain, 2);
-            double max = Math.Round(gameState.CurrentLoadout?.FuelCapacity?.Main ?? 0, 2);
+            if (status.Flags.HasFlag(Flag.InSRV) && status.SRV != null)
+            {
+                // SRV Fuel mode
+                double value = Math.Round(status.SRV.Fuel, 2);
+                lastFuelValue = value;
 
-            if (max <= 0) return; // avoid divide by zero
+                fuelText.Text = $"SRV Fuel: {value:P0}";
 
-            double ratio = Math.Min(1.0, value / max);
-            lastFuelValue = value;
+                fuelBarGrid.ColumnDefinitions[0].Width = new GridLength(value, GridUnitType.Star);
+                fuelBarGrid.ColumnDefinitions[1].Width = new GridLength(1 - value, GridUnitType.Star);
+            }
+            else if (status.Fuel != null)
+            {
+                // Standard ship fuel mode
+                double value = Math.Round(status.Fuel.FuelMain, 2);
+                double max = Math.Round(gameState.CurrentLoadout?.FuelCapacity?.Main ?? 0, 2);
 
-            fuelText.Text = $"Fuel: Main {value:0.00} / Reserve {status.Fuel.FuelReservoir:0.00}";
+                if (max <= 0) return; // avoid divide by zero
 
-            // Update fuel bar width based on ratio
-            fuelBarGrid.ColumnDefinitions[0].Width = new GridLength(ratio, GridUnitType.Star);
-            fuelBarGrid.ColumnDefinitions[1].Width = new GridLength(1 - ratio, GridUnitType.Star);
+                double ratio = Math.Min(1.0, value / max);
+                lastFuelValue = value;
+
+                fuelText.Text = $"Fuel: Main {value:0.00} / Reserve {status.Fuel.FuelReservoir:0.00}";
+                fuelBarGrid.ColumnDefinitions[0].Width = new GridLength(ratio, GridUnitType.Star);
+                fuelBarGrid.ColumnDefinitions[1].Width = new GridLength(1 - ratio, GridUnitType.Star);
+            }
         }
     }
+
 
     private void AddCard(string title, StackPanel contentPanel)
     {

@@ -55,8 +55,10 @@ namespace EliteInfoPanel.Core
             watcher.Changed += (s, e) =>
             {
                 LoadData();
-                DataUpdated?.Invoke();
+                if (CurrentStatus != null)
+                    DataUpdated?.Invoke();
             };
+
 
             LoadData();
 
@@ -65,7 +67,9 @@ namespace EliteInfoPanel.Core
                 while (true)
                 {
                     LoadData();
-                    DataUpdated?.Invoke();
+                    if (CurrentStatus != null)
+                        DataUpdated?.Invoke();
+
                     await Task.Delay(2000);
                 }
             });
@@ -79,7 +83,10 @@ namespace EliteInfoPanel.Core
         {
             try
             {
+                Log.Debug("Loaded Status.json: {Status}", CurrentStatus != null ? "OK" : "NULL");
                 var statusPath = Path.Combine(gamePath, "Status.json");
+                
+
                 var cargoPath = Path.Combine(gamePath, "Cargo.json");
                 var backpackPath = Path.Combine(gamePath, "Backpack.json");
                 var materialsPath = Path.Combine(gamePath, "FCMaterials.json");
@@ -88,7 +95,7 @@ namespace EliteInfoPanel.Core
                 CurrentStatus = DeserializeJsonFile<StatusJson>(statusPath);
                 CurrentCargo = DeserializeJsonFile<CargoJson>(cargoPath);
                 CurrentBackpack = DeserializeJsonFile<BackpackJson>(backpackPath);
-                CurrentMaterials = DeserializeJsonFile<FCMaterialsJson>(materialsPath);
+               // CurrentMaterials = DeserializeJsonFile<FCMaterialsJson>(materialsPath);
                 CurrentRoute = DeserializeJsonFile<NavRouteJson>(routePath);
 
                 Log.Debug("Raw Status.json: {RawStatus}", File.ReadAllText(statusPath));
@@ -131,6 +138,18 @@ namespace EliteInfoPanel.Core
                                         FleetCarrierJumpTime = dt;
                                 }
                             }
+                            else if (line.Contains("\"event\":\"Loadout\""))
+                            {
+                                var loadout = JsonSerializer.Deserialize<LoadoutJson>(line);
+                                if (loadout != null)
+                                {
+                                    CurrentLoadout = loadout;
+                                    UserShipName = loadout.ShipName;
+                                    UserShipId = loadout.ShipIdent;
+                                    Log.Debug("Assigned Loadout from journal: {Ship} with {ModuleCount} modules", loadout.Ship, loadout.Modules?.Count ?? 0);
+                                }
+                            }
+
                             else if (line.Contains("\"event\":\"Location\""))
                             {
                                 using var doc = JsonDocument.Parse(line);
@@ -143,14 +162,6 @@ namespace EliteInfoPanel.Core
                                 if (doc.RootElement.TryGetProperty("SquadronName", out var squad))
                                     SquadronName = squad.GetString();
                             }
-                            //else if (line.Contains("\"event\":\"Loadout\""))
-                            //{
-                            //    var loadout = JsonSerializer.Deserialize<LoadoutJson>(line);
-                            //    CurrentLoadout = loadout;
-                            //    UserShipName = loadout?.ShipName;
-                            //    UserShipId = loadout?.ShipIdent;
-                            //}
-                            //Log.Debug("LoadData assigned ship from journal: {Ship}", loadout?.Ship);
 
                             if (CommanderName != null && ShipLocalised != null && FleetCarrierJumpTime.HasValue)
                                 break;
@@ -160,10 +171,7 @@ namespace EliteInfoPanel.Core
                     {
                         Log.Warning("Journal file temporarily locked or unavailable: {Message}", ex.Message);
                     }
-                    catch (Exception ex)
-                    {
-                        Log.Error(ex, "Error parsing journal file.");
-                    }
+
                 }
             }
             catch (Exception ex)
@@ -175,29 +183,39 @@ namespace EliteInfoPanel.Core
 
         private T DeserializeJsonFile<T>(string filePath) where T : class
         {
-            try
+            for (int attempt = 0; attempt < 5; attempt++)
             {
-                if (!File.Exists(filePath)) return null;
+                try
+                {
+                    if (!File.Exists(filePath)) return null;
 
-                using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                if (stream.Length == 0) return null;
+                    using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    if (stream.Length == 0) return null;
 
-                using var reader = new StreamReader(stream);
-                string json = reader.ReadToEnd();
+                    using var reader = new StreamReader(stream);
+                    string json = reader.ReadToEnd();
 
-                if (string.IsNullOrWhiteSpace(json))
+                    if (string.IsNullOrWhiteSpace(json))
+                        return null;
+
+                    return JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                }
+                catch (IOException)
+                {
+                    Thread.Sleep(50); // Retry briefly
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Failed to deserialize {filePath}: {ex}");
                     return null;
+                }
+            }
 
-                return JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Failed to deserialize {filePath}: {ex}");
-                return null;
-            }
+            return null;
         }
 
-       
+
+
 
     }
 }

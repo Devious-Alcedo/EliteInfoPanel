@@ -72,16 +72,25 @@ namespace EliteInfoPanel.Core
         PhysicalMulticrew = 1 << 18,
         FsdHyperdriveCharging = 1 << 19
     }
+    public class SRVStatus
+    {
+        public double Fuel { get; set; }
+        public double Temp { get; set; }
+    }
 
 
-
-
-
+    public class DestinationInfo
+    {
+        public long System { get; set; }
+        public int Body { get; set; }
+        public string Name { get; set; }
+        
+    }
 
     public class StatusJson
     {
         public long Balance { get; set; }
-
+        public DestinationInfo Destination { get; set; }
         [JsonPropertyName("Flags")]
         public Flag Flags { get; set; }
         public int Flags2 { get; set; }
@@ -89,8 +98,7 @@ namespace EliteInfoPanel.Core
         public bool OnFoot => (Flags2 & 1) != 0;
         [JsonPropertyName("Heat")]
         public float Heat { get; set; }
-       
-
+        public SRVStatus SRV { get; set; }
         public string ShipType { get; set; }
 
         public class FuelInfo
