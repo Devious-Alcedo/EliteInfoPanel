@@ -14,6 +14,7 @@ using System.Windows.Input;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Windows.Threading;
+using EliteInfoPanel.Core.EliteInfoPanel.Core;
 
 
 namespace EliteInfoPanel;
@@ -337,7 +338,8 @@ public partial class MainWindow : Window
         backpackContent ??= new StackPanel();
         //fcMaterialsContent ??= new StackPanel();
         routeContent ??= new StackPanel();
-        modulesContent ??= new StackPanel();
+        modulesContent ??= new StackPanel { Name = "ModulesContent" };
+
         fuelStack ??= new StackPanel();
         if (flagsPanel1 == null)
             flagsPanel1 ??= new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
@@ -441,6 +443,20 @@ public partial class MainWindow : Window
 
             Log.Debug("Added loading overlay with indeterminate progress bar");
         }
+    }
+    private async void FadeAndUpdateModules()
+    {
+        var fadeOut = new System.Windows.Media.Animation.DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(400));
+        var fadeIn = new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(400));
+
+        modulesContent.BeginAnimation(OpacityProperty, fadeOut);
+
+        await Task.Delay(400);
+
+        currentModulesPage = (currentModulesPage + 1) % 2;
+        UpdateModulesCard(gameState.CurrentStatus, cardMap["Ship Modules"]);
+
+        modulesContent.BeginAnimation(OpacityProperty, fadeIn);
     }
 
     private void RefreshCardsLayout()
@@ -550,52 +566,64 @@ public partial class MainWindow : Window
                            !status.Flags.HasFlag(Flag.InSRV) &&
                            !status.Flags.HasFlag(Flag.InFighter);
 
-        if (gameState.CurrentLoadout?.Modules != null && showModules)
+        if (gameState.CurrentLoadout?.Modules == null || !showModules)
+            return;
+
+        // Categorize modules
+        var modules = gameState.CurrentLoadout.Modules;
+
+        var hardpoints = modules.Where(m => m.Slot.StartsWith("SmallHardpoint") || m.Slot.StartsWith("MediumHardpoint") || m.Slot.StartsWith("LargeHardpoint") || m.Slot.StartsWith("TinyHardpoint")).ToList();
+        var coreInternals = modules.Where(m => m.Slot is "PowerPlant" or "MainEngines" or "FrameShiftDrive" or "LifeSupport" or "PowerDistributor" or "Radar" or "FuelTank").ToList();
+        var optionals = modules.Where(m => m.Slot.StartsWith("Slot")).ToList();
+        var other = modules.Except(hardpoints).Except(coreInternals).Except(optionals).ToList();
+
+        var groupedPages = new List<List<LoadoutModule>>
+    {
+        hardpoints.Concat(coreInternals).ToList(), // Page 1
+        optionals.Concat(other).ToList()           // Page 2
+    };
+
+        var pageModules = groupedPages[currentModulesPage];
+
+        // 2-column display
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        int col = 0, row = 0;
+        foreach (var module in pageModules.OrderByDescending(m => m.Health))
         {
-            var grid = new Grid
+            string rawName = module.ItemLocalised ?? module.Item;
+            string displayName = ModuleNameMapper.GetFriendlyName(rawName);
+
+            var tb = new TextBlock
             {
-                Margin = new Thickness(4)
+                Text = $"{displayName} ({module.Health:P0})",
+                FontSize = 20,
+                Margin = new Thickness(4),
+                Foreground = new SolidColorBrush(
+                    module.Health < 0.7 ? Colors.Red :
+                    module.Health <= 0.95 ? Colors.Orange :
+                    Colors.White)
             };
 
-            // Define two equal-width columns
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            if (grid.RowDefinitions.Count <= row)
+                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-            int row = 0, col = 0;
+            Grid.SetColumn(tb, col);
+            Grid.SetRow(tb, row);
+            grid.Children.Add(tb);
 
-            foreach (var module in gameState.CurrentLoadout.Modules.OrderByDescending(m => m.Health))
+            if (++col > 1)
             {
-                string rawName = module.ItemLocalised ?? module.Item;
-                string displayName = ModuleNameMapper.GetFriendlyName(rawName);
-                Log.Information("Module: {RawName} -> {DisplayName}", rawName, displayName);
-
-                var textBlock = new TextBlock
-                {
-                    Text = $"{displayName} ({module.Health:P0})",
-                    FontSize = 20,
-                    Margin = new Thickness(4),
-                    Foreground = new SolidColorBrush(
-                        module.Health < 0.7 ? Colors.Red :
-                        module.Health <= 0.95 ? Colors.Orange :
-                        Colors.White)
-                };
-
-                // Add a new row if starting a new line
-                if (col == 0)
-                    grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-                Grid.SetRow(textBlock, row);
-                Grid.SetColumn(textBlock, col);
-                grid.Children.Add(textBlock);
-
-                col = (col + 1) % 2;
-                if (col == 0)
-                    row++;
+                col = 0;
+                row++;
             }
-
-            modulesContent.Children.Add(grid);
         }
+
+        modulesContent.Children.Add(grid);
     }
+
 
 
     private void UpdateSummaryCard()
@@ -788,6 +816,14 @@ public partial class MainWindow : Window
 
         ApplyScreenBounds(screen);
         SetupDisplayUi();
+
+        modulePageTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(5)
+        };
+        modulePageTimer.Tick += (s, e) => FadeAndUpdateModules();
+
+        modulePageTimer.Start();
 
         var rotate = new System.Windows.Media.Animation.DoubleAnimation
         {
