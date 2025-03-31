@@ -1,4 +1,5 @@
 ﻿using EliteInfoPanel.Core.EliteInfoPanel.Core;
+using EliteInfoPanel.Util;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -17,6 +18,7 @@ namespace EliteInfoPanel.Core
         public string ShipLocalised { get; private set; }
         public event Action<JournalEntry> NewEntry;
         public event Action<LoadoutJson> LoadoutReceived;
+        public event Action<bool> FleetCarrierScreenChanged;
 
         public JournalWatcher(string filePath)
         {
@@ -54,7 +56,12 @@ namespace EliteInfoPanel.Core
                                 {
                                     var loadout = JsonSerializer.Deserialize<LoadoutJson>(line);
                                     if (loadout != null)
-                                        LoadoutReceived?.Invoke(loadout);
+                                    {
+                                        LoadoutReceived?.Invoke(loadout); // <-- this line is correct
+                                                                          // Also optionally update internal fields, e.g.:
+                                        var shipName = ShipNameHelper.GetLocalisedName(loadout.Ship);
+                                        ShipLocalised = shipName;
+                                    }
                                 }
                                 else
                                 {

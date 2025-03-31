@@ -13,6 +13,7 @@ using EliteInfoPanel.Util;
 using System.Windows.Input;
 using System.Diagnostics;
 using System.Text.Json;
+using System.Windows.Threading;
 
 
 namespace EliteInfoPanel;
@@ -26,7 +27,10 @@ public partial class MainWindow : Window
     private AppSettings appSettings = SettingsManager.Load();
     private StackPanel backpackContent;
     private StackPanel cargoContent;
-    private StackPanel fcMaterialsContent;
+    //private StackPanel fcMaterialsContent;
+    private int currentModulesPage = 0;
+    private DispatcherTimer modulePageTimer;
+
     private ProgressBar fuelBar;
     private StackPanel fuelStack;
     private TextBlock fuelText;
@@ -150,7 +154,7 @@ public partial class MainWindow : Window
             if (!shouldShowPanels) return;
 
             UpdateSummaryCard();
-            UpdateMaterialsCard();
+           // UpdateMaterialsCard();
             UpdateRouteCard();
             UpdateFuelDisplay(status);
             UpdateFlagChips(status);
@@ -331,7 +335,7 @@ public partial class MainWindow : Window
         summaryContent ??= new StackPanel();
         cargoContent ??= new StackPanel();
         backpackContent ??= new StackPanel();
-        fcMaterialsContent ??= new StackPanel();
+        //fcMaterialsContent ??= new StackPanel();
         routeContent ??= new StackPanel();
         modulesContent ??= new StackPanel();
         fuelStack ??= new StackPanel();
@@ -447,15 +451,13 @@ public partial class MainWindow : Window
 
         // Set visibility directly on cards
         cardMap["Summary"].Visibility = Visibility.Visible;
-        cardMap["Cargo"].Visibility = (status?.Flags.HasFlag(Flag.InSRV) == true || status?.Flags.HasFlag(Flag.InMainShip) == true)
-     ? Visibility.Visible : Visibility.Collapsed;
-
+        cardMap["Cargo"].Visibility = (status.Flags.HasFlag(Flag.InSRV) || status.Flags.HasFlag(Flag.InMainShip))
+            ? Visibility.Visible : Visibility.Collapsed;
         cardMap["Backpack"].Visibility = status.OnFoot ? Visibility.Visible : Visibility.Collapsed;
-        cardMap["Fleet Carrier Materials"].Visibility = fcMaterialsContent.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         cardMap["Nav Route"].Visibility = routeContent.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         cardMap["Ship Modules"].Visibility = modulesContent.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        // cardMap["Fleet Carrier Materials"].Visibility = Visibility.Collapsed; // fully removed now
 
-        // Rearrange visible cards dynamically WITHOUT CLEARING THE GRID
         var visibleCards = cardMap.Values.Where(card => card.Visibility == Visibility.Visible).ToList();
 
         MainGrid.ColumnDefinitions.Clear();
@@ -464,13 +466,25 @@ public partial class MainWindow : Window
         if (preserveLoadingOverlay != null && !MainGrid.Children.Contains(preserveLoadingOverlay))
             MainGrid.Children.Add(preserveLoadingOverlay);
 
-        for (int i = 0; i < visibleCards.Count; i++)
+        int currentCol = 0;
+
+        foreach (var card in visibleCards)
         {
-            MainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            Grid.SetColumn(visibleCards[i], i);
-            MainGrid.Children.Add(visibleCards[i]);
+            int colSpan = card == cardMap["Ship Modules"] ? 2 : 1;
+
+            // Add as many column definitions as needed
+            for (int i = 0; i < colSpan; i++)
+                MainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            Grid.SetColumn(card, currentCol);
+            Grid.SetColumnSpan(card, colSpan);
+            MainGrid.Children.Add(card);
+
+            currentCol += colSpan;
         }
     }
+
+
 
     private void UpdateCargoCard(StatusJson status, Card cargoCard)
     {
@@ -538,38 +552,66 @@ public partial class MainWindow : Window
 
         if (gameState.CurrentLoadout?.Modules != null && showModules)
         {
+            var grid = new Grid
+            {
+                Margin = new Thickness(4)
+            };
+
+            // Define two equal-width columns
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            int row = 0, col = 0;
+
             foreach (var module in gameState.CurrentLoadout.Modules.OrderByDescending(m => m.Health))
             {
                 string rawName = module.ItemLocalised ?? module.Item;
                 string displayName = ModuleNameMapper.GetFriendlyName(rawName);
                 Log.Information("Module: {RawName} -> {DisplayName}", rawName, displayName);
-                modulesContent.Children.Add(new TextBlock
+
+                var textBlock = new TextBlock
                 {
                     Text = $"{displayName} ({module.Health:P0})",
                     FontSize = 20,
+                    Margin = new Thickness(4),
                     Foreground = new SolidColorBrush(
-                    module.Health < 0.7 ? Colors.Red :
-                    module.Health <= 0.95 ? Colors.Orange :
-                    Colors.White
-      )
-                });
+                        module.Health < 0.7 ? Colors.Red :
+                        module.Health <= 0.95 ? Colors.Orange :
+                        Colors.White)
+                };
+
+                // Add a new row if starting a new line
+                if (col == 0)
+                    grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+                Grid.SetRow(textBlock, row);
+                Grid.SetColumn(textBlock, col);
+                grid.Children.Add(textBlock);
+
+                col = (col + 1) % 2;
+                if (col == 0)
+                    row++;
             }
+
+            modulesContent.Children.Add(grid);
         }
     }
+
 
     private void UpdateSummaryCard()
     {
         SetOrUpdateSummaryText("Commander", $"Commander: {gameState?.CommanderName ?? "(Unknown)"}");
         SetOrUpdateSummaryText("System", $"System: {gameState?.CurrentSystem ?? "(Unknown)"}");
 
-        if (!string.IsNullOrEmpty(gameState?.ShipName) || !string.IsNullOrEmpty(gameState?.ShipLocalised))
+        if (!string.IsNullOrEmpty(gameState?.UserShipName) || !string.IsNullOrEmpty(gameState?.CurrentLoadout?.Ship))
         {
-            var shipLabel = $"Ship: {gameState.UserShipName ?? gameState.ShipName}";
+            var shipLabel = $"Ship: {gameState.UserShipName ?? gameState.CurrentLoadout?.Ship}";
             if (!string.IsNullOrEmpty(gameState.UserShipId))
                 shipLabel += $" [{gameState.UserShipId}]";
-            shipLabel += $"\nType: {gameState.ShipLocalised}";
+            shipLabel += $"\nType: {ShipNameHelper.GetLocalisedName(gameState.CurrentLoadout?.Ship)}";
             SetOrUpdateSummaryText("Ship", shipLabel);
         }
+
 
         if (gameState.Balance.HasValue)
             SetOrUpdateSummaryText("Balance", $"Balance: {gameState.Balance.Value:N0} CR");
@@ -584,24 +626,24 @@ public partial class MainWindow : Window
         }
     }
 
-    private void UpdateMaterialsCard()
-    {
-        fcMaterialsContent.Children.Clear();
-        fcMaterialsContent.Visibility = gameState.CurrentMaterials?.Materials != null
-            ? Visibility.Visible : Visibility.Collapsed;
+    //private void UpdateMaterialsCard()
+    //{
+    //    fcMaterialsContent.Children.Clear();
+    //    fcMaterialsContent.Visibility = gameState.CurrentMaterials?.Materials != null
+    //        ? Visibility.Visible : Visibility.Collapsed;
 
-        if (gameState.CurrentMaterials?.Materials == null) return;
+    //    if (gameState.CurrentMaterials?.Materials == null) return;
 
-        foreach (var item in gameState.CurrentMaterials.Materials.OrderByDescending(i => i.Count))
-        {
-            fcMaterialsContent.Children.Add(new TextBlock
-            {
-                Text = $"{item.Name_Localised ?? item.Name}: {item.Count}",
-                FontSize = 18,
-                Foreground = GetBodyBrush()
-            });
-        }
-    }
+    //    foreach (var item in gameState.CurrentMaterials.Materials.OrderByDescending(i => i.Count))
+    //    {
+    //        fcMaterialsContent.Children.Add(new TextBlock
+    //        {
+    //            Text = $"{item.Name_Localised ?? item.Name}: {item.Count}",
+    //            FontSize = 18,
+    //            Foreground = GetBodyBrush()
+    //        });
+    //    }
+    //}
 
     private void UpdateRouteCard()
     {
@@ -708,7 +750,7 @@ public partial class MainWindow : Window
         AddCard("Summary", summaryContent);
         AddCard("Cargo", cargoContent);
         AddCard("Backpack", backpackContent);
-        AddCard("Fleet Carrier Materials", fcMaterialsContent);
+        //AddCard("Fleet Carrier Materials", fcMaterialsContent);
         AddCard("Nav Route", routeContent);
         AddCard("Ship Modules", modulesContent);
 
@@ -770,6 +812,9 @@ public partial class MainWindow : Window
                 journalWatcher.LoadoutReceived += loadout =>
                 {
                     gameState.CurrentLoadout = loadout;
+                    gameState.UserShipName = loadout.ShipName;
+                    gameState.UserShipId = loadout.ShipIdent;
+                    gameState.RaiseDataUpdated();
                     Log.Debug("Received Loadout: FuelCapacity={FuelCapacity}", loadout.FuelCapacity);
                 };
                 journalWatcher.StartWatching();
