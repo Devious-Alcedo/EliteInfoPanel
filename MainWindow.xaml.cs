@@ -210,6 +210,8 @@ public partial class MainWindow : Window
 
     private void UpdateFlagChips(StatusJson? status)
     {
+        
+
         if (status == null) return;
   
 
@@ -223,39 +225,7 @@ public partial class MainWindow : Window
 
         flagsPanel1.Children.Clear();
         flagsPanel2.Children.Clear();
-        if (gameState.IsDocking)
-        {
-            var dockingChip = new Chip
-            {
-                Content = new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    Children =
-                {
-                    new PackIcon
-                    {
-                        Kind = PackIconKind.Ferry, // or any relevant icon
-                        Width = 24,
-                        Height = 24,
-                        Margin = new Thickness(0, 0, 6, 0)
-                    },
-                    new TextBlock
-                    {
-                        Text = "Docking",
-                        FontSize = 18,
-                        FontWeight = FontWeights.SemiBold,
-                        Foreground = Brushes.White
-                    }
-                }
-                },
-                Margin = new Thickness(6),
-                ToolTip = "Docking",
-                Background = new SolidColorBrush(Color.FromRgb(0, 172, 193)), // Cyan-ish
-                Foreground = Brushes.White
-            };
-
-            flagsPanel1.Children.Add(dockingChip);
-        }
+     
         // Start with the real flags
         var activeFlags = Enum.GetValues(typeof(Flag))
             .Cast<Flag>()
@@ -267,11 +237,21 @@ public partial class MainWindow : Window
         {
             activeFlags.Add((Flag)9999); // 9999 is placeholder for synthetic flag
         }
-
+        //inject docking flag
+        if (gameState.IsDocking)
+        {
+            activeFlags.Add(Flag.Docking);
+        }
         // Display chips
         for (int i = 0; i < activeFlags.Count; i++)
         {
-            string displayText = activeFlags[i] == (Flag)9999 ? "HudInCombatMode" : activeFlags[i].ToString();
+            string displayText = activeFlags[i] switch
+            {
+                (Flag)9999 => "HudInCombatMode",
+                (Flag)9998 => "Docking",
+                _ => activeFlags[i].ToString()
+            };
+
 
             var chip = new Chip
             {

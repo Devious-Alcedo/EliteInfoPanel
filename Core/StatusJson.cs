@@ -43,7 +43,8 @@ namespace EliteInfoPanel.Core
         AltitudeFromAverageRadius = 1 << 29,
         FsdJump = 1 << 30,
         SrvHighBeam = 1u << 31,
-        HudInCombatMode = 1u << 31 | 1u << 30 // just a synthetic high value
+        HudInCombatMode = 1u << 31 | 1u << 30, // just a synthetic high value
+        Docking = 9998
 
     }
 

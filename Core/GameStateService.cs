@@ -96,6 +96,7 @@ namespace EliteInfoPanel.Core
         }
         public void SetDockingStatus()
         {
+            Log.Debug("GameStateService: SetDockingStatus triggered");
             IsDocking = true;
             RaiseDataUpdated();
 
