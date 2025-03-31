@@ -542,7 +542,7 @@ public partial class MainWindow : Window
             {
                 string rawName = module.ItemLocalised ?? module.Item;
                 string displayName = ModuleNameMapper.GetFriendlyName(rawName);
-
+                Log.Information("Module: {RawName} -> {DisplayName}", rawName, displayName);
                 modulesContent.Children.Add(new TextBlock
                 {
                     Text = $"{displayName} ({module.Health:P0})",
