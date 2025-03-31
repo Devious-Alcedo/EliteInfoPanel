@@ -19,6 +19,7 @@ namespace EliteInfoPanel.Core
         public event Action<JournalEntry> NewEntry;
         public event Action<LoadoutJson> LoadoutReceived;
         public event Action<bool> FleetCarrierScreenChanged;
+        public event Action DockingGranted;
 
         public JournalWatcher(string filePath)
         {
@@ -49,6 +50,18 @@ namespace EliteInfoPanel.Core
                                     string eventType = doc.RootElement.GetProperty("event").GetString();
 
                                     // your event handling here...
+                                    if (eventType == "ReceiveText")
+                                    {
+                                        if (doc.RootElement.TryGetProperty("Message_Localised", out var msgProp))
+                                        {
+                                            string msg = msgProp.GetString();
+                                            if (msg?.Contains("Docking request granted", StringComparison.OrdinalIgnoreCase) == true)
+                                            {
+                                                DockingGranted?.Invoke();
+                                            }
+                                        }
+                                    }
+
                                 }
                             }
                             catch (IOException ioEx)

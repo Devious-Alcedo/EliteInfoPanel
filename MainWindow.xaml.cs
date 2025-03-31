@@ -15,6 +15,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Windows.Threading;
 using EliteInfoPanel.Core.EliteInfoPanel.Core;
+using System.Text.RegularExpressions;
 
 
 namespace EliteInfoPanel;
@@ -172,6 +173,20 @@ public partial class MainWindow : Window
             RefreshCardsLayout();
         });
     }
+    private string FormatDestinationName(DestinationInfo destination)
+    {
+        if (destination == null || string.IsNullOrWhiteSpace(destination.Name))
+            return null;
+
+        var name = destination.Name;
+
+        if (Regex.IsMatch(name, @"\\b[A-Z0-9]{3}-[A-Z0-9]{3}\\b")) // matches FC ID
+            return $"{name} (Carrier)";
+        else if (Regex.IsMatch(name, @"Beacon|Port|Hub|Station|Ring", RegexOptions.IgnoreCase))
+            return $"{name} (Station)";
+        else
+            return name;
+    }
 
     #region cards
     private Card CreateCard(string title, UIElement content)
@@ -196,6 +211,7 @@ public partial class MainWindow : Window
     private void UpdateFlagChips(StatusJson? status)
     {
         if (status == null) return;
+  
 
         Log.Debug("Active flags: {Flags}", status.Flags);
 
@@ -207,7 +223,39 @@ public partial class MainWindow : Window
 
         flagsPanel1.Children.Clear();
         flagsPanel2.Children.Clear();
+        if (gameState.IsDocking)
+        {
+            var dockingChip = new Chip
+            {
+                Content = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Children =
+                {
+                    new PackIcon
+                    {
+                        Kind = PackIconKind.Ferry, // or any relevant icon
+                        Width = 24,
+                        Height = 24,
+                        Margin = new Thickness(0, 0, 6, 0)
+                    },
+                    new TextBlock
+                    {
+                        Text = "Docking",
+                        FontSize = 18,
+                        FontWeight = FontWeights.SemiBold,
+                        Foreground = Brushes.White
+                    }
+                }
+                },
+                Margin = new Thickness(6),
+                ToolTip = "Docking",
+                Background = new SolidColorBrush(Color.FromRgb(0, 172, 193)), // Cyan-ish
+                Foreground = Brushes.White
+            };
 
+            flagsPanel1.Children.Add(dockingChip);
+        }
         // Start with the real flags
         var activeFlags = Enum.GetValues(typeof(Flag))
             .Cast<Flag>()
@@ -683,32 +731,44 @@ public partial class MainWindow : Window
     private void UpdateRouteCard()
     {
         routeContent.Children.Clear();
-        routeContent.Visibility = gameState.CurrentRoute?.Route?.Any() == true
+
+        var hasRoute = gameState.CurrentRoute?.Route?.Any() == true;
+        var hasDestination = !string.IsNullOrWhiteSpace(gameState.CurrentStatus?.Destination?.Name);
+
+        routeContent.Visibility = hasRoute || hasDestination
             ? Visibility.Visible : Visibility.Collapsed;
 
-        if (gameState.CurrentRoute?.Route == null) return;
-        if (!string.IsNullOrWhiteSpace(gameState?.CurrentStatus?.Destination?.Name))
+        // Show formatted destination (station/carrier)
+        if (hasDestination)
         {
+            string formattedDestination = FormatDestinationName(gameState.CurrentStatus.Destination);
+
             routeContent.Children.Add(new TextBlock
             {
-                Text = $"Destination Body: {gameState.CurrentStatus.Destination.Name}",
+                Text = $"Target: {formattedDestination}",
                 FontSize = 20,
                 Margin = new Thickness(0, 0, 0, 6),
                 Foreground = GetBodyBrush()
             });
         }
 
-        foreach (var jump in gameState.CurrentRoute.Route)
+        // Show plotted route
+        if (hasRoute)
         {
-            routeContent.Children.Add(new TextBlock
+            foreach (var jump in gameState.CurrentRoute.Route)
             {
-                Text = $"{jump.StarSystem} ({jump.StarClass})",
-                FontSize = 24,
-                Margin = new Thickness(8, 0, 0, 2),
-                Foreground = GetBodyBrush()
-            });
+                routeContent.Children.Add(new TextBlock
+                {
+                    Text = $"{jump.StarSystem} ({jump.StarClass})",
+                    FontSize = 24,
+                    Margin = new Thickness(8, 0, 0, 2),
+                    Foreground = GetBodyBrush()
+                });
+            }
         }
     }
+
+
 
     private void UpdateFuelDisplay(StatusJson status)
     {
@@ -866,6 +926,8 @@ public partial class MainWindow : Window
         };
 
         string gamePath = EliteDangerousPaths.GetSavedGamesPath();
+
+        // 🔧 Create gameState BEFORE using it
         gameState = new GameStateService(gamePath);
         gameState.DataUpdated += GameState_DataUpdated;
         try
@@ -877,6 +939,8 @@ public partial class MainWindow : Window
             if (!string.IsNullOrEmpty(latestJournal))
             {
                 journalWatcher = new JournalWatcher(latestJournal);
+                journalWatcher.DockingGranted += () => gameState.SetDockingStatus();
+
                 journalWatcher.LoadoutReceived += loadout =>
                 {
                     gameState.CurrentLoadout = loadout;

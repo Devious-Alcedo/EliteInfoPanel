@@ -16,6 +16,8 @@ namespace EliteInfoPanel.Core
         public FCMaterialsJson CurrentMaterials { get; private set; }
         public NavRouteJson CurrentRoute { get; private set; }
         public string CommanderName { get; private set; }
+        public bool IsDocking { get; private set; }
+
         public string ShipLocalised { get; private set; }
         public string ShipName { get; private set; }
         public string CurrentSystem { get; private set; }
@@ -41,6 +43,19 @@ namespace EliteInfoPanel.Core
         {
             DataUpdated?.Invoke();
         }
+        public void OnDockingGranted()
+        {
+            IsDocking = true;
+            RaiseDataUpdated();
+
+            Task.Run(async () =>
+            {
+                await Task.Delay(10000); // Show "Docking" for 10 seconds
+                IsDocking = false;
+                RaiseDataUpdated();
+            });
+        }
+
 
         public GameStateService(string path)
         {
@@ -73,12 +88,24 @@ namespace EliteInfoPanel.Core
                     await Task.Delay(2000);
                 }
             });
+            
         }
         public void UpdateLoadout(LoadoutJson loadout)
         {
             CurrentLoadout = loadout;
         }
+        public void SetDockingStatus()
+        {
+            IsDocking = true;
+            RaiseDataUpdated();
 
+            Task.Run(async () =>
+            {
+                await Task.Delay(10000); // 10 seconds
+                IsDocking = false;
+                RaiseDataUpdated();
+            });
+        }
         private void LoadData()
         {
             try
