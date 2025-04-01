@@ -38,7 +38,7 @@ public partial class MainWindow : Window
     private TextBlock fuelText;
     private GameStateService gameState;
     private Grid loadingOverlay;
-    private JournalWatcher journalWatcher;
+
     private double lastFuelValue = -1;
     private StackPanel modulesContent;
     private StackPanel routeContent;
@@ -910,32 +910,7 @@ public partial class MainWindow : Window
         // 🔧 Create gameState BEFORE using it
         gameState = new GameStateService(gamePath);
         gameState.DataUpdated += GameState_DataUpdated;
-        try
-        {
-            string latestJournal = Directory.GetFiles(gamePath, "Journal.*.log")
-                .OrderByDescending(File.GetLastWriteTime)
-                .FirstOrDefault();
-
-            if (!string.IsNullOrEmpty(latestJournal))
-            {
-                journalWatcher = new JournalWatcher(latestJournal);
-                journalWatcher.DockingGranted += () => gameState.SetDockingStatus();
-
-                journalWatcher.LoadoutReceived += loadout =>
-                {
-                    gameState.CurrentLoadout = loadout;
-                    gameState.UserShipName = loadout.ShipName;
-                    gameState.UserShipId = loadout.ShipIdent;
-                    gameState.RaiseDataUpdated();
-                    Log.Debug("Received Loadout: FuelCapacity={FuelCapacity}", loadout.FuelCapacity);
-                };
-                journalWatcher.StartWatching();
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Error starting journal watcher");
-        }
+       
 
         GameState_DataUpdated();
     }
