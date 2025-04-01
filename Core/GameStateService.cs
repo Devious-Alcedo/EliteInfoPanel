@@ -12,10 +12,9 @@ namespace EliteInfoPanel.Core
         #region Private Fields
 
         private string gamePath;
-        private FileSystemWatcher watcher;
         private long lastJournalPosition = 0;
         private string latestJournalPath;
-
+        private FileSystemWatcher watcher;
         #endregion
 
         #region Public Constructors
@@ -64,8 +63,9 @@ namespace EliteInfoPanel.Core
         #endregion
 
         #region Public Properties
-
         public long? Balance => CurrentStatus?.Balance;
+        public string? CarrierJumpDestinationBody { get; private set; }
+        public string? CarrierJumpDestinationSystem { get; private set; }
         public string CommanderName { get; private set; }
         public BackpackJson CurrentBackpack { get; private set; }
         public CargoJson CurrentCargo { get; private set; }
@@ -87,6 +87,11 @@ namespace EliteInfoPanel.Core
 
         #region Public Methods
 
+        public void RaiseDataUpdated()
+        {
+            DataUpdated?.Invoke();
+        }
+
         public void SetDockingStatus()
         {
             Log.Debug("GameStateService: SetDockingStatus triggered");
@@ -100,12 +105,6 @@ namespace EliteInfoPanel.Core
                 RaiseDataUpdated();
             });
         }
-
-        public void RaiseDataUpdated()
-        {
-            DataUpdated?.Invoke();
-        }
-
         public void UpdateLoadout(LoadoutJson loadout)
         {
             CurrentLoadout = loadout;
@@ -234,7 +233,20 @@ namespace EliteInfoPanel.Core
                             if (root.TryGetProperty("DepartureTime", out var dtProp) &&
                                 DateTime.TryParse(dtProp.GetString(), out var dt))
                                 FleetCarrierJumpTime = dt;
+
+                            if (root.TryGetProperty("SystemName", out var sysName))
+                                CarrierJumpDestinationSystem = sysName.GetString();
+
+                            if (root.TryGetProperty("Body", out var bodyName))
+                                CarrierJumpDestinationBody = bodyName.GetString();
                             break;
+
+                        case "CarrierJump":
+                            FleetCarrierJumpTime = null;
+                            CarrierJumpDestinationSystem = null;
+                            CarrierJumpDestinationBody = null;
+                            break;
+
 
                         case "Location":
                             if (root.TryGetProperty("StarSystem", out var system))

@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
-        Title="Options" Height="546" Width="479"
+        Title="Options" Height="327" Width="479"
         WindowStartupLocation="Manual"
         Background="{DynamicResource MaterialDesignPaper}"
         WindowStyle="SingleBorderWindow"
@@ -14,18 +14,6 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="20">
             <TextBlock Text="Display Settings" FontWeight="Bold" FontSize="18" Margin="0,0,0,10"/>
-
-            <!-- General Panels -->
-            <GroupBox Header="General Panels" Margin="0,0,0,10">
-                <StackPanel>
-                    <CheckBox Content="Show Commander Name" IsChecked="{Binding ShowCommanderName}"/>
-                    <CheckBox Content="Show Fuel Level" IsChecked="{Binding ShowFuelLevel}"/>
-                    <CheckBox Content="Show Cargo" IsChecked="{Binding ShowCargo}"/>
-                    <CheckBox Content="Show Backpack" IsChecked="{Binding ShowBackpack}"/>
-                    <CheckBox Content="Show Fleet Carrier Materials" IsChecked="{Binding ShowFCMaterials}"/>
-                    <CheckBox Content="Show Nav Route" IsChecked="{Binding ShowRoute}"/>
-                </StackPanel>
-            </GroupBox>
 
             <!-- Flag Icons -->
             <GroupBox Header="Status Flags to Show" Margin="0,0,0,10">
@@ -42,14 +30,9 @@
                     <CheckBox Content="Low Fuel" IsChecked="{Binding ShowFlag_LowFuel}"/>
                     <CheckBox Content="Mass Locked" IsChecked="{Binding ShowFlag_MassLocked}"/>
                     <CheckBox Content="Landing Gear" IsChecked="{Binding ShowFlag_LandingGear}"/>
+                    <CheckBox Content="Hud In Combat Mode" IsChecked="{Binding ShowFlag_HudInCombatMode}"/>
+                    <CheckBox Content="Docking" IsChecked="{Binding ShowFlag_Docking}"/>
                 </UniformGrid>
-            </GroupBox>
-
-            <!-- Mode Switching -->
-            <GroupBox Header="Dynamic View Modes">
-                <StackPanel>
-                    <CheckBox Content="Enable Mode-Based Display (e.g., Supercruise, Combat)" IsChecked="{Binding EnableDynamicViewMode}"/>
-                </StackPanel>
             </GroupBox>
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">

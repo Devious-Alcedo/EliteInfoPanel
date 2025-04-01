@@ -44,7 +44,7 @@ namespace EliteInfoPanel.Core
         FsdJump = 1 << 30,
         SrvHighBeam = 1u << 31,
         HudInCombatMode = 1u << 31 | 1u << 30, // just a synthetic high value
-        Docking = 9998
+        Docking = 1u << 13 | 1u << 8 | 1u << 7 | 1u << 6 | 1u << 5 | 1u << 3 | 1u << 1
 
     }
 
