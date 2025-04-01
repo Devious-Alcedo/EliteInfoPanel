@@ -964,8 +964,3 @@ public partial class MainWindow : Window
     #endregion Private Methods
 
 }
-public static class SyntheticFlags
-{
-    public const Flag HudInCombatMode = (Flag)9999;
-    public const Flag Docking = (Flag)9998;
-}
