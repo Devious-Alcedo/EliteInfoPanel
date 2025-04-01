@@ -44,7 +44,8 @@ namespace EliteInfoPanel.Core
         public bool ShowWhenInSRV { get; set; }
         public bool ShowWhenOnFoot { get; set; }
         public bool ShowWhenInFighter { get; set; }
-
+        public bool ShowFlag_HudInCombatMode { get; set; }
+        public bool ShowFlag_Docking { get; set; }
         public bool ShowBackpack
         {
             get => showBackpack;

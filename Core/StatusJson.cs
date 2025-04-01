@@ -43,7 +43,8 @@ namespace EliteInfoPanel.Core
         AltitudeFromAverageRadius = 1 << 29,
         FsdJump = 1 << 30,
         SrvHighBeam = 1u << 31,
-        HudInCombatMode = 1u << 31 | 1u << 30 // just a synthetic high value
+        HudInCombatMode = 1u << 31 | 1u << 30, // just a synthetic high value
+        Docking = 1u << 13 | 1u << 8 | 1u << 7 | 1u << 6 | 1u << 5 | 1u << 3 | 1u << 1
 
     }
 
@@ -72,16 +73,25 @@ namespace EliteInfoPanel.Core
         PhysicalMulticrew = 1 << 18,
         FsdHyperdriveCharging = 1 << 19
     }
+    public class SRVStatus
+    {
+        public double Fuel { get; set; }
+        public double Temp { get; set; }
+    }
 
 
-
-
-
+    public class DestinationInfo
+    {
+        public long System { get; set; }
+        public int Body { get; set; }
+        public string Name { get; set; }
+        
+    }
 
     public class StatusJson
     {
         public long Balance { get; set; }
-
+        public DestinationInfo Destination { get; set; }
         [JsonPropertyName("Flags")]
         public Flag Flags { get; set; }
         public int Flags2 { get; set; }
@@ -89,8 +99,7 @@ namespace EliteInfoPanel.Core
         public bool OnFoot => (Flags2 & 1) != 0;
         [JsonPropertyName("Heat")]
         public float Heat { get; set; }
-       
-
+        public SRVStatus SRV { get; set; }
         public string ShipType { get; set; }
 
         public class FuelInfo

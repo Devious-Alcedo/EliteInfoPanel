@@ -2,22 +2,30 @@
 
 namespace EliteInfoPanel.Core
 {
-    public class Engineering
+    public class Engineering  //future use!
     {
-        public string Engineer { get; set; }
-        public int EngineerID { get; set; }
+        #region Public Properties
+
         public int BlueprintID { get; set; }
         public string BlueprintName { get; set; }
+        public string Engineer { get; set; }
+        public int EngineerID { get; set; }
         public int Level { get; set; }
-        public float Quality { get; set; }
         public List<Modifier> Modifiers { get; set; }
+        public float Quality { get; set; }
+
+        #endregion Public Properties
     }
 
     public class Modifier
     {
+        #region Public Properties
+
         public string Label { get; set; }
-        public float Value { get; set; }
-        public float OriginalValue { get; set; }
         public int LessIsGood { get; set; }
+        public float OriginalValue { get; set; }
+        public float Value { get; set; }
+
+        #endregion Public Properties
     }
 }

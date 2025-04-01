@@ -2,7 +2,7 @@
 using System.IO;
 using System.Reflection;
 using System.Text.Json;
-
+using Serilog;
 namespace EliteInfoPanel.Util
 {
     public static class ModuleNameMapper
@@ -27,6 +27,7 @@ namespace EliteInfoPanel.Util
         {
             if (string.IsNullOrWhiteSpace(internalName)) return "(Unknown)";
             return _map.TryGetValue(internalName, out var friendly) ? friendly : internalName;
+            Log.Information("Module name not found: {internalName}", internalName);
         }
     }
 }

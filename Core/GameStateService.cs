@@ -2,45 +2,27 @@
 using Serilog;
 using System.Diagnostics;
 using System.IO;
-
 using System.Text.Json;
-
+using System.Text;
 
 namespace EliteInfoPanel.Core
 {
     public class GameStateService
     {
-        public StatusJson CurrentStatus { get; private set; }
-        public CargoJson CurrentCargo { get; private set; }
-        public BackpackJson CurrentBackpack { get; private set; }
-        public FCMaterialsJson CurrentMaterials { get; private set; }
-        public NavRouteJson CurrentRoute { get; private set; }
-        public string CommanderName { get; private set; }
-        public string ShipLocalised { get; private set; }
-        public string ShipName { get; private set; }
-        public string CurrentSystem { get; private set; }
-        public long? Balance => CurrentStatus?.Balance;
-        public string SquadronName { get; private set; }
-        public DateTime? FleetCarrierJumpTime { get; private set; }
-        public TimeSpan? JumpCountdown => FleetCarrierJumpTime.HasValue ? FleetCarrierJumpTime.Value - DateTime.UtcNow : null;
-        public string UserShipName { get; private set; }
-        public string UserShipId { get; private set; }
-
-
-        // Add this property
-        public LoadoutJson CurrentLoadout { get; internal set; }
-
-
-
-        public event Action DataUpdated;
-       
+        #region Private Fields
 
         private string gamePath;
+        private long lastJournalPosition = 0;
+        private string latestJournalPath;
         private FileSystemWatcher watcher;
+        #endregion
+
+        #region Public Constructors
 
         public GameStateService(string path)
         {
             gamePath = path;
+
             watcher = new FileSystemWatcher(gamePath)
             {
                 NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size,
@@ -51,7 +33,8 @@ namespace EliteInfoPanel.Core
             watcher.Changed += (s, e) =>
             {
                 LoadData();
-                DataUpdated?.Invoke();
+                if (CurrentStatus != null)
+                    DataUpdated?.Invoke();
             };
 
             LoadData();
@@ -61,14 +44,107 @@ namespace EliteInfoPanel.Core
                 while (true)
                 {
                     LoadData();
-                    DataUpdated?.Invoke();
+                    await ProcessJournalAsync();
+
+                    if (CurrentStatus != null)
+                        DataUpdated?.Invoke();
+
                     await Task.Delay(2000);
                 }
+            });
+        }
+
+        #endregion
+
+        #region Public Events
+
+        public event Action DataUpdated;
+
+        #endregion
+
+        #region Public Properties
+        public long? Balance => CurrentStatus?.Balance;
+        public string? CarrierJumpDestinationBody { get; private set; }
+        public string? CarrierJumpDestinationSystem { get; private set; }
+        public string CommanderName { get; private set; }
+        public BackpackJson CurrentBackpack { get; private set; }
+        public CargoJson CurrentCargo { get; private set; }
+        public LoadoutJson CurrentLoadout { get; internal set; }
+        public FCMaterialsJson CurrentMaterials { get; private set; }
+        public NavRouteJson CurrentRoute { get; private set; }
+        public StatusJson CurrentStatus { get; private set; }
+        public string CurrentSystem { get; private set; }
+        public DateTime? FleetCarrierJumpTime { get; private set; }
+        public bool IsDocking { get; private set; }
+        public TimeSpan? JumpCountdown => FleetCarrierJumpTime.HasValue ? FleetCarrierJumpTime.Value - DateTime.UtcNow : null;
+        public string ShipLocalised { get; private set; }
+        public string ShipName { get; private set; }
+        public string SquadronName { get; private set; }
+        public string UserShipId { get; set; }
+        public string UserShipName { get; set; }
+
+        #endregion
+
+        #region Public Methods
+
+        public void RaiseDataUpdated()
+        {
+            DataUpdated?.Invoke();
+        }
+
+        public void SetDockingStatus()
+        {
+            Log.Debug("GameStateService: SetDockingStatus triggered");
+            IsDocking = true;
+            RaiseDataUpdated();
+
+            Task.Run(async () =>
+            {
+                await Task.Delay(10000); // 10 seconds
+                IsDocking = false;
+                RaiseDataUpdated();
             });
         }
         public void UpdateLoadout(LoadoutJson loadout)
         {
             CurrentLoadout = loadout;
+        }
+
+        #endregion
+
+        #region Private Methods
+
+        private T DeserializeJsonFile<T>(string filePath) where T : class
+        {
+            for (int attempt = 0; attempt < 5; attempt++)
+            {
+                try
+                {
+                    if (!File.Exists(filePath)) return null;
+
+                    using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    if (stream.Length == 0) return null;
+
+                    using var reader = new StreamReader(stream);
+                    string json = reader.ReadToEnd();
+
+                    if (string.IsNullOrWhiteSpace(json))
+                        return null;
+
+                    return JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                }
+                catch (IOException)
+                {
+                    Thread.Sleep(50); // Retry briefly
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Failed to deserialize {filePath}: {ex}");
+                    return null;
+                }
+            }
+
+            return null;
         }
 
         private void LoadData()
@@ -84,82 +160,18 @@ namespace EliteInfoPanel.Core
                 CurrentStatus = DeserializeJsonFile<StatusJson>(statusPath);
                 CurrentCargo = DeserializeJsonFile<CargoJson>(cargoPath);
                 CurrentBackpack = DeserializeJsonFile<BackpackJson>(backpackPath);
-                CurrentMaterials = DeserializeJsonFile<FCMaterialsJson>(materialsPath);
+                // CurrentMaterials = DeserializeJsonFile<FCMaterialsJson>(materialsPath);
                 CurrentRoute = DeserializeJsonFile<NavRouteJson>(routePath);
 
-                Log.Debug("Raw Status.json: {RawStatus}", File.ReadAllText(statusPath));
-                Log.Debug("Parsed CurrentStatus.Flags: {Flags}", CurrentStatus?.Flags);
+                if (CurrentStatus != null)
+                {
+                    Log.Debug("Raw Status.json: {RawStatus}", File.ReadAllText(statusPath));
+                    Log.Debug("Parsed CurrentStatus.Flags: {Flags}", CurrentStatus?.Flags);
+                }
 
-                var latestJournal = Directory.GetFiles(gamePath, "Journal.*.log")
+                latestJournalPath = Directory.GetFiles(gamePath, "Journal.*.log")
                     .OrderByDescending(File.GetLastWriteTime)
                     .FirstOrDefault();
-
-                if (!string.IsNullOrEmpty(latestJournal))
-                {
-                    try
-                    {
-                        using var fs = new FileStream(latestJournal, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                        using var sr = new StreamReader(fs);
-
-                        var lines = new List<string>();
-                        while (!sr.EndOfStream)
-                            lines.Add(sr.ReadLine());
-
-                        foreach (var line in lines.AsEnumerable().Reverse())
-                        {
-                            if (line.Contains("\"event\":\"Commander\""))
-                            {
-                                var entry = JsonSerializer.Deserialize<JournalEntry>(line);
-                                CommanderName = entry?.Name ?? CommanderName;
-                            }
-                            else if (line.Contains("\"event\":\"LoadGame\""))
-                            {
-                                var entry = JsonSerializer.Deserialize<JournalEntry>(line);
-                                ShipLocalised = entry?.Ship_Localised ?? ShipLocalised;
-                                ShipName = entry?.Ship ?? ShipName;
-                            }
-                            else if (line.Contains("\"event\":\"CarrierJumpRequest\""))
-                            {
-                                using var doc = JsonDocument.Parse(line);
-                                if (doc.RootElement.TryGetProperty("DepartureTime", out var departureTime))
-                                {
-                                    if (DateTime.TryParse(departureTime.GetString(), out var dt))
-                                        FleetCarrierJumpTime = dt;
-                                }
-                            }
-                            else if (line.Contains("\"event\":\"Location\""))
-                            {
-                                using var doc = JsonDocument.Parse(line);
-                                if (doc.RootElement.TryGetProperty("StarSystem", out var sys))
-                                    CurrentSystem = sys.GetString();
-                            }
-                            else if (line.Contains("\"event\":\"SquadronStartup\""))
-                            {
-                                using var doc = JsonDocument.Parse(line);
-                                if (doc.RootElement.TryGetProperty("SquadronName", out var squad))
-                                    SquadronName = squad.GetString();
-                            }
-                            else if (line.Contains("\"event\":\"Loadout\""))
-                            {
-                                var loadout = JsonSerializer.Deserialize<LoadoutJson>(line);
-                                CurrentLoadout = loadout;
-                                UserShipName = loadout?.ShipName;
-                                UserShipId = loadout?.ShipIdent;
-                            }
-
-                            if (CommanderName != null && ShipLocalised != null && FleetCarrierJumpTime.HasValue)
-                                break;
-                        }
-                    }
-                    catch (IOException ex)
-                    {
-                        Log.Warning("Journal file temporarily locked or unavailable: {Message}", ex.Message);
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Error(ex, "Error parsing journal file.");
-                    }
-                }
             }
             catch (Exception ex)
             {
@@ -167,35 +179,105 @@ namespace EliteInfoPanel.Core
             }
         }
 
-
-        private T DeserializeJsonFile<T>(string filePath) where T : class
+        private async Task ProcessJournalAsync()
         {
+            if (string.IsNullOrEmpty(latestJournalPath))
+                return;
+
             try
             {
-                if (!File.Exists(filePath)) return null;
+                using var fs = new FileStream(latestJournalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                fs.Seek(lastJournalPosition, SeekOrigin.Begin);
 
-                using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                if (stream.Length == 0) return null;
+                using var sr = new StreamReader(fs);
+                while (!sr.EndOfStream)
+                {
+                    string line = await sr.ReadLineAsync();
+                    lastJournalPosition = fs.Position;
 
-                using var reader = new StreamReader(stream);
-                string json = reader.ReadToEnd();
+                    if (string.IsNullOrWhiteSpace(line)) continue;
 
-                if (string.IsNullOrWhiteSpace(json))
-                    return null;
+                    using var doc = JsonDocument.Parse(line);
+                    var root = doc.RootElement;
 
-                return JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    if (!root.TryGetProperty("event", out var eventProp))
+                        continue;
+
+                    string eventType = eventProp.GetString();
+
+                    switch (eventType)
+                    {
+                        case "Commander":
+                            var cmdr = JsonSerializer.Deserialize<JournalEntry>(line);
+                            CommanderName = cmdr?.Name ?? CommanderName;
+                            break;
+
+                        case "LoadGame":
+                            var loadGame = JsonSerializer.Deserialize<JournalEntry>(line);
+                            ShipLocalised = loadGame?.Ship_Localised ?? ShipLocalised;
+                            ShipName = loadGame?.Ship ?? ShipName;
+                            break;
+
+                        case "Loadout":
+                            var loadout = JsonSerializer.Deserialize<LoadoutJson>(line);
+                            if (loadout != null)
+                            {
+                                CurrentLoadout = loadout;
+                                UserShipName = loadout.ShipName;
+                                UserShipId = loadout.ShipIdent;
+                                Log.Debug("Assigned Loadout from journal: {Ship} with {Modules} modules", loadout.Ship, loadout.Modules?.Count ?? 0);
+                            }
+                            break;
+
+                        case "CarrierJumpRequest":
+                            if (root.TryGetProperty("DepartureTime", out var dtProp) &&
+                                DateTime.TryParse(dtProp.GetString(), out var dt))
+                                FleetCarrierJumpTime = dt;
+
+                            if (root.TryGetProperty("SystemName", out var sysName))
+                                CarrierJumpDestinationSystem = sysName.GetString();
+
+                            if (root.TryGetProperty("Body", out var bodyName))
+                                CarrierJumpDestinationBody = bodyName.GetString();
+                            break;
+
+                        case "CarrierJump":
+                            FleetCarrierJumpTime = null;
+                            CarrierJumpDestinationSystem = null;
+                            CarrierJumpDestinationBody = null;
+                            break;
+
+
+                        case "Location":
+                            if (root.TryGetProperty("StarSystem", out var system))
+                                CurrentSystem = system.GetString();
+                            break;
+
+                        case "SquadronStartup":
+                            if (root.TryGetProperty("SquadronName", out var squadron))
+                                SquadronName = squadron.GetString();
+                            break;
+
+                        case "ReceiveText":
+                            if (root.TryGetProperty("Message_Localised", out var msgProp))
+                            {
+                                string msg = msgProp.GetString();
+                                if (msg?.Contains("Docking request granted", StringComparison.OrdinalIgnoreCase) == true)
+                                {
+                                    Log.Debug("JournalWatcher: 'Docking request granted' detected.");
+                                    SetDockingStatus();
+                                }
+                            }
+                            break;
+                    }
+                }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Failed to deserialize {filePath}: {ex}");
-                return null;
+                Log.Warning(ex, "Error processing journal file");
             }
         }
 
-       
-
+        #endregion
     }
 }
-
-
-

@@ -13,6 +13,10 @@ using EliteInfoPanel.Util;
 using System.Windows.Input;
 using System.Diagnostics;
 using System.Text.Json;
+using System.Windows.Threading;
+using EliteInfoPanel.Core.EliteInfoPanel.Core;
+using System.Text.RegularExpressions;
+using MaterialDesignColors.Recommended;
 
 
 namespace EliteInfoPanel;
@@ -21,31 +25,32 @@ public partial class MainWindow : Window
 {
     #region Private Fields
 
-    private TextBlock loadingText;
-    private Dictionary<string, Card> cardMap = new();
     private AppSettings appSettings = SettingsManager.Load();
     private StackPanel backpackContent;
+    private Dictionary<string, Card> cardMap = new();
     private StackPanel cargoContent;
-    private StackPanel fcMaterialsContent;
+    //private StackPanel fcMaterialsContent;
+    private int currentModulesPage = 0;
+   
+    private WrapPanel flagsPanel1;
+    private WrapPanel flagsPanel2;
     private ProgressBar fuelBar;
+    private Rectangle fuelBarEmpty;
+    private Rectangle fuelBarFilled;
+    private Grid fuelBarGrid;
     private StackPanel fuelStack;
     private TextBlock fuelText;
     private GameStateService gameState;
-    private Grid loadingOverlay;
-    private JournalWatcher journalWatcher;
     private double lastFuelValue = -1;
+    private Grid loadingOverlay;
+    private TextBlock loadingText;
+    private Dictionary<string, string> moduleNameMap = new();
+    private DispatcherTimer modulePageTimer;
     private StackPanel modulesContent;
     private StackPanel routeContent;
     private Screen screen;
     private StackPanel shipStatsContent;
     private StackPanel summaryContent;
-    private Grid fuelBarGrid;
-    private Rectangle fuelBarFilled;
-    private Rectangle fuelBarEmpty;
-    private WrapPanel flagsPanel1;
-    private WrapPanel flagsPanel2;
-    private Dictionary<string, string> moduleNameMap = new();
-
     #endregion Private Fields
 
     #region Public Constructors
@@ -62,12 +67,102 @@ public partial class MainWindow : Window
 
     #region Private Methods
 
+    private void ApplyScreenBounds(Screen targetScreen)
+    {
+        this.Left = targetScreen.WpfBounds.Left;
+        this.Top = targetScreen.WpfBounds.Top;
+        this.Width = targetScreen.WpfBounds.Width;
+        this.Height = targetScreen.WpfBounds.Height;
+        this.WindowStyle = WindowStyle.None;
+        this.WindowState = WindowState.Maximized;
+        this.Topmost = true;
+    }
+
+    private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+
+    private string FormatDestinationName(DestinationInfo destination)
+    {
+        if (destination == null || string.IsNullOrWhiteSpace(destination.Name))
+            return null;
+
+        var name = destination.Name;
+
+        if (Regex.IsMatch(name, @"\\b[A-Z0-9]{3}-[A-Z0-9]{3}\\b")) // matches FC ID
+            return $"{name} (Carrier)";
+        else if (Regex.IsMatch(name, @"Beacon|Port|Hub|Station|Ring", RegexOptions.IgnoreCase))
+            return $"{name} (Station)";
+        else
+            return name;
+    }
+
+    private void GameState_DataUpdated()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            var status = gameState.CurrentStatus;
+            if (status == null)
+            {
+                Log.Warning("GameState.CurrentStatus was null during update cycle.");
+                return;
+            }
+            if (gameState?.CurrentStatus != null)
+            {
+             
+                var isAnalysis = gameState.CurrentStatus.Flags.HasFlag(Flag.HudInAnalysisMode);
+
+                SetOrUpdateSummaryText(
+                    "HudMode",
+                    $"HUD Mode: {(isAnalysis ? "Analysis" : "Combat")}",
+                    foreground: isAnalysis ? Brushes.LimeGreen : Brushes.IndianRed,
+                    icon: isAnalysis ? PackIconKind.Microscope : PackIconKind.Crosshairs
+                );
+            }
+
+            bool shouldShowPanels = status != null && (
+                status.Flags.HasFlag(Flag.Docked) ||
+                status.Flags.HasFlag(Flag.Supercruise) ||
+                status.Flags.HasFlag(Flag.InSRV) ||
+                status.OnFoot ||
+                status.Flags.HasFlag(Flag.InFighter) ||
+                status.Flags.HasFlag(Flag.InMainShip));
+
+            MainGrid.Visibility = Visibility.Visible;
+
+            foreach (var card in cardMap.Values)
+            {
+                card.Visibility = shouldShowPanels ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            if (loadingOverlay != null)
+            {
+                loadingOverlay.Visibility = shouldShowPanels ? Visibility.Collapsed : Visibility.Visible;
+            }
+
+            if (!shouldShowPanels) return;
+
+            UpdateSummaryCard();
+            // UpdateMaterialsCard();
+            UpdateRouteCard();
+            UpdateFuelDisplay(status);
+            UpdateFlagChips(status);
+            UpdateCargoCard(status, cardMap["Cargo"]);
+            UpdateBackpackCard(status, cardMap["Backpack"]);
+            UpdateModulesCard(status, cardMap["Ship Modules"]);
+            UpdateFlagsCard(status);
+            // Call to dynamically rearrange the UI based on the visible cards
+            RefreshCardsLayout();
+        });
+    }
+
+    private Brush GetBodyBrush() => (Brush)System.Windows.Application.Current.Resources["MaterialDesignBody"];
+
     private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.F12)
         {
             {
                 OpenCurrentLogFile();
+
             }
         }
     }
@@ -101,69 +196,30 @@ public partial class MainWindow : Window
                 FileName = latestLog,
                 UseShellExecute = true
             });
+            //also open explorer to the Game Save Files location
+            string gameSavePath = EliteDangerousPaths.GetSavedGamesPath();
+            if (Directory.Exists(gameSavePath))
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = gameSavePath,
+                    UseShellExecute = true
+                });
+            }
+
         }
         catch (Exception ex)
         {
             MessageBox.Show($"Could not open log file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
-
-    private void ApplyScreenBounds(Screen targetScreen)
-    {
-        this.Left = targetScreen.WpfBounds.Left;
-        this.Top = targetScreen.WpfBounds.Top;
-        this.Width = targetScreen.WpfBounds.Width;
-        this.Height = targetScreen.WpfBounds.Height;
-        this.WindowStyle = WindowStyle.None;
-        this.WindowState = WindowState.Maximized;
-        this.Topmost = true;
-    }
-
-    private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
-
-    private void GameState_DataUpdated()
-    {
-        Dispatcher.Invoke(() =>
-        {
-            var status = gameState.CurrentStatus;
-
-            bool shouldShowPanels = status != null && (
-                status.Flags.HasFlag(Flag.Docked) ||
-                status.Flags.HasFlag(Flag.Supercruise) ||
-                status.Flags.HasFlag(Flag.InSRV) ||
-                status.OnFoot ||
-                status.Flags.HasFlag(Flag.InFighter) ||
-                status.Flags.HasFlag(Flag.InMainShip));
-
-            MainGrid.Visibility = Visibility.Visible;
-
-            foreach (var card in cardMap.Values)
-            {
-                card.Visibility = shouldShowPanels ? Visibility.Visible : Visibility.Collapsed;
-            }
-
-            if (loadingOverlay != null)
-            {
-                loadingOverlay.Visibility = shouldShowPanels ? Visibility.Collapsed : Visibility.Visible;
-            }
-
-            if (!shouldShowPanels) return;
-
-            UpdateSummaryCard();
-            UpdateMaterialsCard();
-            UpdateRouteCard();
-            UpdateFuelDisplay(status);
-            UpdateFlagChips(status);
-            UpdateCargoCard(status, cardMap["Cargo"]);
-            UpdateBackpackCard(status, cardMap["Backpack"]);
-            UpdateModulesCard(status, cardMap["Ship Modules"]);
-            UpdateFlagsCard(status);
-            // Call to dynamically rearrange the UI based on the visible cards
-            RefreshCardsLayout();
-        });
-    }
-
     #region cards
+    private void AddCard(string title, StackPanel contentPanel)
+    {
+        var card = CreateCard(title, contentPanel);
+        cardMap[title] = card;
+    }
+
     private Card CreateCard(string title, UIElement content)
     {
         var parent = LogicalTreeHelper.GetParent(content) as Panel;
@@ -183,147 +239,19 @@ public partial class MainWindow : Window
         return new Card { Margin = new Thickness(5), Padding = new Thickness(5), Content = panel };
     }
 
-    private void UpdateFlagChips(StatusJson? status)
+    private async void FadeAndUpdateModules()
     {
-        if (status == null) return;
+        var fadeOut = new System.Windows.Media.Animation.DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(400));
+        var fadeIn = new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(400));
 
-        Log.Debug("Active flags: {Flags}", status.Flags);
+        modulesContent.BeginAnimation(OpacityProperty, fadeOut);
 
-        if (flagsPanel1 == null)
-            flagsPanel1 = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 5) };
+        await Task.Delay(400);
 
-        if (flagsPanel2 == null)
-            flagsPanel2 = new WrapPanel { Orientation = Orientation.Horizontal };
+        currentModulesPage = (currentModulesPage + 1) % 2;
+        UpdateModulesCard(gameState.CurrentStatus, cardMap["Ship Modules"]);
 
-        flagsPanel1.Children.Clear();
-        flagsPanel2.Children.Clear();
-
-        // Start with the real flags
-        var activeFlags = Enum.GetValues(typeof(Flag))
-            .Cast<Flag>()
-            .Where(flag => status.Flags.HasFlag(flag))
-            .ToList();
-
-        // Inject synthetic HudInCombatMode flag
-        if (!status.Flags.HasFlag(Flag.HudInAnalysisMode))
-        {
-            activeFlags.Add((Flag)9999); // 9999 is placeholder for synthetic flag
-        }
-
-        // Display chips
-        for (int i = 0; i < activeFlags.Count; i++)
-        {
-            string displayText = activeFlags[i] == (Flag)9999 ? "HudInCombatMode" : activeFlags[i].ToString();
-
-            var chip = new Chip
-            {
-                Content = new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    Children =
-                {
-                    new PackIcon
-                    {
-                        Kind = PackIconKind.CheckCircleOutline,
-                        Width = 24,
-                        Height = 24,
-                        Margin = new Thickness(0, 0, 6, 0)
-                    },
-                    new TextBlock
-                    {
-                        Text = displayText,
-                        FontSize = 18,
-                        FontWeight = FontWeights.SemiBold,
-                        Foreground = Brushes.White
-                    }
-                }
-                },
-                Margin = new Thickness(6),
-                ToolTip = displayText,
-                Background = new SolidColorBrush(Color.FromRgb(33, 150, 243)),
-                Foreground = Brushes.White
-            };
-
-            if (i < 5)
-                flagsPanel1.Children.Add(chip);
-            else
-                flagsPanel2.Children.Add(chip);
-        }
-    }
-
-    private void UpdateFlagsCard(StatusJson? status)
-    {
-        if (status == null) return;
-
-        var flags1 = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 5) };
-        var flags2 = new WrapPanel { Orientation = Orientation.Horizontal };
-
-        var activeFlags = Enum.GetValues(typeof(Flag))
-            .Cast<Flag>()
-            .Where(flag => status.Flags.HasFlag(flag))
-            .ToList();
-
-        for (int i = 0; i < activeFlags.Count; i++)
-        {
-            var chip = new Chip
-            {
-                Content = new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    Children =
-                {
-                    new PackIcon
-                    {
-                        Kind = PackIconKind.CheckCircleOutline,
-                        Width = 24,
-                        Height = 24,
-                        Margin = new Thickness(0, 0, 6, 0)
-                    },
-                    new TextBlock
-                    {
-                        Text = activeFlags[i].ToString(),
-                        FontSize = 24,
-                        FontWeight = FontWeights.SemiBold,
-                        Foreground = Brushes.White
-                    }
-                }
-                },
-                Margin = new Thickness(6),
-                ToolTip = activeFlags[i].ToString(),
-                Background = new SolidColorBrush(Color.FromRgb(33, 150, 243)),
-                Foreground = Brushes.White
-            };
-
-            if (i < 5)
-                flags1.Children.Add(chip);
-            else
-                flags2.Children.Add(chip);
-        }
-
-        var content = new StackPanel();
-        content.Children.Add(flags1);
-        content.Children.Add(flags2);
-
-        if (!cardMap.ContainsKey("Status Flags"))
-        {
-            AddCard("Status Flags", content);
-        }
-        else
-        {
-            if (cardMap["Status Flags"].Content is StackPanel cardPanel)
-            {
-                cardPanel.Children.Clear();
-                cardPanel.Children.Add(new TextBlock
-                {
-                    Text = "Status Flags",
-                    FontWeight = FontWeights.Bold,
-                    Foreground = Brushes.Orange,
-                    FontSize = 24,
-                    Margin = new Thickness(0, 0, 0, 5)
-                });
-                cardPanel.Children.Add(content);
-            }
-        }
+        modulesContent.BeginAnimation(OpacityProperty, fadeIn);
     }
 
     private void InitializeCards()
@@ -331,9 +259,10 @@ public partial class MainWindow : Window
         summaryContent ??= new StackPanel();
         cargoContent ??= new StackPanel();
         backpackContent ??= new StackPanel();
-        fcMaterialsContent ??= new StackPanel();
+        //fcMaterialsContent ??= new StackPanel();
         routeContent ??= new StackPanel();
-        modulesContent ??= new StackPanel();
+        modulesContent ??= new StackPanel { Name = "ModulesContent" };
+
         fuelStack ??= new StackPanel();
         if (flagsPanel1 == null)
             flagsPanel1 ??= new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
@@ -447,15 +376,13 @@ public partial class MainWindow : Window
 
         // Set visibility directly on cards
         cardMap["Summary"].Visibility = Visibility.Visible;
-        cardMap["Cargo"].Visibility = (status?.Flags.HasFlag(Flag.InSRV) == true || status?.Flags.HasFlag(Flag.InMainShip) == true)
-     ? Visibility.Visible : Visibility.Collapsed;
-
+        cardMap["Cargo"].Visibility = (status.Flags.HasFlag(Flag.InSRV) || status.Flags.HasFlag(Flag.InMainShip))
+            ? Visibility.Visible : Visibility.Collapsed;
         cardMap["Backpack"].Visibility = status.OnFoot ? Visibility.Visible : Visibility.Collapsed;
-        cardMap["Fleet Carrier Materials"].Visibility = fcMaterialsContent.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         cardMap["Nav Route"].Visibility = routeContent.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         cardMap["Ship Modules"].Visibility = modulesContent.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        // cardMap["Fleet Carrier Materials"].Visibility = Visibility.Collapsed; // fully removed now
 
-        // Rearrange visible cards dynamically WITHOUT CLEARING THE GRID
         var visibleCards = cardMap.Values.Where(card => card.Visibility == Visibility.Visible).ToList();
 
         MainGrid.ColumnDefinitions.Clear();
@@ -464,30 +391,21 @@ public partial class MainWindow : Window
         if (preserveLoadingOverlay != null && !MainGrid.Children.Contains(preserveLoadingOverlay))
             MainGrid.Children.Add(preserveLoadingOverlay);
 
-        for (int i = 0; i < visibleCards.Count; i++)
+        int currentCol = 0;
+
+        foreach (var card in visibleCards)
         {
-            MainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            Grid.SetColumn(visibleCards[i], i);
-            MainGrid.Children.Add(visibleCards[i]);
-        }
-    }
+            int colSpan = card == cardMap["Ship Modules"] ? 2 : 1;
 
-    private void UpdateCargoCard(StatusJson status, Card cargoCard)
-    {
-        cargoContent.Children.Clear();
-        bool showCargo = status.Flags.HasFlag(Flag.InSRV) || status.Flags.HasFlag(Flag.InMainShip);
-        cargoCard.Visibility = showCargo ? Visibility.Visible : Visibility.Collapsed;
+            // Add as many column definitions as needed
+            for (int i = 0; i < colSpan; i++)
+                MainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        if (!showCargo || gameState.CurrentCargo?.Inventory == null) return;
+            Grid.SetColumn(card, currentCol);
+            Grid.SetColumnSpan(card, colSpan);
+            MainGrid.Children.Add(card);
 
-        foreach (var item in gameState.CurrentCargo.Inventory.OrderByDescending(i => i.Count))
-        {
-            cargoContent.Children.Add(new TextBlock
-            {
-                Text = $"{item.Name}: {item.Count}",
-                Foreground = GetBodyBrush(),
-                FontSize = 20
-            });
+            currentCol += colSpan;
         }
     }
 
@@ -528,30 +446,316 @@ public partial class MainWindow : Window
         }
     }
 
+    private void UpdateCargoCard(StatusJson status, Card cargoCard)
+    {
+        cargoContent.Children.Clear();
+        bool showCargo = status.Flags.HasFlag(Flag.InSRV) || status.Flags.HasFlag(Flag.InMainShip);
+        cargoCard.Visibility = showCargo ? Visibility.Visible : Visibility.Collapsed;
+
+        if (!showCargo || gameState.CurrentCargo?.Inventory == null) return;
+
+        foreach (var item in gameState.CurrentCargo.Inventory.OrderByDescending(i => i.Count))
+        {
+            cargoContent.Children.Add(new TextBlock
+            {
+                Text = $"{CommodityMapper.GetDisplayName(item.Name)}: {item.Count}",
+
+                Foreground = GetBodyBrush(),
+                FontSize = 20
+            });
+        }
+    }
+
+    private void UpdateFlagChips(StatusJson? status)
+    {
+        
+
+        if (status == null) return;
+  
+
+        Log.Debug("Active flags: {Flags}", status.Flags);
+
+        if (flagsPanel1 == null)
+            flagsPanel1 = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 5) };
+
+        if (flagsPanel2 == null)
+            flagsPanel2 = new WrapPanel { Orientation = Orientation.Horizontal };
+
+        flagsPanel1.Children.Clear();
+        flagsPanel2.Children.Clear();
+     
+        // Start with the real flags
+        var activeFlags = Enum.GetValues(typeof(Flag))
+            .Cast<Flag>()
+            .Where(flag => status.Flags.HasFlag(flag))
+            .ToList();
+
+        // Inject synthetic HudInCombatMode flag
+        activeFlags.Add(SyntheticFlags.HudInCombatMode);
+       
+        activeFlags.Add(SyntheticFlags.Docking);
+        // Display chips
+        for (int i = 0; i < activeFlags.Count; i++)
+        {
+            string displayText = activeFlags[i] switch
+            {
+                var f when f == SyntheticFlags.HudInCombatMode => "HudInCombatMode",
+                var f when f == SyntheticFlags.Docking => "Docking",
+                _ => activeFlags[i].ToString()
+            };
+
+
+
+            var chip = new Chip
+            {
+                Content = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Children =
+                {
+                    new PackIcon
+                    {
+                        Kind = PackIconKind.CheckCircleOutline,
+                        Width = 24,
+                        Height = 24,
+                        Margin = new Thickness(0, 0, 6, 0)
+                    },
+                    new TextBlock
+                    {
+                        Text = displayText,
+                        FontSize = 18,
+                        FontWeight = FontWeights.SemiBold,
+                        Foreground = Brushes.White
+                    }
+                }
+                },
+                Margin = new Thickness(6),
+                ToolTip = displayText,
+                Background = new SolidColorBrush(Color.FromRgb(33, 150, 243)),
+                Foreground = Brushes.White
+            };
+
+            if (i < 5)
+                flagsPanel1.Children.Add(chip);
+            else
+                flagsPanel2.Children.Add(chip);
+        }
+    }
+
+    private void UpdateFlagsCard(StatusJson? status)
+    {
+        if (status == null) return;
+
+        var flags1 = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 5) };
+        var flags2 = new WrapPanel { Orientation = Orientation.Horizontal };
+
+        var activeFlags = Enum.GetValues(typeof(Flag))
+            .Cast<Flag>()
+            .Where(flag => status.Flags.HasFlag(flag))
+            .ToList();
+
+        for (int i = 0; i < activeFlags.Count; i++)
+        {
+            var chip = new Chip
+            {
+                Content = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Children =
+                {
+                    new PackIcon
+                    {
+                        Kind = PackIconKind.CheckCircleOutline,
+                        Width = 24,
+                        Height = 24,
+                        Margin = new Thickness(0, 0, 6, 0)
+                    },
+                    new TextBlock
+                    {
+                        Text = activeFlags[i].ToString(),
+                        FontSize = 24,
+                        FontWeight = FontWeights.SemiBold,
+                        Foreground = Brushes.White
+                    }
+                }
+                },
+                Margin = new Thickness(6),
+                ToolTip = activeFlags[i].ToString(),
+                Background = new SolidColorBrush(Color.FromRgb(33, 150, 243)),
+                Foreground = Brushes.White
+            };
+
+            if (i < 5)
+                flags1.Children.Add(chip);
+            else
+                flags2.Children.Add(chip);
+        }
+
+        var content = new StackPanel();
+        content.Children.Add(flags1);
+        content.Children.Add(flags2);
+
+        if (!cardMap.ContainsKey("Status Flags"))
+        {
+            AddCard("Status Flags", content);
+        }
+        else
+        {
+            if (cardMap["Status Flags"].Content is StackPanel cardPanel)
+            {
+                cardPanel.Children.Clear();
+                cardPanel.Children.Add(new TextBlock
+                {
+                    Text = "Status Flags",
+                    FontWeight = FontWeights.Bold,
+                    Foreground = Brushes.Orange,
+                    FontSize = 24,
+                    Margin = new Thickness(0, 0, 0, 5)
+                });
+                cardPanel.Children.Add(content);
+            }
+        }
+    }
+    private void UpdateFuelDisplay(StatusJson status)
+    {
+        var display = appSettings.DisplayOptions;
+
+        if (display.ShowFuelLevel && status != null)
+        {
+            if (status.Flags.HasFlag(Flag.InSRV) && status.SRV != null)
+            {
+                // SRV Fuel mode
+                double value = Math.Round(status.SRV.Fuel, 2);
+                lastFuelValue = value;
+
+                fuelText.Text = $"SRV Fuel: {value:P0}";
+
+                fuelBarGrid.ColumnDefinitions[0].Width = new GridLength(value, GridUnitType.Star);
+                fuelBarGrid.ColumnDefinitions[1].Width = new GridLength(1 - value, GridUnitType.Star);
+            }
+            else if (status.Fuel != null)
+            {
+                // Standard ship fuel mode
+                double value = Math.Round(status.Fuel.FuelMain, 2);
+                double max = Math.Round(gameState.CurrentLoadout?.FuelCapacity?.Main ?? 0, 2);
+
+                if (max <= 0) return; // avoid divide by zero
+
+                double ratio = Math.Min(1.0, value / max);
+                lastFuelValue = value;
+
+                fuelText.Text = $"Fuel: Main {value:0.00} \nReserve {status.Fuel.FuelReservoir:0.00}";
+                fuelBarGrid.ColumnDefinitions[0].Width = new GridLength(ratio, GridUnitType.Star);
+                fuelBarGrid.ColumnDefinitions[1].Width = new GridLength(1 - ratio, GridUnitType.Star);
+            }
+        }
+    }
+
     private void UpdateModulesCard(StatusJson status, Card modulesCard)
     {
+        if (status == null || gameState.CurrentLoadout?.Modules == null)
+            return;
         modulesContent.Children.Clear();
         bool showModules = status.Flags.HasFlag(Flag.InMainShip) &&
                            !status.OnFoot &&
                            !status.Flags.HasFlag(Flag.InSRV) &&
                            !status.Flags.HasFlag(Flag.InFighter);
 
-        if (gameState.CurrentLoadout?.Modules != null && showModules)
-        {
-            foreach (var module in gameState.CurrentLoadout.Modules.OrderByDescending(m => m.Health))
-            {
-                string rawName = module.ItemLocalised ?? module.Item;
-                string displayName = ModuleNameMapper.GetFriendlyName(rawName);
+        if (gameState.CurrentLoadout?.Modules == null || !showModules)
+            return;
 
-                modulesContent.Children.Add(new TextBlock
-                {
-                    Text = $"{displayName} ({module.Health:P0})",
-                    FontSize = 20,
-                    Foreground = new SolidColorBrush(
+        // Categorize modules
+        var modules = gameState.CurrentLoadout.Modules;
+
+        var hardpoints = modules.Where(m => m.Slot.StartsWith("SmallHardpoint") || m.Slot.StartsWith("MediumHardpoint") || m.Slot.StartsWith("LargeHardpoint") || m.Slot.StartsWith("TinyHardpoint")).ToList();
+        var coreInternals = modules.Where(m => m.Slot is "PowerPlant" or "MainEngines" or "FrameShiftDrive" or "LifeSupport" or "PowerDistributor" or "Radar" or "FuelTank").ToList();
+        var optionals = modules.Where(m => m.Slot.StartsWith("Slot")).ToList();
+        var other = modules.Except(hardpoints).Except(coreInternals).Except(optionals).ToList();
+
+        var groupedPages = new List<List<LoadoutModule>>
+    {
+        hardpoints.Concat(coreInternals).ToList(), // Page 1
+        optionals.Concat(other).ToList()           // Page 2
+    };
+
+        var pageModules = groupedPages[currentModulesPage];
+
+        // 2-column display
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        int col = 0, row = 0;
+        foreach (var module in pageModules.OrderByDescending(m => m.Health))
+        {
+            string rawName = module.ItemLocalised ?? module.Item;
+            string displayName = ModuleNameMapper.GetFriendlyName(rawName);
+
+            var tb = new TextBlock
+            {
+                Text = $"{displayName} ({module.Health:P0})",
+                FontSize = 18,
+                Margin = new Thickness(4),
+                Foreground = new SolidColorBrush(
                     module.Health < 0.7 ? Colors.Red :
                     module.Health <= 0.95 ? Colors.Orange :
-                    Colors.White
-      )
+                    Colors.White)
+            };
+
+            if (grid.RowDefinitions.Count <= row)
+                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            Grid.SetColumn(tb, col);
+            Grid.SetRow(tb, row);
+            grid.Children.Add(tb);
+
+            if (++col > 1)
+            {
+                col = 0;
+                row++;
+            }
+        }
+
+        modulesContent.Children.Add(grid);
+    }
+
+
+
+    private void UpdateRouteCard()
+    {
+        routeContent.Children.Clear();
+
+        var hasRoute = gameState.CurrentRoute?.Route?.Any() == true;
+        var hasDestination = !string.IsNullOrWhiteSpace(gameState.CurrentStatus?.Destination?.Name);
+
+        routeContent.Visibility = hasRoute || hasDestination
+            ? Visibility.Visible : Visibility.Collapsed;
+
+        // Show formatted destination (station/carrier)
+        if (hasDestination)
+        {
+            string formattedDestination = FormatDestinationName(gameState.CurrentStatus.Destination);
+
+            routeContent.Children.Add(new TextBlock
+            {
+                Text = $"Target: {formattedDestination}",
+                FontSize = 20,
+                Margin = new Thickness(0, 0, 0, 6),
+                Foreground = GetBodyBrush()
+            });
+        }
+
+        // Show plotted route
+        if (hasRoute)
+        {
+            foreach (var jump in gameState.CurrentRoute.Route)
+            {
+                routeContent.Children.Add(new TextBlock
+                {
+                    Text = $"{jump.StarSystem} ({jump.StarClass})",
+                    FontSize = 24,
+                    Margin = new Thickness(8, 0, 0, 2),
+                    Foreground = GetBodyBrush()
                 });
             }
         }
@@ -562,14 +766,15 @@ public partial class MainWindow : Window
         SetOrUpdateSummaryText("Commander", $"Commander: {gameState?.CommanderName ?? "(Unknown)"}");
         SetOrUpdateSummaryText("System", $"System: {gameState?.CurrentSystem ?? "(Unknown)"}");
 
-        if (!string.IsNullOrEmpty(gameState?.ShipName) || !string.IsNullOrEmpty(gameState?.ShipLocalised))
+        if (!string.IsNullOrEmpty(gameState?.UserShipName) || !string.IsNullOrEmpty(gameState?.CurrentLoadout?.Ship))
         {
-            var shipLabel = $"Ship: {gameState.UserShipName ?? gameState.ShipName}";
+            var shipLabel = $"Ship: {gameState.UserShipName ?? gameState.CurrentLoadout?.Ship}";
             if (!string.IsNullOrEmpty(gameState.UserShipId))
                 shipLabel += $" [{gameState.UserShipId}]";
-            shipLabel += $"\nType: {gameState.ShipLocalised}";
+            shipLabel += $"\nType: {ShipNameHelper.GetLocalisedName(gameState.CurrentLoadout?.Ship)}";
             SetOrUpdateSummaryText("Ship", shipLabel);
         }
+
 
         if (gameState.Balance.HasValue)
             SetOrUpdateSummaryText("Balance", $"Balance: {gameState.Balance.Value:N0} CR");
@@ -580,80 +785,35 @@ public partial class MainWindow : Window
         if (gameState?.JumpCountdown != null && gameState.JumpCountdown.Value.TotalSeconds > 0)
         {
             string countdownText = gameState.JumpCountdown.Value.ToString(@"mm\:ss");
-            SetOrUpdateSummaryText("CarrierJumpCountdown", $"Carrier Jump In: {countdownText}");
+            // need to increase font and change color
+            SetOrUpdateSummaryText("CarrierJumpTarget",$"System: {gameState.CarrierJumpDestinationSystem} \nBody{gameState.CarrierJumpDestinationBody}", 20, Brushes.Gold);
+            SetOrUpdateSummaryText("CarrierJumpCountdown", $"Carrier Jump In: {countdownText}",30,Brushes.Gold);
+
+            //also add in the destinatin system
+           
+
         }
     }
 
-    private void UpdateMaterialsCard()
-    {
-        fcMaterialsContent.Children.Clear();
-        fcMaterialsContent.Visibility = gameState.CurrentMaterials?.Materials != null
-            ? Visibility.Visible : Visibility.Collapsed;
+    //private void UpdateMaterialsCard()
+    //{
+    //    fcMaterialsContent.Children.Clear();
+    //    fcMaterialsContent.Visibility = gameState.CurrentMaterials?.Materials != null
+    //        ? Visibility.Visible : Visibility.Collapsed;
 
-        if (gameState.CurrentMaterials?.Materials == null) return;
+    //    if (gameState.CurrentMaterials?.Materials == null) return;
 
-        foreach (var item in gameState.CurrentMaterials.Materials.OrderByDescending(i => i.Count))
-        {
-            fcMaterialsContent.Children.Add(new TextBlock
-            {
-                Text = $"{item.Name_Localised ?? item.Name}: {item.Count}",
-                FontSize = 18,
-                Foreground = GetBodyBrush()
-            });
-        }
-    }
-
-    private void UpdateRouteCard()
-    {
-        routeContent.Children.Clear();
-        routeContent.Visibility = gameState.CurrentRoute?.Route?.Any() == true
-            ? Visibility.Visible : Visibility.Collapsed;
-
-        if (gameState.CurrentRoute?.Route == null) return;
-
-        foreach (var jump in gameState.CurrentRoute.Route)
-        {
-            routeContent.Children.Add(new TextBlock
-            {
-                Text = $"{jump.StarSystem} ({jump.StarClass})",
-                FontSize = 24,
-                Margin = new Thickness(8, 0, 0, 2),
-                Foreground = GetBodyBrush()
-            });
-        }
-    }
-
-    private void UpdateFuelDisplay(StatusJson status)
-    {
-        var display = appSettings.DisplayOptions;
-        if (display.ShowFuelLevel && status?.Fuel != null)
-        {
-            double value = Math.Round(status.Fuel.FuelMain, 2);
-            double max = Math.Round(gameState.CurrentLoadout?.FuelCapacity?.Main ?? 0, 2);
-
-            if (max <= 0) return; // avoid divide by zero
-
-            double ratio = Math.Min(1.0, value / max);
-            lastFuelValue = value;
-
-            fuelText.Text = $"Fuel: Main {value:0.00} / Reserve {status.Fuel.FuelReservoir:0.00}";
-
-            // Update fuel bar width based on ratio
-            fuelBarGrid.ColumnDefinitions[0].Width = new GridLength(ratio, GridUnitType.Star);
-            fuelBarGrid.ColumnDefinitions[1].Width = new GridLength(1 - ratio, GridUnitType.Star);
-        }
-    }
-
-    private void AddCard(string title, StackPanel contentPanel)
-    {
-        var card = CreateCard(title, contentPanel);
-        cardMap[title] = card;
-    }
-
+    //    foreach (var item in gameState.CurrentMaterials.Materials.OrderByDescending(i => i.Count))
+    //    {
+    //        fcMaterialsContent.Children.Add(new TextBlock
+    //        {
+    //            Text = $"{item.Name_Localised ?? item.Name}: {item.Count}",
+    //            FontSize = 18,
+    //            Foreground = GetBodyBrush()
+    //        });
+    //    }
+    //}
     #endregion cards
-
-    private Brush GetBodyBrush() => (Brush)System.Windows.Application.Current.Resources["MaterialDesignBody"];
-
     private void OptionsButton_Click(object sender, RoutedEventArgs e)
     {
         var options = new OptionsWindow { Owner = this };
@@ -671,27 +831,55 @@ public partial class MainWindow : Window
         return Task.FromResult(dialog.ShowDialog() == true ? dialog.SelectedScreen : null);
     }
 
-    private void SetOrUpdateSummaryText(string key, string content, int fontSize = 24, Brush? foreground = null)
+    private void SetOrUpdateSummaryText(string key, string content, int fontSize = 24, Brush? foreground = null, PackIconKind? icon = null)
     {
         var existing = summaryContent.Children
-            .OfType<TextBlock>()
-            .FirstOrDefault(tb => tb.Tag?.ToString() == key);
+            .OfType<StackPanel>()
+            .FirstOrDefault(sp => sp.Tag?.ToString() == key);
+
+        var stack = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Tag = key
+        };
+
+        if (icon != null)
+        {
+            stack.Children.Add(new PackIcon
+            {
+                Kind = icon.Value,
+                Width = 24,
+                Height = 24,
+                Margin = new Thickness(0, 0, 6, 0),
+                Foreground = foreground ?? GetBodyBrush()
+            });
+        }
+
+        stack.Children.Add(new TextBlock
+        {
+            Text = content,
+            FontSize = fontSize,
+            Foreground = foreground ?? GetBodyBrush(),
+            VerticalAlignment = VerticalAlignment.Center
+        });
 
         if (existing != null)
         {
-            existing.Text = content;
+            int index = summaryContent.Children.IndexOf(existing);
+            summaryContent.Children.RemoveAt(index);
+            summaryContent.Children.Insert(index, stack);
         }
         else
         {
-            summaryContent.Children.Insert(0, new TextBlock
-            {
-                Text = content,
-                FontSize = fontSize,
-                Foreground = foreground ?? GetBodyBrush(),
-                Tag = key
-            });
+            // Maintain insertion order: insert before the fuelStack if it's present
+            var fuelIndex = summaryContent.Children.IndexOf(fuelStack);
+            if (fuelIndex > 0)
+                summaryContent.Children.Insert(fuelIndex, stack);
+            else
+                summaryContent.Children.Add(stack);
         }
     }
+
 
     private void SetupDisplayUi()
     {
@@ -708,7 +896,7 @@ public partial class MainWindow : Window
         AddCard("Summary", summaryContent);
         AddCard("Cargo", cargoContent);
         AddCard("Backpack", backpackContent);
-        AddCard("Fleet Carrier Materials", fcMaterialsContent);
+        //AddCard("Fleet Carrier Materials", fcMaterialsContent);
         AddCard("Nav Route", routeContent);
         AddCard("Ship Modules", modulesContent);
 
@@ -747,6 +935,14 @@ public partial class MainWindow : Window
         ApplyScreenBounds(screen);
         SetupDisplayUi();
 
+        modulePageTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(5)
+        };
+        modulePageTimer.Tick += (s, e) => FadeAndUpdateModules();
+
+        modulePageTimer.Start();
+
         var rotate = new System.Windows.Media.Animation.DoubleAnimation
         {
             From = 0,
@@ -756,29 +952,11 @@ public partial class MainWindow : Window
         };
 
         string gamePath = EliteDangerousPaths.GetSavedGamesPath();
+
+        // 🔧 Create gameState BEFORE using it
         gameState = new GameStateService(gamePath);
         gameState.DataUpdated += GameState_DataUpdated;
-        try
-        {
-            string latestJournal = Directory.GetFiles(gamePath, "Journal.*.log")
-                .OrderByDescending(File.GetLastWriteTime)
-                .FirstOrDefault();
-
-            if (!string.IsNullOrEmpty(latestJournal))
-            {
-                journalWatcher = new JournalWatcher(latestJournal);
-                journalWatcher.LoadoutReceived += loadout =>
-                {
-                    gameState.CurrentLoadout = loadout;
-                    Log.Debug("Received Loadout: FuelCapacity={FuelCapacity}", loadout.FuelCapacity);
-                };
-                journalWatcher.StartWatching();
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Error starting journal watcher");
-        }
+       
 
         GameState_DataUpdated();
     }
