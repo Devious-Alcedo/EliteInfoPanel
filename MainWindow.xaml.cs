@@ -69,14 +69,18 @@ public partial class MainWindow : Window
 
     private void ApplyScreenBounds(Screen targetScreen)
     {
+        this.WindowState = WindowState.Normal; // <--- force out of maximized state
+
         this.Left = targetScreen.WpfBounds.Left;
         this.Top = targetScreen.WpfBounds.Top;
         this.Width = targetScreen.WpfBounds.Width;
         this.Height = targetScreen.WpfBounds.Height;
+
         this.WindowStyle = WindowStyle.None;
         this.WindowState = WindowState.Maximized;
         this.Topmost = true;
     }
+
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
@@ -817,6 +821,19 @@ public partial class MainWindow : Window
     private void OptionsButton_Click(object sender, RoutedEventArgs e)
     {
         var options = new OptionsWindow { Owner = this };
+
+        options.ScreenChanged += newScreen =>
+        {
+            appSettings.SelectedScreenId = newScreen.DeviceName;
+            appSettings.SelectedScreenBounds = newScreen.WpfBounds;
+            SettingsManager.Save(appSettings);
+
+            
+            screen = newScreen;
+            ApplyScreenBounds(newScreen);
+            SettingsManager.Save(appSettings);
+        };
+
         if (options.ShowDialog() == true)
         {
             appSettings = SettingsManager.Load();
@@ -825,9 +842,12 @@ public partial class MainWindow : Window
         }
     }
 
+
+
     private Task<Screen?> PromptUserToSelectScreenAsync(List<Screen> screens)
     {
-        var dialog = new SelectScreenDialog(screens);
+        var dialog = new SelectScreenDialog(screens, this);
+
         return Task.FromResult(dialog.ShowDialog() == true ? dialog.SelectedScreen : null);
     }
 
@@ -915,7 +935,12 @@ public partial class MainWindow : Window
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
         var allScreens = Screen.AllScreens.ToList();
-        screen = allScreens.FirstOrDefault(s => s.DeviceName == appSettings.SelectedScreenId);
+        screen = Screen.AllScreens.FirstOrDefault(s =>
+      s.DeviceName == appSettings.SelectedScreenId ||
+      s.WpfBounds == appSettings.SelectedScreenBounds)
+      ?? Screen.AllScreens.FirstOrDefault();
+
+
 
         if (screen == null)
         {

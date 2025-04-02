@@ -7,6 +7,7 @@ using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.File;
 using EliteInfoPanel.Util;
+using WpfScreenHelper;
 
 namespace EliteInfoPanel.Dialogs
 {
@@ -65,8 +66,9 @@ namespace EliteInfoPanel.Dialogs
         #region Public Properties
 
         public AppSettings Settings { get; set; }
-
+        public Screen? SelectedNewScreen { get; private set; }
         #endregion Public Properties
+        public event Action<Screen> ScreenChanged;
 
         #region Private Methods
 
@@ -80,7 +82,8 @@ namespace EliteInfoPanel.Dialogs
         {
             var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             var currentScreen = WpfScreenHelper.Screen.FromHandle(handle);
-            Settings.LastOptionsScreenId = currentScreen.DeviceName;
+            Settings.SelectedScreenId = currentScreen.DeviceName;
+
             foreach (var kvp in flagCheckBoxes)
             {
                 var flag = kvp.Key;
@@ -176,6 +179,25 @@ namespace EliteInfoPanel.Dialogs
                 flagCheckBoxes[flag] = checkBox;
             }
         }
+        private void ChangeDisplayButton_Click(object sender, RoutedEventArgs e)
+        {
+            var screens = WpfScreenHelper.Screen.AllScreens.ToList();
+            var dialog = new SelectScreenDialog(screens, this);
+
+            if (dialog.ShowDialog() == true && dialog.SelectedScreen != null)
+            {
+                Settings.SelectedScreenId = dialog.SelectedScreen.DeviceName;
+                Settings.SelectedScreenBounds = dialog.SelectedScreen.WpfBounds;
+
+                Log.Information("User changed display to: {DeviceName}", dialog.SelectedScreen.DeviceName);
+
+                ScreenChanged?.Invoke(dialog.SelectedScreen); // Raise the event
+
+               // MessageBox.Show("Display changed.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
+
 
 
 
