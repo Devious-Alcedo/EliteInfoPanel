@@ -31,7 +31,8 @@ public partial class MainWindow : Window
     private StackPanel cargoContent;
     //private StackPanel fcMaterialsContent;
     private int currentModulesPage = 0;
-   
+    private Grid hyperspaceOverlay;
+
     private WrapPanel flagsPanel1;
     private WrapPanel flagsPanel2;
     private ProgressBar fuelBar;
@@ -51,6 +52,8 @@ public partial class MainWindow : Window
     private Screen screen;
     private StackPanel shipStatsContent;
     private StackPanel summaryContent;
+    private Snackbar toastSnackbar;
+
     #endregion Private Fields
 
     #region Public Constructors
@@ -58,6 +61,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        this.DataContext = this;
         LoggingConfig.Configure();
         Loaded += Window_Loaded;
         PreviewKeyDown += MainWindow_PreviewKeyDown;
@@ -83,6 +87,7 @@ public partial class MainWindow : Window
 
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+   
 
     private string FormatDestinationName(DestinationInfo destination)
     {
@@ -90,7 +95,11 @@ public partial class MainWindow : Window
             return null;
 
         var name = destination.Name;
-
+        if (name == "$EXT_PANEL_ColonisationBeacon_DeploymentSite;") 
+        {
+            name = "Colonisation beacon";
+            return name;
+        }
         if (Regex.IsMatch(name, @"\\b[A-Z0-9]{3}-[A-Z0-9]{3}\\b")) // matches FC ID
             return $"{name} (Carrier)";
         else if (Regex.IsMatch(name, @"Beacon|Port|Hub|Station|Ring", RegexOptions.IgnoreCase))
@@ -98,31 +107,80 @@ public partial class MainWindow : Window
         else
             return name;
     }
+    private void UpdateOverlayVisibility()
+    {
+       
+
+        bool gameReady = gameState?.CurrentStatus != null &&
+                         (gameState.CurrentStatus.Flags.HasFlag(Flag.Docked) ||
+                          gameState.CurrentStatus.Flags.HasFlag(Flag.Supercruise) ||
+                          gameState.CurrentStatus.Flags.HasFlag(Flag.InSRV) ||
+                          gameState.CurrentStatus.Flags.HasFlag(Flag.InFighter) ||
+                          gameState.CurrentStatus.Flags.HasFlag(Flag.InMainShip) ||
+                          gameState.CurrentStatus.OnFoot);
+
+        bool inHyperspace = gameState.IsInHyperspace;
+        Debug.WriteLine($"[Overlay] GameReady={gameReady}, InHyperspace={inHyperspace}");
+        if (loadingOverlay != null)
+        {
+            loadingOverlay.Visibility = (!gameReady && !inHyperspace)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            Panel.SetZIndex(loadingOverlay, 100);
+        }
+
+        if (hyperspaceOverlay != null)
+        {
+            hyperspaceOverlay.Visibility = inHyperspace
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            Panel.SetZIndex(hyperspaceOverlay, 101);
+        }
+    }
+
+
 
     private void GameState_DataUpdated()
     {
         Dispatcher.Invoke(() =>
         {
+            UpdateOverlayVisibility();
             var status = gameState.CurrentStatus;
+
+            // Show carrier arrival toast
+            if (gameState.FleetCarrierJumpArrived && gameState.IsInHyperspace == false)
+            {
+                ShowToast("Fleet Carrier jump completed!");
+                gameState.ResetFleetCarrierJumpFlag();
+            }
+
+
+            // Defer route complete toast until truly out of hyperspace
+            if (gameState.RouteWasActive && gameState.RouteCompleted && !gameState.IsInHyperspace)
+            {
+                ShowToast("Route complete! You've arrived at your destination.");
+                gameState.ResetRouteActivity();
+            }
+
+
+            // Null safety
             if (status == null)
             {
                 Log.Warning("GameState.CurrentStatus was null during update cycle.");
                 return;
             }
-            if (gameState?.CurrentStatus != null)
-            {
-             
-                var isAnalysis = gameState.CurrentStatus.Flags.HasFlag(Flag.HudInAnalysisMode);
 
-                SetOrUpdateSummaryText(
-                    "HudMode",
-                    $"HUD Mode: {(isAnalysis ? "Analysis" : "Combat")}",
-                    foreground: isAnalysis ? Brushes.LimeGreen : Brushes.IndianRed,
-                    icon: isAnalysis ? PackIconKind.Microscope : PackIconKind.Crosshairs
-                );
-            }
+            // HUD Mode display
+            var isAnalysis = gameState.CurrentStatus.Flags.HasFlag(Flag.HudInAnalysisMode);
+            SetOrUpdateSummaryText(
+                "HudMode",
+                $"HUD Mode: {(isAnalysis ? "Analysis" : "Combat")}",
+                foreground: isAnalysis ? Brushes.LimeGreen : Brushes.IndianRed,
+                icon: isAnalysis ? PackIconKind.Microscope : PackIconKind.Crosshairs
+            );
 
-            bool shouldShowPanels = status != null && (
+            // Should we show the UI panels?
+            bool shouldShowPanels = (
                 status.Flags.HasFlag(Flag.Docked) ||
                 status.Flags.HasFlag(Flag.Supercruise) ||
                 status.Flags.HasFlag(Flag.InSRV) ||
@@ -132,20 +190,28 @@ public partial class MainWindow : Window
 
             MainGrid.Visibility = Visibility.Visible;
 
+            // Toggle card visibility
             foreach (var card in cardMap.Values)
             {
                 card.Visibility = shouldShowPanels ? Visibility.Visible : Visibility.Collapsed;
             }
 
+            // Manage overlays: show only one at a time
+            // Manage overlays: show only one at a time
             if (loadingOverlay != null)
-            {
                 loadingOverlay.Visibility = shouldShowPanels ? Visibility.Collapsed : Visibility.Visible;
+
+            if (hyperspaceOverlay != null)
+            {
+                hyperspaceOverlay.Visibility = gameState.IsInHyperspace ? Visibility.Visible : Visibility.Collapsed;
             }
 
+
+            // Stop here if nothing else should show
             if (!shouldShowPanels) return;
 
+            // Update panels
             UpdateSummaryCard();
-            // UpdateMaterialsCard();
             UpdateRouteCard();
             UpdateFuelDisplay(status);
             UpdateFlagChips(status);
@@ -153,10 +219,12 @@ public partial class MainWindow : Window
             UpdateBackpackCard(status, cardMap["Backpack"]);
             UpdateModulesCard(status, cardMap["Ship Modules"]);
             UpdateFlagsCard(status);
-            // Call to dynamically rearrange the UI based on the visible cards
+
+            // Final layout pass
             RefreshCardsLayout();
         });
     }
+
 
     private Brush GetBodyBrush() => (Brush)System.Windows.Application.Current.Resources["MaterialDesignBody"];
 
@@ -257,9 +325,17 @@ public partial class MainWindow : Window
 
         modulesContent.BeginAnimation(OpacityProperty, fadeIn);
     }
+    private void ShowToast(string message)
+    {
+        toastSnackbar?.MessageQueue?.Enqueue(message);
+    }
 
     private void InitializeCards()
     {
+        toastSnackbar = ToastHost;
+        toastSnackbar.MessageQueue = ToastQueue;
+
+
         summaryContent ??= new StackPanel();
         cargoContent ??= new StackPanel();
         backpackContent ??= new StackPanel();
@@ -370,6 +446,64 @@ public partial class MainWindow : Window
 
             Log.Debug("Added loading overlay with indeterminate progress bar");
         }
+        if (hyperspaceOverlay == null)
+        {
+            var hyperspaceText = new TextBlock
+            {
+                Text = "Jumping...",
+                FontSize = 48,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brushes.Cyan,
+                TextAlignment = TextAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 20, 0, 0)
+            };
+
+            var spinner = new ProgressBar
+            {
+                IsIndeterminate = true,
+                Height = 20,
+                Width = 200,
+                Foreground = Brushes.DeepSkyBlue,
+                Margin = new Thickness(0, 20, 0, 0)
+            };
+
+            var stack = new StackPanel
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Children = { hyperspaceText, spinner }
+            };
+
+            hyperspaceOverlay = new Grid
+            {
+                Background = new SolidColorBrush(Color.FromArgb(180, 0, 0, 64)),
+                Visibility = Visibility.Collapsed
+            };
+
+            hyperspaceOverlay.Children.Add(stack);
+
+            Grid.SetRowSpan(hyperspaceOverlay, int.MaxValue);
+            Grid.SetColumnSpan(hyperspaceOverlay, int.MaxValue);
+            MainGrid.Children.Add(hyperspaceOverlay);
+        }
+        // Determine if Elite is already running
+        var status = gameState?.CurrentStatus;
+        bool isEliteRunning = status != null && (
+            status.Flags.HasFlag(Flag.Docked) ||
+            status.Flags.HasFlag(Flag.Supercruise) ||
+            status.Flags.HasFlag(Flag.InSRV) ||
+            status.OnFoot ||
+            status.Flags.HasFlag(Flag.InFighter) ||
+            status.Flags.HasFlag(Flag.InMainShip));
+
+        if (loadingOverlay != null)
+            loadingOverlay.Visibility = isEliteRunning ? Visibility.Collapsed : Visibility.Visible;
+
+        if (hyperspaceOverlay != null)
+            hyperspaceOverlay.Visibility = Visibility.Collapsed;
+
+
     }
 
     private void RefreshCardsLayout()
@@ -390,10 +524,10 @@ public partial class MainWindow : Window
         var visibleCards = cardMap.Values.Where(card => card.Visibility == Visibility.Visible).ToList();
 
         MainGrid.ColumnDefinitions.Clear();
-        var preserveLoadingOverlay = loadingOverlay;
         MainGrid.Children.Clear();
-        if (preserveLoadingOverlay != null && !MainGrid.Children.Contains(preserveLoadingOverlay))
-            MainGrid.Children.Add(preserveLoadingOverlay);
+
+      
+
 
         int currentCol = 0;
 
@@ -411,6 +545,16 @@ public partial class MainWindow : Window
 
             currentCol += colSpan;
         }
+        if (loadingOverlay != null && !MainGrid.Children.Contains(loadingOverlay))
+            MainGrid.Children.Add(loadingOverlay);
+
+        if (hyperspaceOverlay != null && !MainGrid.Children.Contains(hyperspaceOverlay))
+        {
+            Panel.SetZIndex(hyperspaceOverlay, 101);
+            MainGrid.Children.Add(hyperspaceOverlay);
+        }
+
+
     }
 
     private void UpdateBackpackCard(StatusJson status, Card backpackCard)
@@ -670,7 +814,18 @@ public partial class MainWindow : Window
 
         // Categorize modules
         var modules = gameState.CurrentLoadout.Modules;
-
+        modules = modules
+    .Where(m =>
+        !string.IsNullOrWhiteSpace(m.Item) &&
+        !m.Item.StartsWith("Decal_", StringComparison.OrdinalIgnoreCase) &&
+        !m.Item.StartsWith("Nameplate_", StringComparison.OrdinalIgnoreCase) &&
+        !m.Item.StartsWith("PaintJob_", StringComparison.OrdinalIgnoreCase) &&
+        !m.Item.StartsWith("VoicePack_", StringComparison.OrdinalIgnoreCase) &&
+        !m.Item.Contains("spoiler", StringComparison.OrdinalIgnoreCase) &&
+        !m.Item.Contains("bumper", StringComparison.OrdinalIgnoreCase) &&
+        !m.Item.Contains("wings", StringComparison.OrdinalIgnoreCase)
+    )
+    .ToList();
         var hardpoints = modules.Where(m => m.Slot.StartsWith("SmallHardpoint") || m.Slot.StartsWith("MediumHardpoint") || m.Slot.StartsWith("LargeHardpoint") || m.Slot.StartsWith("TinyHardpoint")).ToList();
         var coreInternals = modules.Where(m => m.Slot is "PowerPlant" or "MainEngines" or "FrameShiftDrive" or "LifeSupport" or "PowerDistributor" or "Radar" or "FuelTank").ToList();
         var optionals = modules.Where(m => m.Slot.StartsWith("Slot")).ToList();
@@ -731,39 +886,69 @@ public partial class MainWindow : Window
 
         var hasRoute = gameState.CurrentRoute?.Route?.Any() == true;
         var hasDestination = !string.IsNullOrWhiteSpace(gameState.CurrentStatus?.Destination?.Name);
+        if (gameState.RouteWasActive && gameState.RouteCompleted)
+        {
+            // Wait until fully out of hyperspace before showing the toast
+            if (!gameState.IsInHyperspace)
+            {
+                ShowToast("Route complete! You've arrived at your destination.");
+                gameState.ResetRouteActivity();
+            }
+        }
+
+
 
         routeContent.Visibility = hasRoute || hasDestination
             ? Visibility.Visible : Visibility.Collapsed;
+        bool isTargetInSameSystem = string.Equals(gameState.CurrentSystem, gameState.LastFsdTargetSystem, StringComparison.OrdinalIgnoreCase);
 
-        // Show formatted destination (station/carrier)
-        if (hasDestination)
+        if (gameState.RemainingJumps.HasValue && !isTargetInSameSystem)
         {
-            string formattedDestination = FormatDestinationName(gameState.CurrentStatus.Destination);
-
             routeContent.Children.Add(new TextBlock
             {
-                Text = $"Target: {formattedDestination}",
+                Text = $"Jumps Remaining: {gameState.RemainingJumps.Value}",
                 FontSize = 20,
                 Margin = new Thickness(0, 0, 0, 6),
                 Foreground = GetBodyBrush()
             });
         }
 
-        // Show plotted route
-        if (hasRoute)
+
+        // Show formatted destination (station/carrier)
+        if (hasDestination)
         {
-            foreach (var jump in gameState.CurrentRoute.Route)
+            string destination = gameState.CurrentStatus.Destination?.Name;
+            string lastRouteSystem = gameState.CurrentRoute?.Route?.LastOrDefault()?.StarSystem;
+
+            if (!string.Equals(destination, lastRouteSystem, StringComparison.OrdinalIgnoreCase))
             {
+               
                 routeContent.Children.Add(new TextBlock
                 {
-                    Text = $"{jump.StarSystem} ({jump.StarClass})",
-                    FontSize = 24,
-                    Margin = new Thickness(8, 0, 0, 2),
+                    Text = $"Target: {FormatDestinationName(gameState.CurrentStatus.Destination)}",
+                    FontSize = 20,
+                    Margin = new Thickness(0, 0, 0, 6),
                     Foreground = GetBodyBrush()
                 });
             }
+
+            // Show plotted route
+            if (hasRoute)
+            {
+                foreach (var jump in gameState.CurrentRoute.Route)
+                {
+                    routeContent.Children.Add(new TextBlock
+                    {
+                        Text = $"{jump.StarSystem} ({jump.StarClass})",
+                        FontSize = 24,
+                        Margin = new Thickness(8, 0, 0, 2),
+                        Foreground = GetBodyBrush()
+                    });
+                }
+            }
         }
     }
+    
 
     private void UpdateSummaryCard()
     {
@@ -786,17 +971,20 @@ public partial class MainWindow : Window
         if (!string.IsNullOrEmpty(gameState?.SquadronName))
             SetOrUpdateSummaryText("Squadron", $"Squadron: {gameState.SquadronName}");
 
-        if (gameState?.JumpCountdown != null && gameState.JumpCountdown.Value.TotalSeconds > 0)
+        if (gameState?.JumpCountdown is TimeSpan countdown && countdown.TotalSeconds > 0)
         {
-            string countdownText = gameState.JumpCountdown.Value.ToString(@"mm\:ss");
+            string countdownText = countdown.ToString(@"mm\:ss");
             // need to increase font and change color
             SetOrUpdateSummaryText("CarrierJumpTarget",$"System: {gameState.CarrierJumpDestinationSystem} \nBody{gameState.CarrierJumpDestinationBody}", 20, Brushes.Gold);
             SetOrUpdateSummaryText("CarrierJumpCountdown", $"Carrier Jump In: {countdownText}",30,Brushes.Gold);
-
-            //also add in the destinatin system
-           
-
         }
+        else
+        {
+            SetOrUpdateSummaryText("CarrierJumpCountdown", "");
+            SetOrUpdateSummaryText("CarrierJumpTarget", "");
+        }
+
+
     }
 
     //private void UpdateMaterialsCard()
@@ -856,7 +1044,14 @@ public partial class MainWindow : Window
         var existing = summaryContent.Children
             .OfType<StackPanel>()
             .FirstOrDefault(sp => sp.Tag?.ToString() == key);
-
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            if (existing != null)
+            {
+                summaryContent.Children.Remove(existing);
+            }
+            return;
+        }
         var stack = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -981,11 +1176,33 @@ public partial class MainWindow : Window
         // 🔧 Create gameState BEFORE using it
         gameState = new GameStateService(gamePath);
         gameState.DataUpdated += GameState_DataUpdated;
-       
+        gameState.HyperspaceJumping += (jumping, systemName) =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (hyperspaceOverlay != null)
+                {
+                    hyperspaceOverlay.Visibility = jumping ? Visibility.Visible : Visibility.Collapsed;
+
+                    if (hyperspaceOverlay.Children[0] is StackPanel stack &&
+                        stack.Children[0] is TextBlock text)
+                    {
+                        text.Text = jumping
+                            ? $"Jumping to {systemName}..."
+                            : "";
+                    }
+                }
+            });
+        };
+
 
         GameState_DataUpdated();
+        UpdateOverlayVisibility();
+
     }
 
     #endregion Private Methods
+    public SnackbarMessageQueue ToastQueue { get; } = new(TimeSpan.FromSeconds(3));
+
 
 }
