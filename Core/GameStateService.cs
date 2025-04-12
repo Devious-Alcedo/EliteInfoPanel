@@ -23,39 +23,97 @@ namespace EliteInfoPanel.Core
         {
             gamePath = path;
 
-            watcher = new FileSystemWatcher(gamePath)
+            // Watcher specifically for Status.json
+            var statusWatcher = new FileSystemWatcher(gamePath, "Status.json")
             {
                 NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size,
-                EnableRaisingEvents = true,
-                IncludeSubdirectories = false
+                EnableRaisingEvents = true
+            };
+            statusWatcher.Changed += (s, e) =>
+            {
+                LoadStatusData();
+                DataUpdated?.Invoke();
             };
 
+            // Watcher specifically for NavRoute.json
+            var navRouteWatcher = new FileSystemWatcher(gamePath, "NavRoute.json")
+            {
+                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size,
+                EnableRaisingEvents = true
+            };
+            navRouteWatcher.Changed += (s, e) =>
+            {
+                LoadNavRouteData();
+                DataUpdated?.Invoke();
+            };
+
+            // Watcher specifically for Cargo.json
+            var cargoWatcher = new FileSystemWatcher(gamePath, "Cargo.json")
+            {
+                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size,
+                EnableRaisingEvents = true
+            };
+            cargoWatcher.Changed += (s, e) =>
+            {
+                LoadCargoData();
+                DataUpdated?.Invoke();
+            };
+
+            // Watcher specifically for Backpack.json
+            var backpackWatcher = new FileSystemWatcher(gamePath, "Backpack.json")
+            {
+                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size,
+                EnableRaisingEvents = true
+            };
+            backpackWatcher.Changed += (s, e) =>
+            {
+                LoadBackpackData();
+                DataUpdated?.Invoke();
+            };
+
+            // Watcher specifically for FCMaterials.json (if needed)
+            var materialsWatcher = new FileSystemWatcher(gamePath, "FCMaterials.json")
+            {
+                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size,
+                EnableRaisingEvents = true
+            };
+            materialsWatcher.Changed += (s, e) =>
+            {
+                LoadMaterialsData();
+                DataUpdated?.Invoke();
+            };
+
+            // General watcher for Journal logs
+            watcher = new FileSystemWatcher(gamePath, "Journal.*.log")
+            {
+                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size,
+                EnableRaisingEvents = true
+            };
             watcher.Changed += (s, e) =>
             {
-                LoadData();
-                if (CurrentStatus != null)
+                Task.Run(async () =>
+                {
+                    await ProcessJournalAsync();
                     DataUpdated?.Invoke();
+                });
             };
 
-            LoadData();
+            // Initial load
+            LoadAllData();
 
+            // Background refresh loop (optional safety measure)
             Task.Run(async () =>
             {
                 while (true)
                 {
-                    LoadData();
+                    LoadAllData();
                     await ProcessJournalAsync();
-
-                    if (CurrentStatus != null)
-                        DataUpdated?.Invoke();
-                    HyperspaceJumping?.Invoke(true, LastFsdTargetSystem ?? "Unknown");
-                    RaiseDataUpdated(); // ensure overlay reflects change
-
-
-                    await Task.Delay(2000);
+                    DataUpdated?.Invoke();
+                    await Task.Delay(5000);
                 }
             });
         }
+
 
         #endregion
 
@@ -133,7 +191,7 @@ namespace EliteInfoPanel.Core
         }
 
         #endregion
-
+     
         #region Private Methods
         private void PruneCompletedRouteSystems()
         {
@@ -196,44 +254,56 @@ namespace EliteInfoPanel.Core
             routeWasActive = false;
         }
 
-        private void LoadData()
+        private void LoadStatusData()
         {
-            try
+            CurrentStatus = DeserializeJsonFile<StatusJson>(Path.Combine(gamePath, "Status.json"));
+        }
+
+        private void LoadNavRouteData()
+        {
+            CurrentRoute = DeserializeJsonFile<NavRouteJson>(Path.Combine(gamePath, "NavRoute.json"));
+            if (CurrentRoute?.Route == null || CurrentRoute.Route.Count == 0)
             {
-                var statusPath = Path.Combine(gamePath, "Status.json");
-                var cargoPath = Path.Combine(gamePath, "Cargo.json");
-                var backpackPath = Path.Combine(gamePath, "Backpack.json");
-                var materialsPath = Path.Combine(gamePath, "FCMaterials.json");
-                var routePath = Path.Combine(gamePath, "NavRoute.json");
-
-                CurrentStatus = DeserializeJsonFile<StatusJson>(statusPath);
-                CurrentCargo = DeserializeJsonFile<CargoJson>(cargoPath);
-                CurrentBackpack = DeserializeJsonFile<BackpackJson>(backpackPath);
-                // CurrentMaterials = DeserializeJsonFile<FCMaterialsJson>(materialsPath);
-                CurrentRoute = DeserializeJsonFile<NavRouteJson>(routePath);
-
-                if (CurrentRoute?.Route?.Count > 0)
-                {
-                    routeWasActive = true;
-                }
-
-               
-
-                if (CurrentStatus != null)
-                {
-                    Log.Debug("Raw Status.json: {RawStatus}", File.ReadAllText(statusPath));
-                    Log.Debug("Parsed CurrentStatus.Flags: {Flags}", CurrentStatus?.Flags);
-                }
-
-                latestJournalPath = Directory.GetFiles(gamePath, "Journal.*.log")
-                    .OrderByDescending(File.GetLastWriteTime)
-                    .FirstOrDefault();
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Exception in LoadData");
+                CurrentRoute = null;
+                RemainingJumps = null;
             }
         }
+
+        private void LoadCargoData()
+        {
+            CurrentCargo = DeserializeJsonFile<CargoJson>(Path.Combine(gamePath, "Cargo.json"));
+        }
+
+        private void LoadBackpackData()
+        {
+            CurrentBackpack = DeserializeJsonFile<BackpackJson>(Path.Combine(gamePath, "Backpack.json"));
+        }
+
+        private void LoadMaterialsData()
+        {
+            CurrentMaterials = DeserializeJsonFile<FCMaterialsJson>(Path.Combine(gamePath, "FCMaterials.json"));
+        }
+
+        private void LoadLoadoutData()
+        {
+            // Typically loaded from journal event; include here only if you have a Loadout.json
+            CurrentLoadout = DeserializeJsonFile<LoadoutJson>(Path.Combine(gamePath, "Loadout.json"));
+        }
+
+        private void LoadAllData()
+        {
+            LoadStatusData();
+            LoadNavRouteData();
+            LoadCargoData();
+            LoadBackpackData();
+            LoadMaterialsData();
+            // Include additional calls if other JSON files exist
+            //  LoadLoadoutData(); // Optional, based on your scenario
+            latestJournalPath = Directory.GetFiles(gamePath, "Journal.*.log")
+         .OrderByDescending(File.GetLastWriteTime)
+         .FirstOrDefault();
+        }
+
 
         private async Task ProcessJournalAsync()
         {

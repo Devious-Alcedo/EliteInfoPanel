@@ -577,8 +577,11 @@ public partial class MainWindow : Window
 
         // Set visibility directly on cards
         cardMap["Summary"].Visibility = Visibility.Visible;
-        cardMap["Cargo"].Visibility = (status.Flags.HasFlag(Flag.InSRV) || status.Flags.HasFlag(Flag.InMainShip))
-            ? Visibility.Visible : Visibility.Collapsed;
+        cardMap["Cargo"].Visibility = ((status.Flags.HasFlag(Flag.InSRV) || status.Flags.HasFlag(Flag.InMainShip))
+                                 && (gameState.CurrentCargo?.Inventory?.Count ?? 0) > 0)
+                                 ? Visibility.Visible
+                                 : Visibility.Collapsed;
+
         cardMap["Backpack"].Visibility = status.OnFoot ? Visibility.Visible : Visibility.Collapsed;
         cardMap["Nav Route"].Visibility = routeContent.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         cardMap["Ship Modules"].Visibility = modulesContent.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -660,22 +663,28 @@ public partial class MainWindow : Window
     private void UpdateCargoCard(StatusJson status, Card cargoCard)
     {
         cargoContent.Children.Clear();
-        bool showCargo = status.Flags.HasFlag(Flag.InSRV) || status.Flags.HasFlag(Flag.InMainShip);
+
+        // Only show if inventory exists and has at least one item
+        bool showCargo = (gameState.CurrentCargo?.Inventory?.Count ?? 0) > 0;
+
+        // Directly set the visibility based on actual cargo items
         cargoCard.Visibility = showCargo ? Visibility.Visible : Visibility.Collapsed;
 
-        if (!showCargo || gameState.CurrentCargo?.Inventory == null) return;
+        if (!showCargo)
+            return;
 
+        // Populate the cargo content
         foreach (var item in gameState.CurrentCargo.Inventory.OrderByDescending(i => i.Count))
         {
             cargoContent.Children.Add(new TextBlock
             {
                 Text = $"{CommodityMapper.GetDisplayName(item.Name)}: {item.Count}",
-
                 Foreground = GetBodyBrush(),
                 FontSize = 20
             });
         }
     }
+
 
     private void UpdateFlagChips(StatusJson? status)
     {
@@ -906,13 +915,22 @@ public partial class MainWindow : Window
         var pageModules = groupedPages[currentModulesPage];
 
         // 2-column display
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var outerGrid = new Grid();
+        outerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        outerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        int col = 0, row = 0;
-        foreach (var module in pageModules.OrderByDescending(m => m.Health))
+        var leftPanel = new StackPanel();
+        var rightPanel = new StackPanel();
+
+        Grid.SetColumn(leftPanel, 0);
+        Grid.SetColumn(rightPanel, 1);
+        outerGrid.Children.Add(leftPanel);
+        outerGrid.Children.Add(rightPanel);
+
+        // Alternate modules into left/right
+        for (int i = 0; i < pageModules.Count; i++)
         {
+            var module = pageModules[i];
             string rawName = module.ItemLocalised ?? module.Item;
             string displayName = ModuleNameMapper.GetFriendlyName(rawName);
 
@@ -924,24 +942,21 @@ public partial class MainWindow : Window
                 Foreground = new SolidColorBrush(
                     module.Health < 0.7 ? Colors.Red :
                     module.Health <= 0.95 ? Colors.Orange :
-                    Colors.White)
+                    Colors.White),
+                TextWrapping = TextWrapping.Wrap,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = 280,
+                ToolTip = displayName
             };
 
-            if (grid.RowDefinitions.Count <= row)
-                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-            Grid.SetColumn(tb, col);
-            Grid.SetRow(tb, row);
-            grid.Children.Add(tb);
-
-            if (++col > 1)
-            {
-                col = 0;
-                row++;
-            }
+            if (i % 2 == 0)
+                leftPanel.Children.Add(tb);
+            else
+                rightPanel.Children.Add(tb);
         }
 
-        modulesContent.Children.Add(grid);
+        modulesContent.Children.Add(outerGrid);
+
     }
 
 
