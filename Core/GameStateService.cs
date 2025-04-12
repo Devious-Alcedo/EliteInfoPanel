@@ -66,6 +66,9 @@ namespace EliteInfoPanel.Core
         #endregion
 
         #region Public Properties
+        public string? HyperspaceDestination { get; private set; }
+        public string? HyperspaceStarClass { get; private set; }
+        public bool IsHyperspaceJumping { get; private set; }
         public long? Balance => CurrentStatus?.Balance;
         public string? CarrierJumpDestinationBody { get; private set; }
         public string? CarrierJumpDestinationSystem { get; private set; }
@@ -321,21 +324,42 @@ namespace EliteInfoPanel.Core
                             break;
 
                         case "StartJump":
-                            isInHyperspace = true;
-                            HyperspaceJumping?.Invoke(true, LastFsdTargetSystem ?? "Unknown");
-                            break;
-
-                        case "FSDJump":
-                            isInHyperspace = false;
-                            HyperspaceJumping?.Invoke(false, "");
-
-                            if (root.TryGetProperty("StarSystem", out JsonElement jumpSystemElement))
+                            if (root.TryGetProperty("JumpType", out var jumpType))
                             {
-                                CurrentSystem = jumpSystemElement.GetString();
-                                PruneCompletedRouteSystems();
+                                string jumpTypeString = jumpType.GetString();
+                                if (jumpTypeString == "Hyperspace")
+                                {
+                                    Log.Information("Hyperspace jump initiated");
+                                    IsHyperspaceJumping = true;
+
+                                    // Get the destination system from the StartJump event
+                                    if (root.TryGetProperty("StarSystem", out var starSystem))
+                                        HyperspaceDestination = starSystem.GetString();
+
+                                    if (root.TryGetProperty("StarClass", out var starClass))
+                                        HyperspaceStarClass = starClass.GetString();
+                                }
+                                else if (jumpTypeString == "Supercruise")
+                                {
+                                    Log.Information("Supercruise initiated");
+                                    // Do not set IsHyperspaceJumping for supercruise
+                                }
                             }
                             break;
 
+                        case "FSDJump":
+                            // Reset hyperspace jumping flag when the jump is complete
+                            Log.Information("Hyperspace jump completed");
+                            IsHyperspaceJumping = false;
+                            HyperspaceDestination = null;
+                            HyperspaceStarClass = null;
+                            break;
+
+                        case "SupercruiseEntry":
+                            Log.Information("Entered supercruise");
+                            // Ensure we're not in hyperspace jump mode when entering supercruise
+                            IsHyperspaceJumping = false;
+                            break;
 
                         case "Location":
                             if (isInHyperspace)

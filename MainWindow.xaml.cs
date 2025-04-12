@@ -107,38 +107,86 @@ public partial class MainWindow : Window
         else
             return name;
     }
+    // In GameStateService.cs
+    // Make sure we're not setting IsHyperspaceJumping in multiple places
+    // It should only be set in the StartJump event and reset in FSDJump or SupercruiseEntry
+
+    // In MainWindow.xaml.cs
     private void UpdateOverlayVisibility()
     {
-       
+        var status = gameState.CurrentStatus;
+        if (status == null) return;
 
-        bool gameReady = gameState?.CurrentStatus != null &&
-                         (gameState.CurrentStatus.Flags.HasFlag(Flag.Docked) ||
-                          gameState.CurrentStatus.Flags.HasFlag(Flag.Supercruise) ||
-                          gameState.CurrentStatus.Flags.HasFlag(Flag.InSRV) ||
-                          gameState.CurrentStatus.Flags.HasFlag(Flag.InFighter) ||
-                          gameState.CurrentStatus.Flags.HasFlag(Flag.InMainShip) ||
-                          gameState.CurrentStatus.OnFoot);
+        bool isHyperspaceJumping = gameState.IsHyperspaceJumping;
 
-        bool inHyperspace = gameState.IsInHyperspace;
-        Debug.WriteLine($"[Overlay] GameReady={gameReady}, InHyperspace={inHyperspace}");
-        if (loadingOverlay != null)
+        // Determine if we should show the panels
+        bool shouldShowPanels = !isHyperspaceJumping && (
+            status.Flags.HasFlag(Flag.Docked) ||
+            status.Flags.HasFlag(Flag.Supercruise) ||
+            status.Flags.HasFlag(Flag.InSRV) ||
+            status.OnFoot ||
+            status.Flags.HasFlag(Flag.InFighter) ||
+            status.Flags.HasFlag(Flag.InMainShip));
+
+        // Update all card visibility
+        foreach (var card in cardMap.Values)
         {
-            loadingOverlay.Visibility = (!gameReady && !inHyperspace)
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-            Panel.SetZIndex(loadingOverlay, 100);
+            card.Visibility = shouldShowPanels ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        if (hyperspaceOverlay != null)
+        // CRITICAL: Make sure only ONE overlay is visible at a time
+        if (LoadingOverlay != null)
         {
-            hyperspaceOverlay.Visibility = inHyperspace
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-            Panel.SetZIndex(hyperspaceOverlay, 101);
+            // Only show loading overlay when we're waiting for Elite (not in any game state)
+            // AND we're not hyperspace jumping
+            bool showLoadingOverlay = !shouldShowPanels && !isHyperspaceJumping;
+            LoadingOverlay.Visibility = showLoadingOverlay ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        if (HyperspaceOverlay != null)
+        {
+            // Only show hyperspace overlay during actual hyperspace jumps
+            HyperspaceOverlay.Visibility = isHyperspaceJumping ? Visibility.Visible : Visibility.Collapsed;
+
+            // Update the jump information if we're in hyperspace
+            if (isHyperspaceJumping)
+            {
+                UpdateHyperspaceJumpDisplay();
+            }
         }
     }
+    private void UpdateHyperspaceJumpDisplay()
+    {
+        if (HyperspaceOverlay == null || JumpDestinationText == null || StarClassText == null)
+            return;
 
+        // Set the destination system text
+        if (!string.IsNullOrEmpty(gameState.HyperspaceDestination))
+        {
+            JumpDestinationText.Text = $"Jumping to {gameState.HyperspaceDestination}";
 
+            if (!string.IsNullOrEmpty(gameState.HyperspaceStarClass))
+            {
+                StarClassText.Text = $"Star Class: {gameState.HyperspaceStarClass}";
+                StarClassText.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                StarClassText.Visibility = Visibility.Collapsed;
+            }
+        }
+        else if (gameState.CurrentRoute?.Route?.FirstOrDefault() is NavRouteJson.NavRouteSystem nextSystem)
+        {
+            JumpDestinationText.Text = $"Jumping to {nextSystem.StarSystem}";
+            StarClassText.Text = $"Star Class: {nextSystem.StarClass}";
+            StarClassText.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            JumpDestinationText.Text = "Hyperspace Jump in Progress...";
+            StarClassText.Visibility = Visibility.Collapsed;
+        }
+    }
 
     private void GameState_DataUpdated()
     {
@@ -148,12 +196,11 @@ public partial class MainWindow : Window
             var status = gameState.CurrentStatus;
 
             // Show carrier arrival toast
-            if (gameState.FleetCarrierJumpArrived && gameState.IsInHyperspace == false)
+            if (gameState.FleetCarrierJumpArrived && !gameState.IsInHyperspace)
             {
                 ShowToast("Fleet Carrier jump completed!");
                 gameState.ResetFleetCarrierJumpFlag();
             }
-
 
             // Defer route complete toast until truly out of hyperspace
             if (gameState.RouteWasActive && gameState.RouteCompleted && !gameState.IsInHyperspace)
@@ -161,7 +208,6 @@ public partial class MainWindow : Window
                 ShowToast("Route complete! You've arrived at your destination.");
                 gameState.ResetRouteActivity();
             }
-
 
             // Null safety
             if (status == null)
@@ -180,7 +226,16 @@ public partial class MainWindow : Window
             );
 
             // Should we show the UI panels?
-            bool shouldShowPanels = (
+            // Don't show panels during hyperspace jumps, but show during other conditions
+            bool isHyperspaceJumping = gameState.IsHyperspaceJumping;
+
+            // If in hyperspace jump, update the jump display
+            if (isHyperspaceJumping)
+            {
+                UpdateHyperspaceJumpDisplay();
+            }
+
+            bool shouldShowPanels = status != null && !isHyperspaceJumping && (
                 status.Flags.HasFlag(Flag.Docked) ||
                 status.Flags.HasFlag(Flag.Supercruise) ||
                 status.Flags.HasFlag(Flag.InSRV) ||
@@ -197,15 +252,23 @@ public partial class MainWindow : Window
             }
 
             // Manage overlays: show only one at a time
-            // Manage overlays: show only one at a time
             if (loadingOverlay != null)
-                loadingOverlay.Visibility = shouldShowPanels ? Visibility.Collapsed : Visibility.Visible;
+            {
+                // Only show loading overlay when not in a valid game state AND not hyperspace jumping
+                loadingOverlay.Visibility = (!shouldShowPanels && !isHyperspaceJumping) ? Visibility.Visible : Visibility.Collapsed;
+            }
 
             if (hyperspaceOverlay != null)
             {
-                hyperspaceOverlay.Visibility = gameState.IsInHyperspace ? Visibility.Visible : Visibility.Collapsed;
-            }
+                // Show hyperspace overlay only when in hyperspace
+                hyperspaceOverlay.Visibility = isHyperspaceJumping ? Visibility.Visible : Visibility.Collapsed;
 
+                // Update hyperspace jump display if needed
+                if (isHyperspaceJumping)
+                {
+                    UpdateHyperspaceJumpDisplay();
+                }
+            }
 
             // Stop here if nothing else should show
             if (!shouldShowPanels) return;
@@ -823,6 +886,9 @@ public partial class MainWindow : Window
         !m.Item.StartsWith("VoicePack_", StringComparison.OrdinalIgnoreCase) &&
         !m.Item.Contains("spoiler", StringComparison.OrdinalIgnoreCase) &&
         !m.Item.Contains("bumper", StringComparison.OrdinalIgnoreCase) &&
+        !m.Item.Contains("bobble", StringComparison.OrdinalIgnoreCase) &&
+         !m.Item.Contains("weaponcustomisation", StringComparison.OrdinalIgnoreCase) &&
+          !m.Item.Contains("enginecustomisation", StringComparison.OrdinalIgnoreCase) &&
         !m.Item.Contains("wings", StringComparison.OrdinalIgnoreCase)
     )
     .ToList();
