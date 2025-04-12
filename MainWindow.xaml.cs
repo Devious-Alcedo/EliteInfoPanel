@@ -195,10 +195,18 @@ public partial class MainWindow : Window
 
     private void GameState_DataUpdated()
     {
+      
+
         Dispatcher.Invoke(() =>
         {
             UpdateOverlayVisibility();
             var status = gameState.CurrentStatus;
+            // Detect carrier jump start at countdown zero
+            if (gameState.FleetCarrierJumpTime.HasValue && gameState.JumpCountdown?.TotalSeconds <= 0 && !gameState.CarrierJumpInProgress)
+            {
+                gameState.CarrierJumpInProgress = true;
+                Log.Debug("Carrier jump countdown reached 0 – marking as Jumping...");
+            }
 
             // Show carrier arrival toast
             if (gameState.FleetCarrierJumpArrived && !gameState.IsInHyperspace)
@@ -1057,18 +1065,23 @@ public partial class MainWindow : Window
         if (!string.IsNullOrEmpty(gameState?.SquadronName))
             SetOrUpdateSummaryText("Squadron", $"Squadron: {gameState.SquadronName}");
 
-        if (gameState?.JumpCountdown is TimeSpan countdown && countdown.TotalSeconds > 0)
+        if (gameState.CarrierJumpInProgress)
+        {
+            SetOrUpdateSummaryText("CarrierJumpTarget", $"System: {gameState.CarrierJumpDestinationSystem} \nBody: {gameState.CarrierJumpDestinationBody}", 20, Brushes.Gold);
+            SetOrUpdateSummaryText("CarrierJumpCountdown", "Jumping...", 30, Brushes.Gold);
+        }
+        else if (gameState?.JumpCountdown is TimeSpan countdown && countdown.TotalSeconds > 0)
         {
             string countdownText = countdown.ToString(@"mm\:ss");
-            // need to increase font and change color
-            SetOrUpdateSummaryText("CarrierJumpTarget",$"System: {gameState.CarrierJumpDestinationSystem} \nBody{gameState.CarrierJumpDestinationBody}", 20, Brushes.Gold);
-            SetOrUpdateSummaryText("CarrierJumpCountdown", $"Carrier Jump In: {countdownText}",30,Brushes.Gold);
+            SetOrUpdateSummaryText("CarrierJumpTarget", $"System: {gameState.CarrierJumpDestinationSystem} \nBody: {gameState.CarrierJumpDestinationBody}", 20, Brushes.Gold);
+            SetOrUpdateSummaryText("CarrierJumpCountdown", $"Carrier Jump In: {countdownText}", 30, Brushes.Gold);
         }
         else
         {
             SetOrUpdateSummaryText("CarrierJumpCountdown", "");
             SetOrUpdateSummaryText("CarrierJumpTarget", "");
         }
+
 
 
     }
