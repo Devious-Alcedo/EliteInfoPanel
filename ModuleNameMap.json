@@ -1124,5 +1124,7 @@
   "int_hyperdrive_overcharge_size7_class1": "Frame Shift Drive (SCO) (7E)",
   "int_hyperdrive_overcharge_size7_class2": "Frame Shift Drive (SCO) (7D)",
   "int_hyperdrive_overcharge_size7_class4": "Frame Shift Drive (SCO) (7B)",
-  "int_hyperdrive_overcharge_size7_class5": "Frame Shift Drive (SCO) (7A)"
+  "int_hyperdrive_overcharge_size7_class5": "Frame Shift Drive (SCO) (7A)",
+  "modularcargobaydoor": "Cargo Bay Door (1E)",
+  "type9_cockpit": "Cockpit"
 }

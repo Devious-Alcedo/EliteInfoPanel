@@ -10,6 +10,8 @@
         Title="Elite Info Panel" Height="480" Width="1920">
 
     <Grid x:Name="RootGrid">
+       
+
         <Grid x:Name="LoadingOverlay"
       Background="#AA000000"
       Visibility="Collapsed"
@@ -44,11 +46,49 @@
                    Margin="0,20,0,0"/>
             </StackPanel>
         </Grid>
-
+        <Grid x:Name="HyperspaceOverlay"
+      Background="#DD000020"
+      Visibility="Collapsed"
+      HorizontalAlignment="Stretch"
+      VerticalAlignment="Stretch"
+      Panel.ZIndex="9998">
+            <StackPanel HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Orientation="Vertical"
+                Margin="20">
+                <TextBlock x:Name="JumpDestinationText"
+                   Text="Hyperspace Jump in Progress..."
+                   Foreground="#80FFFFFF"
+                   FontSize="48"
+                   FontWeight="Light"
+                   TextAlignment="Center"
+                   Margin="0,0,0,20"/>
+                <TextBlock x:Name="StarClassText"
+                   Text="Star Class: Unknown"
+                   Foreground="#40FFFFFF"
+                   FontSize="28"
+                   FontWeight="Light"
+                   TextAlignment="Center"
+                   Margin="0,0,0,40"/>
+                <ProgressBar Width="400"
+                     Height="8"
+                     IsIndeterminate="True"
+                     Foreground="#60FFFFFF"
+                     Background="Transparent"/>
+            </StackPanel>
+        </Grid>
         <Grid x:Name="MainGrid" HorizontalAlignment="Stretch" Background="{DynamicResource MaterialDesignPaper}"
              
             VerticalAlignment="Stretch">
         </Grid>
+
+        <materialDesign:Snackbar
+            x:Name="ToastHost"
+            MessageQueue="{Binding ToastQueue}"
+            VerticalAlignment="Bottom"
+            HorizontalAlignment="Center"
+            Margin="20"
+            FontSize="20"/>
 
 
 

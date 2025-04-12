@@ -21,9 +21,12 @@ namespace EliteInfoPanel
                 DialogResult = true; // ✅ this closes the dialog
             }
         }
-        public SelectScreenDialog(List<Screen> screens)
+        public SelectScreenDialog(List<Screen> screens, Window ownerWindow)
         {
             InitializeComponent();
+
+            Owner = ownerWindow; // ensure modal behavior
+
             ScreenListBox.ItemsSource = screens.Select((s, i) => new
             {
                 Screen = s,
@@ -32,7 +35,24 @@ namespace EliteInfoPanel
 
             ScreenListBox.DisplayMemberPath = "DisplayText";
 
+            // ✅ Center on the screen the owner is currently on
+            var ownerHandle = new System.Windows.Interop.WindowInteropHelper(ownerWindow).Handle;
+            var ownerScreen = WpfScreenHelper.Screen.FromHandle(ownerHandle);
+
+            this.WindowStartupLocation = WindowStartupLocation.Manual;
+            this.Left = ownerScreen.WpfBounds.Left + (ownerScreen.WpfBounds.Width - this.Width) / 2;
+            this.Top = ownerScreen.WpfBounds.Top + (ownerScreen.WpfBounds.Height - this.Height) / 2;
+
+            this.Topmost = true;
+            this.Loaded += (s, e) =>
+            {
+                this.Activate();
+                this.Focus();
+            };
         }
+
+
+
         private void CancelButton_Click(object sender, RoutedEventArgs e)
         {
             DialogResult = false;

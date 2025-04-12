@@ -15,6 +15,9 @@ namespace EliteInfoPanel.Core
         private long lastJournalPosition = 0;
         private string latestJournalPath;
         private FileSystemWatcher watcher;
+        public bool CarrierJumpInProgress { get;  set; }
+        public DateTime? CarrierJumpScheduledTime { get; private set; }
+
         #endregion
 
         #region Public Constructors
@@ -23,36 +26,63 @@ namespace EliteInfoPanel.Core
         {
             gamePath = path;
 
-            watcher = new FileSystemWatcher(gamePath)
+            // Watcher specifically for Status.json
+            var watcher = new FileSystemWatcher(gamePath)
             {
                 NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size,
+                Filter = "*.*", // watch all files in the folder
                 EnableRaisingEvents = true,
                 IncludeSubdirectories = false
             };
 
             watcher.Changed += (s, e) =>
             {
-                LoadData();
-                if (CurrentStatus != null)
-                    DataUpdated?.Invoke();
+                // Normalize file name (some systems include full path)
+                string fileName = Path.GetFileName(e.Name);
+
+                Log.Debug("FileSystemWatcher triggered for: {File}", fileName);
+
+                switch (fileName)
+                {
+                    case "Status.json":
+                        LoadStatusData();
+                        break;
+                    case "NavRoute.json":
+                        LoadNavRouteData();
+                        break;
+                    case "Cargo.json":
+                        LoadCargoData();
+                        break;
+                    case "Backpack.json":
+                        LoadBackpackData();
+                        break;
+                    case "FCMaterials.json":
+                        LoadMaterialsData();
+                        break;
+                    default:
+                        return; // Unwatched file
+                }
+
+                DataUpdated?.Invoke();
             };
+            // Initial load
+            LoadAllData();
+            
 
-            LoadData();
-
+            // Background refresh loop (optional safety measure)
             Task.Run(async () =>
             {
                 while (true)
                 {
-                    LoadData();
+                    LoadAllData();
                     await ProcessJournalAsync();
-
-                    if (CurrentStatus != null)
-                        DataUpdated?.Invoke();
-
-                    await Task.Delay(2000);
+                    DataUpdated?.Invoke();
+                    await Task.Delay(5000);
                 }
             });
+            ScanJournalForPendingCarrierJump();
         }
+
 
         #endregion
 
@@ -63,6 +93,9 @@ namespace EliteInfoPanel.Core
         #endregion
 
         #region Public Properties
+        public string? HyperspaceDestination { get; private set; }
+        public string? HyperspaceStarClass { get; private set; }
+        public bool IsHyperspaceJumping { get; private set; }
         public long? Balance => CurrentStatus?.Balance;
         public string? CarrierJumpDestinationBody { get; private set; }
         public string? CarrierJumpDestinationSystem { get; private set; }
@@ -82,6 +115,19 @@ namespace EliteInfoPanel.Core
         public string SquadronName { get; private set; }
         public string UserShipId { get; set; }
         public string UserShipName { get; set; }
+        public bool FleetCarrierJumpArrived { get; private set; }
+        public bool RouteCompleted => CurrentRoute?.Route?.Count == 0;
+        private bool routeWasActive = false;
+        public event Action<bool, string>? HyperspaceJumping;
+        private bool isInHyperspace = false;
+        public bool IsInHyperspace => isInHyperspace;
+
+       
+        public bool RouteWasActive => routeWasActive;
+
+        public int? RemainingJumps { get; private set; }
+        public string LastFsdTargetSystem { get; private set; }
+
 
         #endregion
 
@@ -91,7 +137,10 @@ namespace EliteInfoPanel.Core
         {
             DataUpdated?.Invoke();
         }
-
+        public void ResetFleetCarrierJumpFlag()
+        {
+            FleetCarrierJumpArrived = false;
+        }
         public void SetDockingStatus()
         {
             Log.Debug("GameStateService: SetDockingStatus triggered");
@@ -111,8 +160,31 @@ namespace EliteInfoPanel.Core
         }
 
         #endregion
-
+     
         #region Private Methods
+        private void PruneCompletedRouteSystems()
+        {
+            if (CurrentRoute?.Route?.Count == 0)
+            {
+                routeWasActive = false;
+            }
+
+            if (CurrentRoute?.Route == null || string.IsNullOrWhiteSpace(CurrentSystem))
+                return;
+
+            int index = CurrentRoute.Route.FindIndex(r =>
+                string.Equals(r.StarSystem, CurrentSystem, StringComparison.OrdinalIgnoreCase));
+
+            if (index >= 0)
+            {
+                Log.Debug("Pruning route up to and including current system: {System}", CurrentSystem);
+                CurrentRoute.Route = CurrentRoute.Route.Skip(index + 1).ToList();
+            }
+
+        }
+
+
+
 
         private T DeserializeJsonFile<T>(string filePath) where T : class
         {
@@ -146,38 +218,61 @@ namespace EliteInfoPanel.Core
 
             return null;
         }
-
-        private void LoadData()
+        public void ResetRouteActivity()
         {
-            try
+            routeWasActive = false;
+        }
+
+        private void LoadStatusData()
+        {
+            CurrentStatus = DeserializeJsonFile<StatusJson>(Path.Combine(gamePath, "Status.json"));
+        }
+
+        private void LoadNavRouteData()
+        {
+            CurrentRoute = DeserializeJsonFile<NavRouteJson>(Path.Combine(gamePath, "NavRoute.json"));
+            if (CurrentRoute?.Route == null || CurrentRoute.Route.Count == 0)
             {
-                var statusPath = Path.Combine(gamePath, "Status.json");
-                var cargoPath = Path.Combine(gamePath, "Cargo.json");
-                var backpackPath = Path.Combine(gamePath, "Backpack.json");
-                var materialsPath = Path.Combine(gamePath, "FCMaterials.json");
-                var routePath = Path.Combine(gamePath, "NavRoute.json");
-
-                CurrentStatus = DeserializeJsonFile<StatusJson>(statusPath);
-                CurrentCargo = DeserializeJsonFile<CargoJson>(cargoPath);
-                CurrentBackpack = DeserializeJsonFile<BackpackJson>(backpackPath);
-                // CurrentMaterials = DeserializeJsonFile<FCMaterialsJson>(materialsPath);
-                CurrentRoute = DeserializeJsonFile<NavRouteJson>(routePath);
-
-                if (CurrentStatus != null)
-                {
-                    Log.Debug("Raw Status.json: {RawStatus}", File.ReadAllText(statusPath));
-                    Log.Debug("Parsed CurrentStatus.Flags: {Flags}", CurrentStatus?.Flags);
-                }
-
-                latestJournalPath = Directory.GetFiles(gamePath, "Journal.*.log")
-                    .OrderByDescending(File.GetLastWriteTime)
-                    .FirstOrDefault();
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Exception in LoadData");
+                CurrentRoute = null;
+                RemainingJumps = null;
             }
         }
+
+        private void LoadCargoData()
+        {
+            CurrentCargo = DeserializeJsonFile<CargoJson>(Path.Combine(gamePath, "Cargo.json"));
+        }
+
+        private void LoadBackpackData()
+        {
+            CurrentBackpack = DeserializeJsonFile<BackpackJson>(Path.Combine(gamePath, "Backpack.json"));
+        }
+
+        private void LoadMaterialsData()
+        {
+            CurrentMaterials = DeserializeJsonFile<FCMaterialsJson>(Path.Combine(gamePath, "FCMaterials.json"));
+        }
+
+        private void LoadLoadoutData()
+        {
+            // Typically loaded from journal event; include here only if you have a Loadout.json
+            CurrentLoadout = DeserializeJsonFile<LoadoutJson>(Path.Combine(gamePath, "Loadout.json"));
+        }
+
+        private void LoadAllData()
+        {
+            LoadStatusData();
+            LoadNavRouteData();
+            LoadCargoData();
+            LoadBackpackData();
+            LoadMaterialsData();
+            // Include additional calls if other JSON files exist
+            //  LoadLoadoutData(); // Optional, based on your scenario
+            latestJournalPath = Directory.GetFiles(gamePath, "Journal.*.log")
+         .OrderByDescending(File.GetLastWriteTime)
+         .FirstOrDefault();
+        }
+
 
         private async Task ProcessJournalAsync()
         {
@@ -229,29 +324,141 @@ namespace EliteInfoPanel.Core
                             }
                             break;
 
-                        case "CarrierJumpRequest":
-                            if (root.TryGetProperty("DepartureTime", out var dtProp) &&
-                                DateTime.TryParse(dtProp.GetString(), out var dt))
-                                FleetCarrierJumpTime = dt;
-
-                            if (root.TryGetProperty("SystemName", out var sysName))
-                                CarrierJumpDestinationSystem = sysName.GetString();
-
-                            if (root.TryGetProperty("Body", out var bodyName))
-                                CarrierJumpDestinationBody = bodyName.GetString();
-                            break;
-
-                        case "CarrierJump":
+                        case "CarrierCancelJump":
+                            Log.Debug("Carrier jump was cancelled — clearing jump state");
                             FleetCarrierJumpTime = null;
+                            CarrierJumpScheduledTime = null;
                             CarrierJumpDestinationSystem = null;
                             CarrierJumpDestinationBody = null;
+                            CarrierJumpInProgress = false;
                             break;
 
+
+                        case "CarrierLocation":
+                            Log.Debug("CarrierLocation seen — clearing any jump state");
+                            FleetCarrierJumpTime = null;
+                            CarrierJumpScheduledTime = null;
+                            CarrierJumpDestinationSystem = null;
+                            CarrierJumpDestinationBody = null;
+                            CarrierJumpInProgress = false;
+                            FleetCarrierJumpArrived = true;
+                            break;
+
+
+                        case "CarrierJumpRequest":
+                            if (root.TryGetProperty("DepartureTime", out var departureTimeProp) &&
+                                DateTime.TryParse(departureTimeProp.GetString(), out var departureTime))
+                            {
+                                if (departureTime > DateTime.UtcNow)
+                                {
+                                    FleetCarrierJumpTime = departureTime;
+                                    CarrierJumpScheduledTime = departureTime;
+                                    CarrierJumpInProgress = false;
+                                    FleetCarrierJumpArrived = false;
+                                    Log.Debug($"Carrier jump scheduled for {departureTime:u}");
+                                }
+                                else
+                                {
+                                    Log.Debug("CarrierJumpRequest ignored — departure time is in the past");
+                                }
+                            }
+                            break;
+
+
+                        case "CarrierJump":
+                            // Only clear state if we see arrival confirmation
+                            if (root.TryGetProperty("Docked", out var dockedProp) && dockedProp.GetBoolean())
+                            {
+                                Log.Debug("Carrier jump complete — clearing jump state");
+                                FleetCarrierJumpTime = null;
+                                CarrierJumpDestinationSystem = null;
+                                CarrierJumpDestinationBody = null;
+                                FleetCarrierJumpArrived = true;
+                                CarrierJumpInProgress = false;
+                            }
+                            else
+                            {
+                                Log.Debug("CarrierJump event seen — jump still in progress.");
+                            }
+                            break;
+
+
+
+                        case "FSDTarget":
+                            if (root.TryGetProperty("RemainingJumpsInRoute", out var jumpsProp))
+                                RemainingJumps = jumpsProp.GetInt32();
+
+                            if (root.TryGetProperty("Name", out var fsdNameProp))
+                                LastFsdTargetSystem = fsdNameProp.GetString();
+                            break;
+
+                        case "StartJump":
+                            if (root.TryGetProperty("JumpType", out var jumpType))
+                            {
+                                string jumpTypeString = jumpType.GetString();
+                                if (jumpTypeString == "Hyperspace")
+                                {
+                                    Log.Information("Hyperspace jump initiated");
+                                    IsHyperspaceJumping = true;
+
+                                    // Get the destination system from the StartJump event
+                                    if (root.TryGetProperty("StarSystem", out var starSystem))
+                                        HyperspaceDestination = starSystem.GetString();
+
+                                    if (root.TryGetProperty("StarClass", out var starClass))
+                                        HyperspaceStarClass = starClass.GetString();
+                                }
+                                else if (jumpTypeString == "Supercruise")
+                                {
+                                    Log.Information("Supercruise initiated");
+                                    // Do not set IsHyperspaceJumping for supercruise
+                                }
+                            }
+                            break;
+
+                        case "FSDJump":
+                            // Reset hyperspace jumping flag when the jump is complete
+                            Log.Information("Hyperspace jump completed");
+                            IsHyperspaceJumping = false;
+                            HyperspaceDestination = null;
+                            HyperspaceStarClass = null;
+                            break;
+
+                        case "SupercruiseEntry":
+                            Log.Information("Entered supercruise");
+                            // Ensure we're not in hyperspace jump mode when entering supercruise
+                            IsHyperspaceJumping = false;
+                            break;
 
                         case "Location":
-                            if (root.TryGetProperty("StarSystem", out var system))
-                                CurrentSystem = system.GetString();
+                            if (isInHyperspace)
+                            {
+                                isInHyperspace = false;
+                                HyperspaceJumping?.Invoke(false, "");
+                            }
+
+                            if (root.TryGetProperty("StarSystem", out JsonElement locationSystemElement))
+                            {
+                                CurrentSystem = locationSystemElement.GetString();
+                                PruneCompletedRouteSystems();
+                            }
                             break;
+
+                        case "SupercruiseExit":
+                            if (isInHyperspace)
+                            {
+                                isInHyperspace = false;
+                                HyperspaceJumping?.Invoke(false, "");
+                            }
+
+                            if (root.TryGetProperty("StarSystem", out JsonElement exitSystemElement))
+                            {
+                                CurrentSystem = exitSystemElement.GetString();
+                                PruneCompletedRouteSystems();
+                            }
+                            break;
+
+
 
                         case "SquadronStartup":
                             if (root.TryGetProperty("SquadronName", out var squadron))
@@ -269,6 +476,9 @@ namespace EliteInfoPanel.Core
                                 }
                             }
                             break;
+
+
+
                     }
                 }
             }
@@ -277,6 +487,71 @@ namespace EliteInfoPanel.Core
                 Log.Warning(ex, "Error processing journal file");
             }
         }
+        private void ScanJournalForPendingCarrierJump()
+        {
+            try
+            {
+                var journalFiles = Directory.GetFiles(gamePath, "Journal.*.log")
+                    .OrderByDescending(File.GetLastWriteTime);
+
+                DateTime? latestDeparture = null;
+                string system = null;
+                string body = null;
+
+                foreach (var path in journalFiles)
+                {
+                    using var sr = new StreamReader(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite));
+
+                    while (!sr.EndOfStream)
+                    {
+                        string line = sr.ReadLine();
+                        if (string.IsNullOrWhiteSpace(line)) continue;
+
+                        using var doc = JsonDocument.Parse(line);
+                        var root = doc.RootElement;
+
+                        if (!root.TryGetProperty("event", out var eventProp)) continue;
+
+                        if (eventProp.GetString() == "CarrierJumpRequest")
+                        {
+                            if (root.TryGetProperty("DepartureTime", out var dtProp) &&
+                                DateTime.TryParse(dtProp.GetString(), out var dt) &&
+                                dt > DateTime.UtcNow) // only care about future jumps
+                            {
+                                // Always pick the latest valid one
+                                if (latestDeparture == null || dt > latestDeparture)
+                                {
+                                    latestDeparture = dt;
+
+                                    if (root.TryGetProperty("SystemName", out var sysName))
+                                        system = sysName.GetString();
+
+                                    if (root.TryGetProperty("Body", out var bodyName))
+                                        body = bodyName.GetString();
+                                }
+                            }
+                        }
+                    }
+
+                    if (latestDeparture != null) break; // found in newest journal
+                }
+
+                if (latestDeparture != null)
+                {
+                    FleetCarrierJumpTime = latestDeparture;
+                    CarrierJumpDestinationSystem = system;
+                    CarrierJumpDestinationBody = body;
+
+                    Log.Information("Recovered scheduled CarrierJump to {System}, {Body} at {Time}",
+                        system, body, latestDeparture);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to scan journal for CarrierJumpRequest on startup");
+            }
+        }
+
 
         #endregion
     }
