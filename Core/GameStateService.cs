@@ -387,9 +387,25 @@ namespace EliteInfoPanel.Core
                             break;
 
                         case "CarrierJump":
-                            Log.Debug("CarrierJump event seen – jump is underway, do not clear state yet.");
-
+                            // Determine if this is the arrival confirmation (it includes "Docked", "StationName", etc.)
+                            if (root.TryGetProperty("Docked", out var dockedProp) &&
+                                dockedProp.GetBoolean() == true &&
+                                root.TryGetProperty("StationName", out var stationProp) &&
+                                stationProp.GetString()?.Length > 0)
+                            {
+                                Log.Debug("CarrierJump completion confirmed via station docking.");
+                                FleetCarrierJumpTime = null;
+                                CarrierJumpDestinationSystem = null;
+                                CarrierJumpDestinationBody = null;
+                                FleetCarrierJumpArrived = true;
+                            }
+                            else
+                            {
+                                // This is the jump initiation (could be older format or mid-jump)
+                                Log.Debug("CarrierJump event seen without docking info — jump may still be in progress.");
+                            }
                             break;
+
 
                         case "FSDTarget":
                             if (root.TryGetProperty("RemainingJumpsInRoute", out var jumpsProp))
