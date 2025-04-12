@@ -100,6 +100,11 @@ public partial class MainWindow : Window
             name = "Colonisation beacon";
             return name;
         }
+        if (name == "$EXT_PANEL_ColonisationShip:#index=1;")
+        {
+            name = "Colonisation Ship";
+            return name;
+        }
         if (Regex.IsMatch(name, @"\\b[A-Z0-9]{3}-[A-Z0-9]{3}\\b")) // matches FC ID
             return $"{name} (Carrier)";
         else if (Regex.IsMatch(name, @"Beacon|Port|Hub|Station|Ring", RegexOptions.IgnoreCase))
