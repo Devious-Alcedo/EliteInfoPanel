@@ -100,6 +100,7 @@ namespace EliteInfoPanel.Core
 
             // Initial load
             LoadAllData();
+            
 
             // Background refresh loop (optional safety measure)
             Task.Run(async () =>
@@ -112,6 +113,7 @@ namespace EliteInfoPanel.Core
                     await Task.Delay(5000);
                 }
             });
+            ScanJournalForPendingCarrierJump();
         }
 
 
@@ -356,14 +358,20 @@ namespace EliteInfoPanel.Core
                             break;
 
                         case "CarrierLocation":
-                            if (FleetCarrierJumpArrived) break; // already set once
-
-                            Log.Debug("CarrierLocation received – jump has completed");
-                            FleetCarrierJumpTime = null;
-                            CarrierJumpDestinationSystem = null;
-                            CarrierJumpDestinationBody = null;
-                            FleetCarrierJumpArrived = true;
+                            if (FleetCarrierJumpTime == null || FleetCarrierJumpTime <= DateTime.UtcNow)
+                            {
+                                Log.Debug("CarrierLocation received – jump has completed");
+                                FleetCarrierJumpTime = null;
+                                CarrierJumpDestinationSystem = null;
+                                CarrierJumpDestinationBody = null;
+                                FleetCarrierJumpArrived = true;
+                            }
+                            else
+                            {
+                                Log.Debug("CarrierLocation seen, but jump still pending (FleetCarrierJumpTime = {Time})", FleetCarrierJumpTime);
+                            }
                             break;
+
 
 
                         case "CarrierJumpRequest":
@@ -379,10 +387,8 @@ namespace EliteInfoPanel.Core
                             break;
 
                         case "CarrierJump":
-                            Log.Debug("CarrierJump event seen, clearing jump info.");
-                            FleetCarrierJumpTime = null;
-                            CarrierJumpDestinationSystem = null;
-                            CarrierJumpDestinationBody = null;
+                            Log.Debug("CarrierJump event seen – jump is underway, do not clear state yet.");
+
                             break;
 
                         case "FSDTarget":
@@ -488,6 +494,71 @@ namespace EliteInfoPanel.Core
                 Log.Warning(ex, "Error processing journal file");
             }
         }
+        private void ScanJournalForPendingCarrierJump()
+        {
+            try
+            {
+                var journalFiles = Directory.GetFiles(gamePath, "Journal.*.log")
+                    .OrderByDescending(File.GetLastWriteTime);
+
+                DateTime? latestDeparture = null;
+                string system = null;
+                string body = null;
+
+                foreach (var path in journalFiles)
+                {
+                    using var sr = new StreamReader(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite));
+
+                    while (!sr.EndOfStream)
+                    {
+                        string line = sr.ReadLine();
+                        if (string.IsNullOrWhiteSpace(line)) continue;
+
+                        using var doc = JsonDocument.Parse(line);
+                        var root = doc.RootElement;
+
+                        if (!root.TryGetProperty("event", out var eventProp)) continue;
+
+                        if (eventProp.GetString() == "CarrierJumpRequest")
+                        {
+                            if (root.TryGetProperty("DepartureTime", out var dtProp) &&
+                                DateTime.TryParse(dtProp.GetString(), out var dt) &&
+                                dt > DateTime.UtcNow) // only care about future jumps
+                            {
+                                // Always pick the latest valid one
+                                if (latestDeparture == null || dt > latestDeparture)
+                                {
+                                    latestDeparture = dt;
+
+                                    if (root.TryGetProperty("SystemName", out var sysName))
+                                        system = sysName.GetString();
+
+                                    if (root.TryGetProperty("Body", out var bodyName))
+                                        body = bodyName.GetString();
+                                }
+                            }
+                        }
+                    }
+
+                    if (latestDeparture != null) break; // found in newest journal
+                }
+
+                if (latestDeparture != null)
+                {
+                    FleetCarrierJumpTime = latestDeparture;
+                    CarrierJumpDestinationSystem = system;
+                    CarrierJumpDestinationBody = body;
+
+                    Log.Information("Recovered scheduled CarrierJump to {System}, {Body} at {Time}",
+                        system, body, latestDeparture);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to scan journal for CarrierJumpRequest on startup");
+            }
+        }
+7
 
         #endregion
     }
