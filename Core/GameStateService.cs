@@ -558,7 +558,7 @@ namespace EliteInfoPanel.Core
                 Log.Warning(ex, "Failed to scan journal for CarrierJumpRequest on startup");
             }
         }
-7
+
 
         #endregion
     }
