@@ -522,47 +522,7 @@ public partial class MainWindow : Window
 
             Log.Debug("Added loading overlay with indeterminate progress bar");
         }
-        if (hyperspaceOverlay == null)
-        {
-            var hyperspaceText = new TextBlock
-            {
-                Text = "Jumping...",
-                FontSize = 48,
-                FontWeight = FontWeights.Bold,
-                Foreground = Brushes.Cyan,
-                TextAlignment = TextAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 20, 0, 0)
-            };
-
-            var spinner = new ProgressBar
-            {
-                IsIndeterminate = true,
-                Height = 20,
-                Width = 200,
-                Foreground = Brushes.DeepSkyBlue,
-                Margin = new Thickness(0, 20, 0, 0)
-            };
-
-            var stack = new StackPanel
-            {
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-                Children = { hyperspaceText, spinner }
-            };
-
-            hyperspaceOverlay = new Grid
-            {
-                Background = new SolidColorBrush(Color.FromArgb(180, 0, 0, 64)),
-                Visibility = Visibility.Collapsed
-            };
-
-            hyperspaceOverlay.Children.Add(stack);
-
-            Grid.SetRowSpan(hyperspaceOverlay, int.MaxValue);
-            Grid.SetColumnSpan(hyperspaceOverlay, int.MaxValue);
-            MainGrid.Children.Add(hyperspaceOverlay);
-        }
+      
         // Determine if Elite is already running
         var status = gameState?.CurrentStatus;
         bool isEliteRunning = status != null && (
