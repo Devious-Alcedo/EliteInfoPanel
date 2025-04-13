@@ -4,12 +4,16 @@ using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using System.Text;
+using System.Windows.Media;
 
 namespace EliteInfoPanel.Core
 {
     public class GameStateService
     {
         #region Private Fields
+        private static readonly SolidColorBrush CountdownRedBrush = new SolidColorBrush(Colors.Red);
+        private static readonly SolidColorBrush CountdownGoldBrush = new SolidColorBrush(Colors.Gold);
+        private static readonly SolidColorBrush CountdownGreenBrush = new SolidColorBrush(Colors.Green);
 
         private string gamePath;
         private long lastJournalPosition = 0;
@@ -40,7 +44,7 @@ namespace EliteInfoPanel.Core
                 // Normalize file name (some systems include full path)
                 string fileName = Path.GetFileName(e.Name);
 
-                Log.Debug("FileSystemWatcher triggered for: {File}", fileName);
+              //  Log.Debug("FileSystemWatcher triggered for: {File}", fileName);
 
                 switch (fileName)
                 {
@@ -77,7 +81,7 @@ namespace EliteInfoPanel.Core
                     LoadAllData();
                     await ProcessJournalAsync();
                     DataUpdated?.Invoke();
-                    await Task.Delay(5000);
+                    await Task.Delay(4000);
                 }
             });
             ScanJournalForPendingCarrierJump();
@@ -109,7 +113,7 @@ namespace EliteInfoPanel.Core
         public string CurrentSystem { get; private set; }
         public DateTime? FleetCarrierJumpTime { get; private set; }
         public bool IsDocking { get; private set; }
-        public TimeSpan? JumpCountdown => FleetCarrierJumpTime.HasValue ? FleetCarrierJumpTime.Value - DateTime.UtcNow : null;
+        public TimeSpan? JumpCountdown => FleetCarrierJumpTime.HasValue ? FleetCarrierJumpTime.Value.ToLocalTime() - DateTime.Now : null;
         public string ShipLocalised { get; private set; }
         public string ShipName { get; private set; }
         public string SquadronName { get; private set; }
@@ -143,7 +147,7 @@ namespace EliteInfoPanel.Core
         }
         public void SetDockingStatus()
         {
-            Log.Debug("GameStateService: SetDockingStatus triggered");
+           // Log.Debug("GameStateService: SetDockingStatus triggered");
             IsDocking = true;
             RaiseDataUpdated();
 
@@ -177,7 +181,7 @@ namespace EliteInfoPanel.Core
 
             if (index >= 0)
             {
-                Log.Debug("Pruning route up to and including current system: {System}", CurrentSystem);
+              //  Log.Debug("Pruning route up to and including current system: {System}", CurrentSystem);
                 CurrentRoute.Route = CurrentRoute.Route.Skip(index + 1).ToList();
             }
 
@@ -320,12 +324,12 @@ namespace EliteInfoPanel.Core
                                 CurrentLoadout = loadout;
                                 UserShipName = loadout.ShipName;
                                 UserShipId = loadout.ShipIdent;
-                                Log.Debug("Assigned Loadout from journal: {Ship} with {Modules} modules", loadout.Ship, loadout.Modules?.Count ?? 0);
+                               // Log.Debug("Assigned Loadout from journal: {Ship} with {Modules} modules", loadout.Ship, loadout.Modules?.Count ?? 0);
                             }
                             break;
 
                         case "CarrierCancelJump":
-                            Log.Debug("Carrier jump was cancelled — clearing jump state");
+                          //  Log.Debug("Carrier jump was cancelled — clearing jump state");
                             FleetCarrierJumpTime = null;
                             CarrierJumpScheduledTime = null;
                             CarrierJumpDestinationSystem = null;
@@ -336,13 +340,23 @@ namespace EliteInfoPanel.Core
 
                         case "CarrierLocation":
                             Log.Debug("CarrierLocation seen — clearing any jump state");
+
                             FleetCarrierJumpTime = null;
                             CarrierJumpScheduledTime = null;
                             CarrierJumpDestinationSystem = null;
                             CarrierJumpDestinationBody = null;
                             CarrierJumpInProgress = false;
                             FleetCarrierJumpArrived = true;
+
+                            // force re-check system after jump
+                            if (root.TryGetProperty("StarSystem", out var carrierSystem))
+                            {
+                                CurrentSystem = carrierSystem.GetString();
+                                Log.Debug("Updated CurrentSystem from CarrierLocation: {System}", CurrentSystem);
+                                DataUpdated?.Invoke();
+                            }
                             break;
+
 
 
                         case "CarrierJumpRequest":
@@ -353,6 +367,8 @@ namespace EliteInfoPanel.Core
                                 {
                                     FleetCarrierJumpTime = departureTime;
                                     CarrierJumpScheduledTime = departureTime;
+                                    CarrierJumpDestinationSystem = root.TryGetProperty("SystemName", out var sysName) ? sysName.GetString() : null;
+                                    CarrierJumpDestinationBody = root.TryGetProperty("Body", out var bodyName) ? bodyName.GetString() : null;
                                     CarrierJumpInProgress = false;
                                     FleetCarrierJumpArrived = false;
                                     Log.Debug($"Carrier jump scheduled for {departureTime:u}");
@@ -369,7 +385,7 @@ namespace EliteInfoPanel.Core
                             // Only clear state if we see arrival confirmation
                             if (root.TryGetProperty("Docked", out var dockedProp) && dockedProp.GetBoolean())
                             {
-                                Log.Debug("Carrier jump complete — clearing jump state");
+                             //   Log.Debug("Carrier jump complete — clearing jump state");
                                 FleetCarrierJumpTime = null;
                                 CarrierJumpDestinationSystem = null;
                                 CarrierJumpDestinationBody = null;
@@ -378,7 +394,7 @@ namespace EliteInfoPanel.Core
                             }
                             else
                             {
-                                Log.Debug("CarrierJump event seen — jump still in progress.");
+                              //  Log.Debug("CarrierJump event seen — jump still in progress.");
                             }
                             break;
 
@@ -471,7 +487,7 @@ namespace EliteInfoPanel.Core
                                 string msg = msgProp.GetString();
                                 if (msg?.Contains("Docking request granted", StringComparison.OrdinalIgnoreCase) == true)
                                 {
-                                    Log.Debug("JournalWatcher: 'Docking request granted' detected.");
+                                   // Log.Debug("JournalWatcher: 'Docking request granted' detected.");
                                     SetDockingStatus();
                                 }
                             }

@@ -1,48 +1,86 @@
-﻿using System.Windows;
+﻿using System;
+using System.Windows;
 using System.Windows.Controls;
-using EliteInfoPanel.Core;
 using System.Collections.Generic;
 using System.Linq;
 using Serilog;
-using Serilog.Events;
-using Serilog.Sinks.File;
+using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
+using EliteInfoPanel.ViewModels;
 using WpfScreenHelper;
 
 namespace EliteInfoPanel.Dialogs
 {
     public partial class OptionsWindow : Window
     {
-        #region Private Fields
-
         private Dictionary<Flag, CheckBox> flagCheckBoxes = new();
-
-        #endregion Private Fields
-
-        #region Public Constructors
+        private SettingsViewModel _viewModel;
 
         public OptionsWindow()
         {
             InitializeComponent();
 
+            // Configure logging
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Debug()
                 .WriteTo.File("EliteInfoPanel.log", rollingInterval: RollingInterval.Day)
                 .CreateLogger();
 
-            Settings = SettingsManager.Load();
-            Settings.DisplayOptions ??= new DisplayOptions();
-            Settings.DisplayOptions.VisibleFlags ??= new List<Flag>();
+            // Load settings
+            var settings = SettingsManager.Load();
+            settings.DisplayOptions ??= new DisplayOptions();
+            settings.DisplayOptions.VisibleFlags ??= new List<Flag>();
 
-            Log.Information("Loaded settings: {@Settings}", Settings);
+            Log.Information("Loaded settings: {@Settings}", settings);
 
-            // Determine which screen to open on
-            var mainWindowHandle = new System.Windows.Interop.WindowInteropHelper(System.Windows.Application.Current.MainWindow).Handle;
-            var mainScreen = WpfScreenHelper.Screen.FromHandle(mainWindowHandle);
-            var allScreens = WpfScreenHelper.Screen.AllScreens;
+            // Create view model
+            _viewModel = new SettingsViewModel(settings);
+
+            // Connect commands
+            _viewModel.SaveCommand = new RelayCommand(_ =>
+            {
+                SaveSettings();
+                DialogResult = true;
+                Close();
+            });
+
+            _viewModel.CancelCommand = new RelayCommand(_ =>
+            {
+                DialogResult = false;
+                Close();
+            });
+
+            _viewModel.ChangeDisplayCommand = new RelayCommand(_ => ChangeDisplayButton_Click(null, null));
+
+            // Subscribe to events
+            _viewModel.ScreenChanged += screen => ScreenChanged?.Invoke(screen);
+
+            // Position the window
+            PositionWindowOnScreen(settings);
+
+            // Set the data context
+            DataContext = settings.DisplayOptions;
+
+            // Load UI when window is shown
+            Loaded += (s, e) =>
+            {
+                PopulateDisplayOptions();
+                PopulateFlagOptions();
+            };
+        }
+
+        public AppSettings Settings => _viewModel.AppSettings;
+        public Screen SelectedNewScreen { get; private set; }
+        public event Action<Screen> ScreenChanged;
+
+        private void PositionWindowOnScreen(AppSettings settings)
+        {
+            var mainWindowHandle = new System.Windows.Interop.WindowInteropHelper(Application.Current.MainWindow).Handle;
+            var mainScreen = Screen.FromHandle(mainWindowHandle);
+            var allScreens = Screen.AllScreens;
 
             // Try to restore last used screen
-            var targetScreen = allScreens.FirstOrDefault(s => s.DeviceName == Settings.LastOptionsScreenId);
+            var targetScreen = allScreens.FirstOrDefault(s => s.DeviceName == settings.LastOptionsScreenId);
 
             // If not found or not valid, choose a different one than main, or fallback to main
             if (targetScreen == null || targetScreen.DeviceName == mainScreen.DeviceName)
@@ -51,37 +89,22 @@ namespace EliteInfoPanel.Dialogs
             WindowStartupLocation = WindowStartupLocation.Manual;
             this.Left = targetScreen.WpfBounds.Left + (targetScreen.WpfBounds.Width - this.Width) / 2;
             this.Top = targetScreen.WpfBounds.Top + (targetScreen.WpfBounds.Height - this.Height) / 2;
-
-            DataContext = Settings.DisplayOptions;
-
-            Loaded += (s, e) =>
-            {
-                PopulateDisplayOptions();
-                PopulateFlagOptions();
-            };
         }
-
-        #endregion Public Constructors
-
-        #region Public Properties
-
-        public AppSettings Settings { get; set; }
-        public Screen? SelectedNewScreen { get; private set; }
-        #endregion Public Properties
-        public event Action<Screen> ScreenChanged;
-
-        #region Private Methods
 
         private void CancelButton_Click(object sender, RoutedEventArgs e)
         {
-            DialogResult = false;
-            Close();
+            _viewModel.CancelCommand.Execute(null);
         }
 
         private void OkButton_Click(object sender, RoutedEventArgs e)
         {
+            SaveSettings();
+        }
+
+        private void SaveSettings()
+        {
             var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-            var currentScreen = WpfScreenHelper.Screen.FromHandle(handle);
+            var currentScreen = Screen.FromHandle(handle);
             Settings.SelectedScreenId = currentScreen.DeviceName;
 
             foreach (var kvp in flagCheckBoxes)
@@ -92,10 +115,34 @@ namespace EliteInfoPanel.Dialogs
             }
 
             Log.Information("Saving settings: {@Settings}", Settings);
-            SettingsManager.Save(Settings);
-            DialogResult = true;
-            Close();
+            _viewModel.SaveCommand.Execute(null);
         }
+
+        #region Private Methods
+        private void ChangeDisplayButton_Click(object sender, RoutedEventArgs e)
+        {
+            var screens = Screen.AllScreens.ToList();
+            var dialog = new SelectScreenDialog(screens, this);
+
+            if (dialog.ShowDialog() == true && dialog.SelectedScreen != null)
+            {
+                _viewModel.SelectScreen(dialog.SelectedScreen);
+                Log.Information("User changed display to: {DeviceName}", dialog.SelectedScreen.DeviceName);
+            }
+        }
+
+        private void UpdateFlagSetting(Flag flag, bool isChecked)
+        {
+            var visibleFlags = Settings.DisplayOptions.VisibleFlags;
+
+            if (isChecked && !visibleFlags.Contains(flag))
+                visibleFlags.Add(flag);
+            else if (!isChecked && visibleFlags.Contains(flag))
+                visibleFlags.Remove(flag);
+
+            Log.Information("Flag {Flag} set to {Checked}", flag, isChecked);
+        }
+
 
         private void PopulateDisplayOptions()
         {
@@ -179,41 +226,23 @@ namespace EliteInfoPanel.Dialogs
                 flagCheckBoxes[flag] = checkBox;
             }
         }
-        private void ChangeDisplayButton_Click(object sender, RoutedEventArgs e)
-        {
-            var screens = WpfScreenHelper.Screen.AllScreens.ToList();
-            var dialog = new SelectScreenDialog(screens, this);
-
-            if (dialog.ShowDialog() == true && dialog.SelectedScreen != null)
-            {
-                Settings.SelectedScreenId = dialog.SelectedScreen.DeviceName;
-                Settings.SelectedScreenBounds = dialog.SelectedScreen.WpfBounds;
-
-                Log.Information("User changed display to: {DeviceName}", dialog.SelectedScreen.DeviceName);
-
-                ScreenChanged?.Invoke(dialog.SelectedScreen); // Raise the event
-
-               // MessageBox.Show("Display changed.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-        }
 
 
 
-
-
-
-        private void UpdateFlagSetting(Flag flag, bool isChecked)
-        {
-            var visibleFlags = Settings.DisplayOptions.VisibleFlags;
-
-            if (isChecked && !visibleFlags.Contains(flag))
-                visibleFlags.Add(flag);
-            else if (!isChecked && visibleFlags.Contains(flag))
-                visibleFlags.Remove(flag);
-
-            Log.Information("Flag {Flag} set to {Checked}", flag, isChecked);
-        }
 
         #endregion Private Methods
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+            SaveSettings();
+            DialogResult = true;
+            Close();
+
+        }
+
+        private void Button_Click_1(object sender, RoutedEventArgs e)
+        {
+            Close();
+        }
     }
 }

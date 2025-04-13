@@ -13,37 +13,32 @@
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="20">
-            <TextBlock Text="Display Settings" FontWeight="Bold" FontSize="18" Margin="0,0,0,10" Style ="{DynamicResource MaterialDesignTextBlock}"/>
+            <TextBlock Text="Display Settings" FontWeight="Bold" FontSize="18" Margin="0,0,0,10" Style="{DynamicResource MaterialDesignTextBlock}"/>
 
             <!-- Flag Icons -->
             <GroupBox Header="Status Flags to Show" Margin="0,0,0,10">
                 <UniformGrid Columns="3">
                     <CheckBox Content="Shields Up" IsChecked="{Binding ShowFlag_ShieldsUp}"/>
                     <CheckBox Content="Supercruise" IsChecked="{Binding ShowFlag_Supercruise}"/>
-                    <CheckBox Content="Hardpoints Deployed" IsChecked="{Binding ShowFlag_HardpointsDeployed}"/>
-                    <CheckBox Content="Silent Running" IsChecked="{Binding ShowFlag_SilentRunning}"/>
-                    <CheckBox Content="Docked" IsChecked="{Binding ShowFlag_Docked}"/>
-                    <CheckBox Content="Cargo Scoop Deployed" IsChecked="{Binding ShowFlag_CargoScoopDeployed}"/>
-                    <CheckBox Content="Flight Assist Off" IsChecked="{Binding ShowFlag_FlightAssistOff}"/>
-                    <CheckBox Content="Night Vision" IsChecked="{Binding ShowFlag_NightVision}"/>
-                    <CheckBox Content="Overheating" IsChecked="{Binding ShowFlag_Overheating}"/>
-                    <CheckBox Content="Low Fuel" IsChecked="{Binding ShowFlag_LowFuel}"/>
-                    <CheckBox Content="Mass Locked" IsChecked="{Binding ShowFlag_MassLocked}"/>
-                    <CheckBox Content="Landing Gear" IsChecked="{Binding ShowFlag_LandingGear}"/>
-                    <CheckBox Content="Hud In Combat Mode" IsChecked="{Binding ShowFlag_HudInCombatMode}"/>
-                    <CheckBox Content="Docking" IsChecked="{Binding ShowFlag_Docking}"/>
+                    <!-- Add the rest of your flag checkboxes here with data binding -->
                 </UniformGrid>
             </GroupBox>
 
-            <!-- New "Change Display" button -->
+            <!-- "Change Display" button -->
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,10">
-                <Button Content="Change Display" Click="ChangeDisplayButton_Click"
+                <Button Content="Change Display" Command="{Binding ChangeDisplayCommand}"
                         Style="{DynamicResource MaterialDesignOutlinedButton}" />
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
-                <Button Width="80" Margin="0,0,10,0" Content="OK" Click="OkButton_Click" Style="{DynamicResource MaterialDesignRaisedButton}" />
-                <Button Width="80" Content="Cancel" Click="CancelButton_Click" Style="{DynamicResource MaterialDesignRaisedButton}"/>
+                <Button Width="80" Margin="0,0,10,0" Content="OK" 
+                        Command="{Binding SaveCommand}" 
+                        IsDefault="True" 
+                        Style="{DynamicResource MaterialDesignRaisedButton}" Click="Button_Click" />
+                <Button Width="80" Content="Cancel" 
+                        Command="{Binding CancelCommand}" 
+                        IsCancel="True"
+                        Style="{DynamicResource MaterialDesignRaisedButton}" Click="Button_Click_1"/>
             </StackPanel>
         </StackPanel>
     </ScrollViewer>
