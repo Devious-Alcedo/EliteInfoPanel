@@ -139,15 +139,7 @@ public partial class MainWindow : Window
             card.Visibility = shouldShowPanels ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        // CRITICAL: Make sure only ONE overlay is visible at a time
-        //if (LoadingOverlay != null)
-        //{
-        //    // Only show loading overlay when we're waiting for Elite (not in any game state)
-        //    // AND we're not hyperspace jumping
-        //    bool showLoadingOverlay = !shouldShowPanels && !isHyperspaceJumping;
-        //    LoadingOverlay.Visibility = showLoadingOverlay ? Visibility.Visible : Visibility.Collapsed;
-        //}
-
+     
         if (HyperspaceOverlay != null)
         {
             // Only show hyperspace overlay during actual hyperspace jumps
@@ -910,7 +902,7 @@ public partial class MainWindow : Window
             var tb = new TextBlock
             {
                 Text = $"{displayName} ({module.Health:P0})",
-                FontSize = 18,
+                FontSize = 20,
                 Margin = new Thickness(4),
                 Foreground = new SolidColorBrush(
                     module.Health < 0.7 ? Colors.Red :
@@ -985,24 +977,58 @@ public partial class MainWindow : Window
                     Foreground = GetBodyBrush()
                 });
             }
-
+        
             // Show plotted route
             if (hasRoute)
             {
                 foreach (var jump in gameState.CurrentRoute.Route)
                 {
-                    routeContent.Children.Add(new TextBlock
+                    string systemName = jump.StarSystem; // ← capture here!
+
+                    var routeText = new TextBlock
                     {
-                        Text = $"{jump.StarSystem} ({jump.StarClass})",
+                        Text = $"{systemName} ({jump.StarClass})",
                         FontSize = 24,
                         Margin = new Thickness(8, 0, 0, 2),
-                        Foreground = GetBodyBrush()
-                    });
+                        Foreground = GetBodyBrush(),
+                        Cursor = Cursors.Hand,
+                        ToolTip = "Click to copy system name"
+                    };
+
+                    routeText.MouseLeftButtonUp += (s, e) =>
+                    {
+                        SafeSetClipboardText(systemName);
+
+                    };
+
+                    routeContent.Children.Add(routeText);
                 }
+
             }
         }
     }
-    
+    private void SafeSetClipboardText(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            ShowToast("Nothing to copy.");
+            return;
+        }
+
+        try
+        {
+            TextCopy.ClipboardService.SetText(text);
+            ShowToast($"Copied: {text}");
+        }
+        catch (Exception ex)
+        {
+            ShowToast("Failed to copy to clipboard.");
+            Debug.WriteLine($"Clipboard error: {ex.Message}");
+        }
+    }
+
+
+
 
     private void UpdateSummaryCard()
     {
@@ -1018,52 +1044,77 @@ public partial class MainWindow : Window
             SetOrUpdateSummaryText("Ship", shipLabel);
         }
 
-
         if (gameState.Balance.HasValue)
             SetOrUpdateSummaryText("Balance", $"Balance: {gameState.Balance.Value:N0} CR");
 
         if (!string.IsNullOrEmpty(gameState?.SquadronName))
             SetOrUpdateSummaryText("Squadron", $"Squadron: {gameState.SquadronName}");
 
-        if (gameState.CarrierJumpInProgress)
-        {
-            SetOrUpdateSummaryText("CarrierJumpTarget", $"System: {gameState.CarrierJumpDestinationSystem} \nBody: {gameState.CarrierJumpDestinationBody}", 20, Brushes.Gold);
-            SetOrUpdateSummaryText("CarrierJumpCountdown", "Jumping...", 30, Brushes.Gold);
-        }
-        else if (gameState?.JumpCountdown is TimeSpan countdown && countdown.TotalSeconds > 0)
+        // Handle Carrier Jump Info
+        if (gameState?.JumpCountdown is TimeSpan countdown && countdown.TotalSeconds > 0)
         {
             string countdownText = countdown.ToString(@"mm\:ss");
-            SetOrUpdateSummaryText("CarrierJumpTarget", $"System: {gameState.CarrierJumpDestinationSystem} \nBody: {gameState.CarrierJumpDestinationBody}", 20, Brushes.Gold);
+
+            // Create interactive card for CarrierJumpTarget
+            var systemText = new TextBlock
+            {
+                Text = $"System: {gameState.CarrierJumpDestinationSystem}",
+                FontSize = 20,
+                Foreground = Brushes.Gold,
+                Cursor = Cursors.Hand
+            };
+            systemText.MouseLeftButtonUp += (s, e) =>
+            {
+                SafeSetClipboardText(gameState.CarrierJumpDestinationSystem);
+                ShowToast("System copied to clipboard!");
+            };
+
+            var bodyText = new TextBlock
+            {
+                Text = $"Body: {gameState.CarrierJumpDestinationBody}",
+                FontSize = 20,
+                Foreground = Brushes.Gold
+            };
+
+            var jumpTargetStack = new StackPanel { Tag = "CarrierJumpTarget" };
+            jumpTargetStack.Children.Add(systemText);
+            jumpTargetStack.Children.Add(bodyText);
+
+            ReplaceSummaryEntry("CarrierJumpTarget", jumpTargetStack);
             SetOrUpdateSummaryText("CarrierJumpCountdown", $"Carrier Jump In: {countdownText}", 30, Brushes.Gold);
         }
         else
         {
-            SetOrUpdateSummaryText("CarrierJumpCountdown", "");
-            SetOrUpdateSummaryText("CarrierJumpTarget", "");
+            // Clear any existing jump info
+            RemoveSummaryEntry("CarrierJumpTarget");
+            RemoveSummaryEntry("CarrierJumpCountdown");
         }
+    }
+    private void ReplaceSummaryEntry(string tag, StackPanel newContent)
+    {
+        var existing = summaryContent.Children.OfType<StackPanel>().FirstOrDefault(x => x.Tag?.ToString() == tag);
+        newContent.Tag = tag;
 
-
-
+        if (existing != null)
+        {
+            int index = summaryContent.Children.IndexOf(existing);
+            summaryContent.Children.RemoveAt(index);
+            summaryContent.Children.Insert(index, newContent);
+        }
+        else
+        {
+            summaryContent.Children.Add(newContent);
+        }
     }
 
-    //private void UpdateMaterialsCard()
-    //{
-    //    fcMaterialsContent.Children.Clear();
-    //    fcMaterialsContent.Visibility = gameState.CurrentMaterials?.Materials != null
-    //        ? Visibility.Visible : Visibility.Collapsed;
+    private void RemoveSummaryEntry(string tag)
+    {
+        var existing = summaryContent.Children.OfType<StackPanel>().FirstOrDefault(x => x.Tag?.ToString() == tag);
+        if (existing != null)
+            summaryContent.Children.Remove(existing);
+    }
 
-    //    if (gameState.CurrentMaterials?.Materials == null) return;
 
-    //    foreach (var item in gameState.CurrentMaterials.Materials.OrderByDescending(i => i.Count))
-    //    {
-    //        fcMaterialsContent.Children.Add(new TextBlock
-    //        {
-    //            Text = $"{item.Name_Localised ?? item.Name}: {item.Count}",
-    //            FontSize = 18,
-    //            Foreground = GetBodyBrush()
-    //        });
-    //    }
-    //}
     #endregion cards
     private void OptionsButton_Click(object sender, RoutedEventArgs e)
     {
@@ -1190,9 +1241,14 @@ public partial class MainWindow : Window
     {
         var allScreens = Screen.AllScreens.ToList();
         screen = Screen.AllScreens.FirstOrDefault(s =>
-      s.DeviceName == appSettings.SelectedScreenId ||
-      s.WpfBounds == appSettings.SelectedScreenBounds)
-      ?? Screen.AllScreens.FirstOrDefault();
+        s.DeviceName == appSettings.SelectedScreenId ||
+        s.WpfBounds == appSettings.SelectedScreenBounds)
+        ?? Screen.AllScreens.FirstOrDefault();
+
+        if (screen == null)
+        {
+            throw new InvalidOperationException("No screens are available.");
+        }
 
 
 
