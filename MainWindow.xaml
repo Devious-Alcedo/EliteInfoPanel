@@ -12,7 +12,7 @@
     <Grid x:Name="RootGrid">
        
 
-        <Grid x:Name="LoadingOverlay"
+        <!--<Grid x:Name="LoadingOverlay"
       Background="#AA000000"
       Visibility="Collapsed"
       HorizontalAlignment="Stretch"
@@ -38,14 +38,14 @@
                         </Path>
                     </Canvas>
                 </Viewbox>
-                <TextBlock Text="Waiting for Elite to Load..."
+                <TextBlock Text="Waiting for Elite to Load XAML..."
                    Foreground="White"
                    FontSize="24"
                    FontWeight="SemiBold"
                    TextAlignment="Center"
                    Margin="0,20,0,0"/>
             </StackPanel>
-        </Grid>
+        </Grid>-->
         <Grid x:Name="HyperspaceOverlay"
       Background="#DD000020"
       Visibility="Collapsed"

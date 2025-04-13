@@ -140,13 +140,13 @@ public partial class MainWindow : Window
         }
 
         // CRITICAL: Make sure only ONE overlay is visible at a time
-        if (LoadingOverlay != null)
-        {
-            // Only show loading overlay when we're waiting for Elite (not in any game state)
-            // AND we're not hyperspace jumping
-            bool showLoadingOverlay = !shouldShowPanels && !isHyperspaceJumping;
-            LoadingOverlay.Visibility = showLoadingOverlay ? Visibility.Visible : Visibility.Collapsed;
-        }
+        //if (LoadingOverlay != null)
+        //{
+        //    // Only show loading overlay when we're waiting for Elite (not in any game state)
+        //    // AND we're not hyperspace jumping
+        //    bool showLoadingOverlay = !shouldShowPanels && !isHyperspaceJumping;
+        //    LoadingOverlay.Visibility = showLoadingOverlay ? Visibility.Visible : Visibility.Collapsed;
+        //}
 
         if (HyperspaceOverlay != null)
         {
@@ -209,7 +209,7 @@ public partial class MainWindow : Window
             }
 
             // Show carrier arrival toast
-            if (gameState.FleetCarrierJumpArrived && !gameState.IsInHyperspace)
+            if (gameState.FleetCarrierJumpArrived && !gameState.IsInHyperspace && loadingOverlay.Visibility != Visibility.Visible)
             {
                 ShowToast("Fleet Carrier jump completed!");
                 gameState.ResetFleetCarrierJumpFlag();
@@ -522,7 +522,7 @@ public partial class MainWindow : Window
 
             Log.Debug("Added loading overlay with indeterminate progress bar");
         }
-      
+
         // Determine if Elite is already running
         var status = gameState?.CurrentStatus;
         bool isEliteRunning = status != null && (
