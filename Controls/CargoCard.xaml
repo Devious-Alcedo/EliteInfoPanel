@@ -1,0 +1,34 @@
+﻿<UserControl x:Class="EliteInfoPanel.Controls.CargoCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:EliteInfoPanel.Controls"
+             mc:Ignorable="d" 
+             d:DesignHeight="450" d:DesignWidth="300">
+
+    <StackPanel>
+        <TextBlock Text="{Binding Title}" 
+                   FontSize="24" 
+                   FontWeight="Bold" 
+                   Foreground="Orange" 
+                   Margin="0,0,0,5"/>
+
+        <ItemsControl ItemsSource="{Binding Items}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock FontSize="20"
+                               Margin="0,2,0,2"
+                               Foreground="{DynamicResource MaterialDesignBody}">
+                        <TextBlock.Text>
+                            <MultiBinding StringFormat="{}{0}: {1}">
+                                <Binding Path="Name" />
+                                <Binding Path="Count" />
+                            </MultiBinding>
+                        </TextBlock.Text>
+                    </TextBlock>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</UserControl>
