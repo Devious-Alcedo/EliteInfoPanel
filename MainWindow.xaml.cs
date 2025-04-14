@@ -17,6 +17,8 @@ using System.Windows.Threading;
 using EliteInfoPanel.Core.EliteInfoPanel.Core;
 using System.Text.RegularExpressions;
 using MaterialDesignColors.Recommended;
+using EliteInfoPanel.ViewModels;
+using System.Windows.Media.Animation;
 
 
 namespace EliteInfoPanel;
@@ -53,6 +55,9 @@ public partial class MainWindow : Window
     private StackPanel shipStatsContent;
     private StackPanel summaryContent;
     private Snackbar toastSnackbar;
+    private static readonly SolidColorBrush CountdownRedBrush = new SolidColorBrush(Colors.Red);
+    private static readonly SolidColorBrush CountdownGoldBrush = new SolidColorBrush(Colors.Gold);
+    private static readonly SolidColorBrush CountdownGreenBrush = new SolidColorBrush(Colors.Green);
 
     #endregion Private Fields
 
@@ -65,6 +70,35 @@ public partial class MainWindow : Window
         LoggingConfig.Configure();
         Loaded += Window_Loaded;
         PreviewKeyDown += MainWindow_PreviewKeyDown;
+        var countdownTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+        countdownTimer.Tick += (s, e) =>
+        {
+            if (gameState?.FleetCarrierJumpTime is DateTime jumpTime)
+            {
+                var countdown = jumpTime.ToLocalTime() - DateTime.Now;
+                if (countdown.TotalSeconds > 0)
+                {
+                    string countdownText = countdown.TotalMinutes >= 60
+                        ? countdown.ToString(@"hh\:mm\:ss")
+                        : $"{(int)countdown.TotalMinutes:00}:{countdown.Seconds:00}";
+
+                    var brush = countdown.TotalMinutes <= 2.75
+                        ? CountdownRedBrush
+                        : CountdownGoldBrush;
+
+                    SetOrUpdateSummaryText("CarrierJumpCountdown", $"Carrier Jump In: {countdownText}", 30, brush);
+                }
+                else
+                {
+                    SetOrUpdateSummaryText("CarrierJumpCountdown", $"Carrier Jump In: COMPLETE", 30, CountdownGreenBrush);
+                }
+            }
+        };
+        countdownTimer.Start();
+
     }
 
     #endregion Public Constructors
@@ -184,7 +218,18 @@ public partial class MainWindow : Window
             StarClassText.Visibility = Visibility.Collapsed;
         }
     }
+    private void TestViewModel()
+    {
+        var viewModel = new SettingsViewModel(appSettings);
+        viewModel.PropertyChanged += (s, e) =>
+            System.Diagnostics.Debug.WriteLine($"Property changed: {e.PropertyName}");
 
+        // Test property change
+        viewModel.ShowCargo = false;
+
+        // Test command
+        viewModel.SaveCommand.Execute(null);
+    }
     private void GameState_DataUpdated()
     {
       
@@ -197,7 +242,7 @@ public partial class MainWindow : Window
             if (gameState.FleetCarrierJumpTime.HasValue && gameState.JumpCountdown?.TotalSeconds <= 0 && !gameState.CarrierJumpInProgress)
             {
                 gameState.CarrierJumpInProgress = true;
-                Log.Debug("Carrier jump countdown reached 0 – marking as Jumping...");
+               // Log.Debug("Carrier jump countdown reached 0 – marking as Jumping...");
             }
 
             // Show carrier arrival toast
@@ -512,7 +557,7 @@ public partial class MainWindow : Window
             Grid.SetColumnSpan(loadingOverlay, int.MaxValue);
             MainGrid.Children.Add(loadingOverlay);
 
-            Log.Debug("Added loading overlay with indeterminate progress bar");
+          //  Log.Debug("Added loading overlay with indeterminate progress bar");
         }
 
         // Determine if Elite is already running
@@ -658,7 +703,7 @@ public partial class MainWindow : Window
         if (status == null) return;
   
 
-        Log.Debug("Active flags: {Flags}", status.Flags);
+       // Log.Debug("Active flags: {Flags}", status.Flags);
 
         if (flagsPanel1 == null)
             flagsPanel1 = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 5) };
@@ -1053,7 +1098,10 @@ public partial class MainWindow : Window
         // Handle Carrier Jump Info
         if (gameState?.JumpCountdown is TimeSpan countdown && countdown.TotalSeconds > 0)
         {
-            string countdownText = countdown.ToString(@"mm\:ss");
+            string countdownText = countdown.TotalMinutes >= 60
+     ? countdown.ToString(@"hh\:mm\:ss")
+     : $"{(int)countdown.TotalMinutes:00}:{countdown.Seconds:00}";
+
 
             // Create interactive card for CarrierJumpTarget
             var systemText = new TextBlock
@@ -1066,7 +1114,7 @@ public partial class MainWindow : Window
             systemText.MouseLeftButtonUp += (s, e) =>
             {
                 SafeSetClipboardText(gameState.CarrierJumpDestinationSystem);
-                ShowToast("System copied to clipboard!");
+
             };
 
             var bodyText = new TextBlock
@@ -1081,7 +1129,34 @@ public partial class MainWindow : Window
             jumpTargetStack.Children.Add(bodyText);
 
             ReplaceSummaryEntry("CarrierJumpTarget", jumpTargetStack);
-            SetOrUpdateSummaryText("CarrierJumpCountdown", $"Carrier Jump In: {countdownText}", 30, Brushes.Gold);
+            //check if countdown is less than 2:45
+            //if so, show countdown in red
+            //otherwise show in gold
+            // using SetOrUpdateSummeryText options
+            Log.Debug("Countdown: {Countdown}, Color: {Color}", countdown, countdown < TimeSpan.FromMinutes(2.75) ? "Red" : "Gold");
+            Log.Debug("Now: {Now:u}", DateTime.UtcNow);
+            Log.Debug("FleetCarrierJumpTime: {JumpTime:u}", gameState.FleetCarrierJumpTime);
+            Log.Debug("Countdown (calculated): {Countdown}", countdown);
+            Log.Debug("CountdownText: {Text}", countdownText);
+
+            double totalMinutes = countdown.TotalMinutes;
+
+            if (totalMinutes <= 2.75 && totalMinutes > 0)
+            {
+                SetOrUpdateSummaryText("CarrierJumpCountdown", $"Carrier Jump In: {countdownText}", 30, CountdownRedBrush);
+            }
+            else if (totalMinutes > 2.75)
+            {
+                SetOrUpdateSummaryText("CarrierJumpCountdown", $"Carrier Jump In: {countdownText}", 30, CountdownGoldBrush);
+            }
+            else
+            {
+                SetOrUpdateSummaryText("CarrierJumpCountdown", $"Carrier Jump In: {countdownText}", 30, CountdownGreenBrush);
+            }
+
+
+
+
         }
         else
         {
@@ -1151,9 +1226,12 @@ public partial class MainWindow : Window
 
     private void SetOrUpdateSummaryText(string key, string content, int fontSize = 24, Brush? foreground = null, PackIconKind? icon = null)
     {
+       
+
         var existing = summaryContent.Children
             .OfType<StackPanel>()
             .FirstOrDefault(sp => sp.Tag?.ToString() == key);
+
         if (string.IsNullOrWhiteSpace(content))
         {
             if (existing != null)
@@ -1162,6 +1240,7 @@ public partial class MainWindow : Window
             }
             return;
         }
+
         var stack = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -1180,13 +1259,30 @@ public partial class MainWindow : Window
             });
         }
 
-        stack.Children.Add(new TextBlock
+        var textBlock = new TextBlock
         {
             Text = content,
             FontSize = fontSize,
             Foreground = foreground ?? GetBodyBrush(),
             VerticalAlignment = VerticalAlignment.Center
-        });
+        };
+
+        // ✨ Add pulsing effect if the color is red
+        if (ReferenceEquals(foreground, CountdownRedBrush))
+        {
+            var pulse = new DoubleAnimation
+            {
+                From = 1.0,
+                To = 0.4,
+                Duration = TimeSpan.FromSeconds(0.6),
+                AutoReverse = true,
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+            textBlock.BeginAnimation(TextBlock.OpacityProperty, pulse);
+        }
+
+
+        stack.Children.Add(textBlock);
 
         if (existing != null)
         {
@@ -1239,6 +1335,7 @@ public partial class MainWindow : Window
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
+        TestViewModel();
         var allScreens = Screen.AllScreens.ToList();
         screen = Screen.AllScreens.FirstOrDefault(s =>
         s.DeviceName == appSettings.SelectedScreenId ||
