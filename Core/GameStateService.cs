@@ -316,15 +316,39 @@ namespace EliteInfoPanel.Core
                             ShipLocalised = loadGame?.Ship_Localised ?? ShipLocalised;
                             ShipName = loadGame?.Ship ?? ShipName;
                             break;
+                        // In your GameStateService.cs, find the ProcessJournalAsync method
+                        // Add a case for "ShipyardSwap" in your switch statement
 
+                        case "ShipyardSwap":
+                            if (root.TryGetProperty("ShipType", out var shipTypeProperty) &&
+                                root.TryGetProperty("ShipType_Localised", out var shipTypeLocalisedProperty))
+                            {
+                                string shipType = shipTypeProperty.GetString();
+                                string shipTypeName = shipTypeLocalisedProperty.GetString();
+
+                                // Update the ship information
+                                ShipName = shipType;
+                                ShipLocalised = shipTypeName;
+
+                                Log.Information("Ship changed to: {Type} ({Localised})", shipType, shipTypeName);
+
+                                // Clear the loadout since it's now a different ship
+                                CurrentLoadout = null;
+
+                                // We should get a Loadout event soon, but let's trigger a refresh now
+                                LoadAllData();
+                            }
+                            break;
                         case "Loadout":
                             var loadout = JsonSerializer.Deserialize<LoadoutJson>(line);
+                            Log.Debug("Updating fuel: FuelMain={0}, FuelReservoir={1}, Max={2}");
                             if (loadout != null)
                             {
                                 CurrentLoadout = loadout;
                                 UserShipName = loadout.ShipName;
                                 UserShipId = loadout.ShipIdent;
-                               // Log.Debug("Assigned Loadout from journal: {Ship} with {Modules} modules", loadout.Ship, loadout.Modules?.Count ?? 0);
+                                Log.Debug("Shipname " + loadout.ShipName);
+                                // Log.Debug("Assigned Loadout from journal: {Ship} with {Modules} modules", loadout.Ship, loadout.Modules?.Count ?? 0);
                             }
                             break;
 
