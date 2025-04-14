@@ -13,8 +13,14 @@ namespace EliteInfoPanel.Dialogs
 {
     public partial class OptionsWindow : Window
     {
-        private Dictionary<Flag, CheckBox> flagCheckBoxes = new();
+        #region Private Fields
+
         private SettingsViewModel _viewModel;
+        private Dictionary<Flag, CheckBox> flagCheckBoxes = new();
+
+        #endregion Private Fields
+
+        #region Public Constructors
 
         public OptionsWindow()
         {
@@ -35,11 +41,19 @@ namespace EliteInfoPanel.Dialogs
 
             // Create view model
             _viewModel = new SettingsViewModel(settings);
-
+            DataContext = _viewModel;
             // Connect commands
             _viewModel.SaveCommand = new RelayCommand(_ =>
             {
-                SaveSettings();
+                // Don't call SaveSettings() again from here
+                var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+                var currentScreen = Screen.FromHandle(handle);
+                Settings.SelectedScreenId = currentScreen.DeviceName;
+
+                // Save the settings
+                _viewModel.SaveSettings(); // Call the ViewModel's save method
+
+                // Close the dialog
                 DialogResult = true;
                 Close();
             });
@@ -59,7 +73,7 @@ namespace EliteInfoPanel.Dialogs
             PositionWindowOnScreen(settings);
 
             // Set the data context
-            DataContext = settings.DisplayOptions;
+          
 
             // Load UI when window is shown
             Loaded += (s, e) =>
@@ -69,10 +83,49 @@ namespace EliteInfoPanel.Dialogs
             };
         }
 
-        public AppSettings Settings => _viewModel.AppSettings;
-        public Screen SelectedNewScreen { get; private set; }
+        #endregion Public Constructors
+
+        #region Public Events
+
         public event Action<Screen> ScreenChanged;
 
+        #endregion Public Events
+
+        #region Public Properties
+
+        public Screen SelectedNewScreen { get; private set; }
+        public AppSettings Settings => _viewModel.AppSettings;
+
+        #endregion Public Properties
+
+        #region Private Methods
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+            // Don't call SaveSettings() here, just execute the command
+            _viewModel.SaveCommand.Execute(null);
+        }
+
+        private void Button_Click_1(object sender, RoutedEventArgs e)
+        {
+            Close();
+        }
+
+        private void CancelButton_Click(object sender, RoutedEventArgs e)
+        {
+            _viewModel.CancelCommand.Execute(null);
+        }
+
+        private void OkButton_Click(object sender, RoutedEventArgs e)
+        {
+            SaveSettings();
+        }
+
+        private void OnDisplayChangeRequested()
+        {
+            // This calls your existing method for changing displays
+            ChangeDisplayButton_Click(null, null);
+        }
         private void PositionWindowOnScreen(AppSettings settings)
         {
             var mainWindowHandle = new System.Windows.Interop.WindowInteropHelper(Application.Current.MainWindow).Handle;
@@ -90,17 +143,6 @@ namespace EliteInfoPanel.Dialogs
             this.Left = targetScreen.WpfBounds.Left + (targetScreen.WpfBounds.Width - this.Width) / 2;
             this.Top = targetScreen.WpfBounds.Top + (targetScreen.WpfBounds.Height - this.Height) / 2;
         }
-
-        private void CancelButton_Click(object sender, RoutedEventArgs e)
-        {
-            _viewModel.CancelCommand.Execute(null);
-        }
-
-        private void OkButton_Click(object sender, RoutedEventArgs e)
-        {
-            SaveSettings();
-        }
-
         private void SaveSettings()
         {
             var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
@@ -118,6 +160,8 @@ namespace EliteInfoPanel.Dialogs
             _viewModel.SaveCommand.Execute(null);
         }
 
+        #endregion Private Methods
+
         #region Private Methods
         private void ChangeDisplayButton_Click(object sender, RoutedEventArgs e)
         {
@@ -130,19 +174,6 @@ namespace EliteInfoPanel.Dialogs
                 Log.Information("User changed display to: {DeviceName}", dialog.SelectedScreen.DeviceName);
             }
         }
-
-        private void UpdateFlagSetting(Flag flag, bool isChecked)
-        {
-            var visibleFlags = Settings.DisplayOptions.VisibleFlags;
-
-            if (isChecked && !visibleFlags.Contains(flag))
-                visibleFlags.Add(flag);
-            else if (!isChecked && visibleFlags.Contains(flag))
-                visibleFlags.Remove(flag);
-
-            Log.Information("Flag {Flag} set to {Checked}", flag, isChecked);
-        }
-
 
         private void PopulateDisplayOptions()
         {
@@ -227,22 +258,17 @@ namespace EliteInfoPanel.Dialogs
             }
         }
 
+        private void UpdateFlagSetting(Flag flag, bool isChecked)
+        {
+            var visibleFlags = Settings.DisplayOptions.VisibleFlags;
 
+            if (isChecked && !visibleFlags.Contains(flag))
+                visibleFlags.Add(flag);
+            else if (!isChecked && visibleFlags.Contains(flag))
+                visibleFlags.Remove(flag);
 
-
+            Log.Information("Flag {Flag} set to {Checked}", flag, isChecked);
+        }
         #endregion Private Methods
-
-        private void Button_Click(object sender, RoutedEventArgs e)
-        {
-            SaveSettings();
-            DialogResult = true;
-            Close();
-
-        }
-
-        private void Button_Click_1(object sender, RoutedEventArgs e)
-        {
-            Close();
-        }
     }
 }

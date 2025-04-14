@@ -11,6 +11,7 @@ namespace EliteInfoPanel.ViewModels
     {
         private AppSettings _appSettings;
         public AppSettings AppSettings => _appSettings;
+        public event Action DisplayChangeRequested;
         // Flag properties
         public bool ShowFlag_ShieldsUp
         {
@@ -108,7 +109,11 @@ namespace EliteInfoPanel.ViewModels
         public RelayCommand SaveCommand { get; set; }
         public RelayCommand CancelCommand { get; set; }
         public RelayCommand ChangeDisplayCommand { get; set; }
-
+        private void RequestDisplayChange()
+        {
+            DisplayChangeRequested?.Invoke();
+            System.Diagnostics.Debug.WriteLine("Display change requested");
+        }
         // Event for screen change notification
         public event Action<Screen> ScreenChanged;
 
@@ -122,17 +127,13 @@ namespace EliteInfoPanel.ViewModels
             ChangeDisplayCommand = new RelayCommand(_ => RequestDisplayChange());
         }
 
-        private void SaveSettings()
+        public void SaveSettings()
         {
             SettingsManager.Save(_appSettings);
             System.Diagnostics.Debug.WriteLine("Settings saved");
         }
 
-        private void RequestDisplayChange()
-        {
-            // This will be handled by the view
-            System.Diagnostics.Debug.WriteLine("Display change requested");
-        }
+     
 
         // Method to handle screen selection
         public void SelectScreen(Screen screen)

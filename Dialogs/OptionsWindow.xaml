@@ -26,19 +26,20 @@
 
             <!-- "Change Display" button -->
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,10">
-                <Button Content="Change Display" Command="{Binding ChangeDisplayCommand}"
-                        Style="{DynamicResource MaterialDesignOutlinedButton}" />
+                <Button Content="Change Display" 
+        Command="{Binding ChangeDisplayCommand}"
+        Style="{DynamicResource MaterialDesignOutlinedButton}" />
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
                 <Button Width="80" Margin="0,0,10,0" Content="OK" 
                         Command="{Binding SaveCommand}" 
                         IsDefault="True" 
-                        Style="{DynamicResource MaterialDesignRaisedButton}" Click="Button_Click" />
+                        Style="{DynamicResource MaterialDesignRaisedButton}" />
                 <Button Width="80" Content="Cancel" 
                         Command="{Binding CancelCommand}" 
                         IsCancel="True"
-                        Style="{DynamicResource MaterialDesignRaisedButton}" Click="Button_Click_1"/>
+                        Style="{DynamicResource MaterialDesignRaisedButton}" />
             </StackPanel>
         </StackPanel>
     </ScrollViewer>
