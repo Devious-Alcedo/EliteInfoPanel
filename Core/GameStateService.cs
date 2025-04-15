@@ -137,9 +137,21 @@ namespace EliteInfoPanel.Core
 
         #region Public Methods
 
-        public void RaiseDataUpdated()
+        // In GameStateService.cs
+        private void RaiseDataUpdated()
         {
-            DataUpdated?.Invoke();
+            if (DataUpdated == null) return;
+
+            if (System.Windows.Threading.Dispatcher.CurrentDispatcher.CheckAccess())
+            {
+                DataUpdated.Invoke();
+            }
+            else
+            {
+                System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(
+                    System.Windows.Threading.DispatcherPriority.DataBind,
+                    new Action(() => DataUpdated.Invoke()));
+            }
         }
         public void ResetFleetCarrierJumpFlag()
         {

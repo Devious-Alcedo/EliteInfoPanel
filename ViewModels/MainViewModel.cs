@@ -1,7 +1,7 @@
-﻿// MainViewModel.cs
-using EliteInfoPanel.Core;
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Linq;
+using EliteInfoPanel.Core;
+using MaterialDesignThemes.Wpf;
 
 namespace EliteInfoPanel.ViewModels
 {
@@ -10,9 +10,13 @@ namespace EliteInfoPanel.ViewModels
         private readonly GameStateService _gameState;
         private bool _isLoading = true;
         private bool _isHyperspaceJumping;
+        private string _hyperspaceDestination;
+        private string _hyperspaceStarClass;
+        private SnackbarMessageQueue _toastQueue = new(System.TimeSpan.FromSeconds(3));
 
         public ObservableCollection<CardViewModel> Cards { get; } = new();
 
+        // Individual card ViewModels
         public SummaryViewModel SummaryCard { get; }
         public CargoViewModel CargoCard { get; }
         public BackpackViewModel BackpackCard { get; }
@@ -32,12 +36,34 @@ namespace EliteInfoPanel.ViewModels
             set => SetProperty(ref _isHyperspaceJumping, value);
         }
 
-        public string HyperspaceDestination { get; private set; }
-        public string HyperspaceStarClass { get; private set; }
+        public string HyperspaceDestination
+        {
+            get => _hyperspaceDestination;
+            set => SetProperty(ref _hyperspaceDestination, value);
+        }
+
+        public string HyperspaceStarClass
+        {
+            get => _hyperspaceStarClass;
+            set => SetProperty(ref _hyperspaceStarClass, value);
+        }
+
+        public SnackbarMessageQueue ToastQueue
+        {
+            get => _toastQueue;
+            set => SetProperty(ref _toastQueue, value);
+        }
+
+        public RelayCommand OpenOptionsCommand { get; set; }
+        public RelayCommand CloseCommand { get; }
 
         public MainViewModel(GameStateService gameState)
         {
             _gameState = gameState;
+
+            // Initialize commands
+            OpenOptionsCommand = new RelayCommand(_ => OpenOptions());
+            CloseCommand = new RelayCommand(_ => System.Windows.Application.Current.Shutdown());
 
             // Initialize card ViewModels
             SummaryCard = new SummaryViewModel(gameState) { Title = "Summary" };
@@ -54,7 +80,7 @@ namespace EliteInfoPanel.ViewModels
             Cards.Add(RouteCard);
             Cards.Add(ModulesCard);
             Cards.Add(FlagsCard);
-
+            UpdateLoadingState();
             // Subscribe to game state events
             _gameState.DataUpdated += OnGameStateUpdated;
             _gameState.HyperspaceJumping += OnHyperspaceJumping;
@@ -62,9 +88,27 @@ namespace EliteInfoPanel.ViewModels
             // Initial update
             RefreshCardVisibility();
         }
+        // Add to MainViewModel
+        private bool IsEliteRunning()
+        {
+            var status = _gameState?.CurrentStatus;
+            return status != null && (
+                status.Flags.HasFlag(Flag.Docked) ||
+                status.Flags.HasFlag(Flag.Supercruise) ||
+                status.Flags.HasFlag(Flag.InSRV) ||
+                status.OnFoot ||
+                status.Flags.HasFlag(Flag.InFighter) ||
+                status.Flags.HasFlag(Flag.InMainShip));
+        }
 
+        public void UpdateLoadingState()
+        {
+            IsLoading = !IsEliteRunning();
+        }
         private void OnGameStateUpdated()
         {
+            System.Diagnostics.Debug.WriteLine("GameState update received. Setting IsLoading = false");
+            UpdateLoadingState();
             IsLoading = false;
             RefreshCardVisibility();
         }
@@ -76,7 +120,19 @@ namespace EliteInfoPanel.ViewModels
             HyperspaceStarClass = _gameState.HyperspaceStarClass;
             RefreshCardVisibility();
         }
-
+        protected void RunOnUiThread(Action action)
+        {
+            if (System.Windows.Threading.Dispatcher.CurrentDispatcher.CheckAccess())
+            {
+                // We're already on the UI thread
+                action();
+            }
+            else
+            {
+                // We need to invoke the action on the UI thread
+                System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(action);
+            }
+        }
         private void RefreshCardVisibility()
         {
             var status = _gameState.CurrentStatus;
@@ -127,6 +183,17 @@ namespace EliteInfoPanel.ViewModels
                 card.DisplayColumn = currentColumn;
                 currentColumn += card.ColumnSpan;
             }
+        }
+
+        private void OpenOptions()
+        {
+            // This will be handled in the view
+            System.Diagnostics.Debug.WriteLine("Open Options requested");
+        }
+
+        public void ShowToast(string message)
+        {
+            ToastQueue.Enqueue(message);
         }
     }
 }
