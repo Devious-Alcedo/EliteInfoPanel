@@ -31,60 +31,63 @@ namespace EliteInfoPanel.ViewModels
 
         private void UpdateRoute()
         {
-            Items.Clear();
-
-            // Check for route completion
-            if (_gameState.RouteWasActive && _gameState.RouteCompleted && !_gameState.IsInHyperspace)
+            RunOnUIThread(() =>
             {
-                ShowToast("Route complete! You've arrived at your destination.");
-                _gameState.ResetRouteActivity();
-            }
+                Items.Clear();
 
-            // Determine visibility
-            bool hasRoute = _gameState.CurrentRoute?.Route?.Any() == true;
-            bool hasDestination = !string.IsNullOrWhiteSpace(_gameState.CurrentStatus?.Destination?.Name);
-            IsVisible = hasRoute || hasDestination;
+                // Check for route completion
+                if (_gameState.RouteWasActive && _gameState.RouteCompleted && !_gameState.IsInHyperspace)
+                {
+                    ShowToast("Route complete! You've arrived at your destination.");
+                    _gameState.ResetRouteActivity();
+                }
 
-            if (!IsVisible)
-                return;
+                // Determine visibility
+                bool hasRoute = _gameState.CurrentRoute?.Route?.Any() == true;
+                bool hasDestination = !string.IsNullOrWhiteSpace(_gameState.CurrentStatus?.Destination?.Name);
+                IsVisible = hasRoute || hasDestination;
 
-            // Check for remaining jumps
-            bool isTargetInSameSystem = string.Equals(_gameState.CurrentSystem, _gameState.LastFsdTargetSystem,
-                                        StringComparison.OrdinalIgnoreCase);
+                if (!IsVisible)
+                    return;
 
-            if (_gameState.RemainingJumps.HasValue && !isTargetInSameSystem)
-            {
-                Items.Add(new RouteItemViewModel(
-                    $"Jumps Remaining: {_gameState.RemainingJumps.Value}",
-                    null, null, RouteItemType.Info));
-            }
+                // Check for remaining jumps
+                bool isTargetInSameSystem = string.Equals(_gameState.CurrentSystem, _gameState.LastFsdTargetSystem,
+                                            StringComparison.OrdinalIgnoreCase);
 
-            // Show destination
-            if (!string.IsNullOrWhiteSpace(_gameState.CurrentStatus?.Destination?.Name))
-            {
-                string destination = _gameState.CurrentStatus.Destination?.Name;
-                string lastRouteSystem = _gameState.CurrentRoute?.Route?.LastOrDefault()?.StarSystem;
-
-                if (!string.Equals(destination, lastRouteSystem, StringComparison.OrdinalIgnoreCase))
+                if (_gameState.RemainingJumps.HasValue && !isTargetInSameSystem)
                 {
                     Items.Add(new RouteItemViewModel(
-                        $"Target: {FormatDestinationName(_gameState.CurrentStatus.Destination)}",
-                        null, null, RouteItemType.Destination));
+                        $"Jumps Remaining: {_gameState.RemainingJumps.Value}",
+                        null, null, RouteItemType.Info));
                 }
-            }
 
-            // Show route systems
-            if (_gameState.CurrentRoute?.Route?.Any() == true)
-            {
-                foreach (var jump in _gameState.CurrentRoute.Route)
+                // Show destination
+                if (!string.IsNullOrWhiteSpace(_gameState.CurrentStatus?.Destination?.Name))
                 {
-                    Items.Add(new RouteItemViewModel(
-                        jump.StarSystem,
-                        jump.StarClass,
-                        jump.SystemAddress,
-                        RouteItemType.System));
+                    string destination = _gameState.CurrentStatus.Destination?.Name;
+                    string lastRouteSystem = _gameState.CurrentRoute?.Route?.LastOrDefault()?.StarSystem;
+
+                    if (!string.Equals(destination, lastRouteSystem, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Items.Add(new RouteItemViewModel(
+                            $"Target: {FormatDestinationName(_gameState.CurrentStatus.Destination)}",
+                            null, null, RouteItemType.Destination));
+                    }
                 }
-            }
+
+                // Show route systems
+                if (_gameState.CurrentRoute?.Route?.Any() == true)
+                {
+                    foreach (var jump in _gameState.CurrentRoute.Route)
+                    {
+                        Items.Add(new RouteItemViewModel(
+                            jump.StarSystem,
+                            jump.StarClass,
+                            jump.SystemAddress,
+                            RouteItemType.System));
+                    }
+                }
+            });
         }
 
         private string FormatDestinationName(DestinationInfo destination)

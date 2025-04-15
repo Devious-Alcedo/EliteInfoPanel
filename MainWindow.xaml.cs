@@ -27,11 +27,12 @@ namespace EliteInfoPanel
 
             // Create and set ViewModel
             _viewModel = new MainViewModel(gameState);
+            _viewModel.SetMainGrid(MainGrid);
             DataContext = _viewModel;
 
             // Connect OpenOptionsCommand to event handler
             _viewModel.OpenOptionsCommand = new RelayCommand(_ => OpenOptions());
-
+            
             // Set up event handlers
             Loaded += Window_Loaded;
             PreviewKeyDown += MainWindow_PreviewKeyDown;

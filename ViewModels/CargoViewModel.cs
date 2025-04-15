@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
 using System.Linq;
+using System.Windows;
 
 namespace EliteInfoPanel.ViewModels
 {
@@ -25,19 +26,24 @@ namespace EliteInfoPanel.ViewModels
 
         private void UpdateCargo()
         {
-            Items.Clear();
-
-            if (_gameState.CurrentCargo?.Inventory == null)
-                return;
-
-            IsVisible = _gameState.CurrentCargo.Inventory.Count > 0;
-
-            foreach (var item in _gameState.CurrentCargo.Inventory.OrderByDescending(i => i.Count))
+            RunOnUIThread(() =>
             {
-                Items.Add(new CargoItemViewModel(
-                    CommodityMapper.GetDisplayName(item.Name),
-                    item.Count));
-            }
+                Items.Clear();
+
+
+
+                if (_gameState.CurrentCargo?.Inventory == null)
+                    return;
+
+                IsVisible = _gameState.CurrentCargo.Inventory.Count > 0;
+
+                foreach (var item in _gameState.CurrentCargo.Inventory.OrderByDescending(i => i.Count))
+                {
+                    Items.Add(new CargoItemViewModel(
+                        CommodityMapper.GetDisplayName(item.Name),
+                        item.Count));
+                }
+            });
         }
     }
 

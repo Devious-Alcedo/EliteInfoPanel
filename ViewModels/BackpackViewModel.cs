@@ -1,6 +1,7 @@
 ﻿// BackpackViewModel.cs
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Windows;
 using EliteInfoPanel.Core;
 
 namespace EliteInfoPanel.ViewModels
@@ -24,7 +25,12 @@ namespace EliteInfoPanel.ViewModels
 
         private void UpdateBackpack()
         {
-            Items.Clear();
+
+            RunOnUIThread(() => {
+                Items.Clear();
+                // Add items here  
+            
+
 
             if (_gameState.CurrentBackpack?.Inventory == null)
                 return;
@@ -50,6 +56,7 @@ namespace EliteInfoPanel.ViewModels
                     isFirst = false;
                 }
             }
+            });
         }
     }
 

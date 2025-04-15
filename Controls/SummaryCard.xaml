@@ -4,14 +4,12 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
-             xmlns:converters="clr-namespace:EliteInfoPanel.Converters"
              xmlns:local="clr-namespace:EliteInfoPanel.Controls"
              mc:Ignorable="d" 
              d:DesignHeight="450" d:DesignWidth="300">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
-        <converters:DoubleToGridLengthConverter x:Key="DoubleToGridLengthConverter" />
     </UserControl.Resources>
 
     <StackPanel>
@@ -41,7 +39,7 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <!-- Fuel Bar -->
+        <!-- Fuel Bar - Simple Implementation -->
         <StackPanel Visibility="{Binding ShowFuelBar, Converter={StaticResource BoolToVis}}"
                     Margin="0,10,0,0">
             <TextBlock Foreground="{DynamicResource MaterialDesignBody}"
@@ -53,14 +51,15 @@
                     </MultiBinding>
                 </TextBlock.Text>
             </TextBlock>
-            <Grid Height="34" Margin="0,4,0,0" ClipToBounds="True">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="{Binding FuelBarRatio, Converter={StaticResource DoubleToGridLengthConverter}}"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <Rectangle Grid.Column="0" Fill="Orange" RadiusX="2" RadiusY="2"/>
-                <Rectangle Grid.Column="1" Fill="DarkSlateGray" RadiusX="2" RadiusY="2"/>
-            </Grid>
+
+            <!-- Simple Progress Bar for Fuel -->
+            <ProgressBar Height="28" 
+                         Margin="0,4,0,0" 
+                         Value="{Binding FuelBarRatio}" 
+                         
+                         Maximum="1.0" 
+                         Foreground="Orange" 
+                         Background="DarkSlateGray"/>
         </StackPanel>
     </StackPanel>
 </UserControl>

@@ -1,6 +1,7 @@
 ﻿// FlagsViewModel.cs
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Windows;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
 
@@ -11,13 +12,14 @@ namespace EliteInfoPanel.ViewModels
         private readonly GameStateService _gameState;
         private readonly AppSettings _appSettings;
 
+      
         public ObservableCollection<FlagItemViewModel> Items { get; } = new();
 
         public FlagsViewModel(GameStateService gameState) : base("Status Flags")
         {
             _gameState = gameState;
             _appSettings = SettingsManager.Load();
-            ColumnSpan = 2; // Flags take 2 columns
+           
 
             // Subscribe to game state updates
             _gameState.DataUpdated += UpdateFlags;
@@ -28,46 +30,53 @@ namespace EliteInfoPanel.ViewModels
 
         private void UpdateFlags()
         {
-            Items.Clear();
 
-            var status = _gameState.CurrentStatus;
-            if (status == null)
-                return;
-
-            IsVisible = true;
-
-            // Get all active flags
-            var flags = System.Enum.GetValues(typeof(Flag))
-                .Cast<Flag>()
-                .Where(flag => status.Flags.HasFlag(flag) && flag != Flag.None)
-                .ToList();
-
-            // Add synthetic flags
-            if (!status.Flags.HasFlag(Flag.HudInAnalysisMode))
-                flags.Add(SyntheticFlags.HudInCombatMode);
-
-            if (status.Flags.HasFlag(Flag.Docked) && _gameState.IsDocking)
-                flags.Add(SyntheticFlags.Docking);
-
-            // Only include flags the user wants to see
-            var visibleFlags = _appSettings.DisplayOptions.VisibleFlags;
-            if (visibleFlags != null && visibleFlags.Count > 0)
+            RunOnUIThread(() =>
             {
-                flags = flags.Where(f => visibleFlags.Contains(f)).ToList();
-            }
+                Items.Clear();
+                // Add items here  
 
-            // Add flags to the collection
-            foreach (var flag in flags)
-            {
-                string displayText = flag switch
+
+
+                var status = _gameState.CurrentStatus;
+                if (status == null)
+                    return;
+
+                IsVisible = true;
+
+                // Get all active flags
+                var flags = System.Enum.GetValues(typeof(Flag))
+                    .Cast<Flag>()
+                    .Where(flag => status.Flags.HasFlag(flag) && flag != Flag.None)
+                    .ToList();
+
+                // Add synthetic flags
+                if (!status.Flags.HasFlag(Flag.HudInAnalysisMode))
+                    flags.Add(SyntheticFlags.HudInCombatMode);
+
+                if (status.Flags.HasFlag(Flag.Docked) && _gameState.IsDocking)
+                    flags.Add(SyntheticFlags.Docking);
+
+                // Only include flags the user wants to see
+                var visibleFlags = _appSettings.DisplayOptions.VisibleFlags;
+                if (visibleFlags != null && visibleFlags.Count > 0)
                 {
-                    var f when f == SyntheticFlags.HudInCombatMode => "HUD Combat Mode",
-                    var f when f == SyntheticFlags.Docking => "Docking",
-                    _ => flag.ToString().Replace("_", " ")
-                };
+                    flags = flags.Where(f => visibleFlags.Contains(f)).ToList();
+                }
 
-                Items.Add(new FlagItemViewModel(flag, displayText));
-            }
+                // Add flags to the collection
+                foreach (var flag in flags)
+                {
+                    string displayText = flag switch
+                    {
+                        var f when f == SyntheticFlags.HudInCombatMode => "HUD Combat Mode",
+                        var f when f == SyntheticFlags.Docking => "Docking",
+                        _ => flag.ToString().Replace("_", " ")
+                    };
+
+                    Items.Add(new FlagItemViewModel(flag, displayText));
+                }
+            });
         }
     }
 

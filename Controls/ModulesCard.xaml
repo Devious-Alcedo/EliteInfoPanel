@@ -4,7 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:local="clr-namespace:EliteInfoPanel.Controls"
-            xmlns:converters="clr-namespace:EliteInfoPanel.Converters"
+             xmlns:converters="clr-namespace:EliteInfoPanel.Converters"
              mc:Ignorable="d" 
              d:DesignHeight="450" d:DesignWidth="600">
 
@@ -30,6 +30,11 @@
             <ItemsControl Grid.Column="0" 
                           ItemsSource="{Binding Items}"
                           AlternationCount="2">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <TextBlock FontSize="20"
@@ -60,6 +65,11 @@
             <ItemsControl Grid.Column="1" 
                           ItemsSource="{Binding Items}"
                           AlternationCount="2">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <TextBlock FontSize="20"

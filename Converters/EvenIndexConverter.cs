@@ -47,6 +47,7 @@ namespace EliteInfoPanel.Converters
         {
             if (value is double ratio)
             {
+                // Create the first column with a Star-based width corresponding to the ratio
                 return new GridLength(ratio, GridUnitType.Star);
             }
 

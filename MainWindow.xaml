@@ -4,7 +4,6 @@
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         xmlns:local="clr-namespace:EliteInfoPanel"
         xmlns:controls="clr-namespace:EliteInfoPanel.Controls"
-        xmlns:converters="clr-namespace:EliteInfoPanel.Converters"
         Background="{DynamicResource MaterialDesignPaper}"
         WindowStyle="None"
         ResizeMode="NoResize"
@@ -26,24 +25,25 @@
                         VerticalAlignment="Center"
                         Orientation="Vertical"
                         Margin="20">
-                <TextBlock Text="{Binding HyperspaceDestination, StringFormat='Jumping to {0}...'}"
-                           Foreground="#80FFFFFF"
-                           FontSize="48"
-                           FontWeight="Light"
-                           TextAlignment="Center"
-                           Margin="0,0,0,20"/>
-                <TextBlock Text="{Binding HyperspaceStarClass, StringFormat='Star Class: {0}'}"
-                           Foreground="#40FFFFFF"
-                           FontSize="28"
-                           FontWeight="Light"
-                           TextAlignment="Center"
-                           Visibility="{Binding HyperspaceStarClass, Converter={StaticResource BoolToVis}}"
-                           Margin="0,0,0,40"/>
+                <TextBlock x:Name="JumpDestinationText"
+                   Text="Hyperspace Jump in Progress..."
+                   Foreground="#80FFFFFF"
+                   FontSize="48"
+                   FontWeight="Light"
+                   TextAlignment="Center"
+                   Margin="0,0,0,20"/>
+                <TextBlock x:Name="StarClassText"
+                   Text="Star Class: Unknown"
+                   Foreground="#40FFFFFF"
+                   FontSize="28"
+                   FontWeight="Light"
+                   TextAlignment="Center"
+                   Margin="0,0,0,40"/>
                 <ProgressBar Width="400"
-                             Height="8"
-                             IsIndeterminate="True"
-                             Foreground="#60FFFFFF"
-                             Background="Transparent"/>
+                     Height="8"
+                     IsIndeterminate="True"
+                     Foreground="#60FFFFFF"
+                     Background="Transparent"/>
             </StackPanel>
         </Grid>
 
@@ -71,65 +71,11 @@
             </StackPanel>
         </Grid>
 
-        <!-- Main Content Grid -->
+        <!-- Main Content Grid - We'll add cards to this dynamically -->
         <Grid x:Name="MainGrid" 
               HorizontalAlignment="Stretch" 
               Background="{DynamicResource MaterialDesignPaper}"
               VerticalAlignment="Stretch">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-
-            <!-- Summary Card -->
-            <materialDesign:Card Grid.Column="{Binding SummaryCard.DisplayColumn}"
-                                 Grid.ColumnSpan="{Binding SummaryCard.ColumnSpan}"
-                                 Margin="5" Padding="5"
-                                 Visibility="{Binding SummaryCard.IsVisible, Converter={StaticResource BoolToVis}}">
-                <controls:SummaryCard DataContext="{Binding SummaryCard}" />
-            </materialDesign:Card>
-
-            <!-- Cargo Card -->
-            <materialDesign:Card Grid.Column="{Binding CargoCard.DisplayColumn}"
-                                 Grid.ColumnSpan="{Binding CargoCard.ColumnSpan}"
-                                 Margin="5" Padding="5"
-                                 Visibility="{Binding CargoCard.IsVisible, Converter={StaticResource BoolToVis}}">
-                <controls:CargoCard DataContext="{Binding CargoCard}" />
-            </materialDesign:Card>
-
-            <!-- Backpack Card -->
-            <materialDesign:Card Grid.Column="{Binding BackpackCard.DisplayColumn}"
-                                 Grid.ColumnSpan="{Binding BackpackCard.ColumnSpan}"
-                                 Margin="5" Padding="5"
-                                 Visibility="{Binding BackpackCard.IsVisible, Converter={StaticResource BoolToVis}}">
-                <controls:BackpackCard DataContext="{Binding BackpackCard}" />
-            </materialDesign:Card>
-
-            <!-- Nav Route Card -->
-            <materialDesign:Card Grid.Column="{Binding RouteCard.DisplayColumn}"
-                                 Grid.ColumnSpan="{Binding RouteCard.ColumnSpan}"
-                                 Margin="5" Padding="5"
-                                 Visibility="{Binding RouteCard.IsVisible, Converter={StaticResource BoolToVis}}">
-                <controls:RouteCard DataContext="{Binding RouteCard}" />
-            </materialDesign:Card>
-
-            <!-- Ship Modules Card -->
-            <materialDesign:Card Grid.Column="{Binding ModulesCard.DisplayColumn}"
-                                 Grid.ColumnSpan="{Binding ModulesCard.ColumnSpan}"
-                                 Margin="5" Padding="5"
-                                 Visibility="{Binding ModulesCard.IsVisible, Converter={StaticResource BoolToVis}}">
-                <controls:ModulesCard DataContext="{Binding ModulesCard}" />
-            </materialDesign:Card>
-
-            <!-- Status Flags Card -->
-            <materialDesign:Card Grid.Column="{Binding FlagsCard.DisplayColumn}"
-                                 Grid.ColumnSpan="{Binding FlagsCard.ColumnSpan}"
-                                 Margin="5" Padding="5"
-                                 Visibility="{Binding FlagsCard.IsVisible, Converter={StaticResource BoolToVis}}">
-                <controls:FlagsCard DataContext="{Binding FlagsCard}" />
-            </materialDesign:Card>
         </Grid>
 
         <!-- Toast Notifications -->
