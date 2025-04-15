@@ -439,13 +439,15 @@ namespace EliteInfoPanel.Core
                             // Only clear state if we see arrival confirmation
                             if (root.TryGetProperty("Docked", out var dockedProp) && dockedProp.GetBoolean())
                             {
-                             //   Log.Debug("Carrier jump complete — clearing jump state");
                                 FleetCarrierJumpTime = null;
                                 CarrierJumpDestinationSystem = null;
                                 CarrierJumpDestinationBody = null;
                                 FleetCarrierJumpArrived = true;
                                 CarrierJumpInProgress = false;
+
+                                RaiseDataUpdated(); // ✅ Add this
                             }
+
                             else
                             {
                               //  Log.Debug("CarrierJump event seen — jump still in progress.");

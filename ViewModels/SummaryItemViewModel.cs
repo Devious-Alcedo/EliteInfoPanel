@@ -7,7 +7,24 @@ namespace EliteInfoPanel.ViewModels
     public class SummaryItemViewModel : ViewModelBase
     {
         public string Tag { get; set; }
-        public string Content { get; set; }
+        private string _content;
+        public string Content
+        {
+            get => _content;
+            set => SetProperty(ref _content, value);
+        }
+        private int _fontSize = 20;
+        public int FontSize
+        {
+            get => _fontSize;
+            set => SetProperty(ref _fontSize, value);
+        }
+        private bool _pulse;
+        public bool Pulse
+        {
+            get => _pulse;
+            set => SetProperty(ref _pulse, value);
+        }
         public Brush Foreground { get; set; }
         public PackIconKind Icon { get; set; }
 

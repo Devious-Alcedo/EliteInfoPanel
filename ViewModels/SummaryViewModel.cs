@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.ObjectModel;
 using System.Windows.Media;
+using System.Windows.Threading;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
 using MaterialDesignThemes.Wpf;
@@ -11,7 +12,8 @@ namespace EliteInfoPanel.ViewModels
     public class SummaryViewModel : CardViewModel
     {
         private readonly GameStateService _gameState;
-
+        private DispatcherTimer _carrierCountdownTimer;
+        private SummaryItemViewModel _carrierCountdownItem;
         public ObservableCollection<SummaryItemViewModel> Items { get; } = new();
 
         private bool _showFuelBar;
@@ -143,13 +145,102 @@ namespace EliteInfoPanel.ViewModels
                         PackIconKind.Thermometer));
                 }
 
+
                 UpdateFuelInfo();
+                if (_gameState.JumpCountdown is TimeSpan countdown && countdown.TotalSeconds > 0)
+                {
+                    StartCarrierCountdown(countdown, _gameState.CarrierJumpDestinationSystem);
+                }
+                else
+                {
+                    StopCarrierCountdown();
+                }
+
             }
             catch (Exception ex)
             {
                 Log.Error(ex, "Error in UpdateSummary");
             }
         }
+        private string FormatCountdownText(TimeSpan time, string destination)
+        {
+            string timeText = time.TotalMinutes >= 60
+                ? time.ToString(@"hh\:mm\:ss")
+                : $"{(int)time.TotalMinutes:00}:{time.Seconds:00}";
+
+            return $"Carrier Jump: {timeText}\nto {destination}";
+
+        }
+        private void StopCarrierCountdown()
+        {
+            _carrierCountdownTimer?.Stop();
+            _carrierCountdownTimer = null;
+
+            if (_carrierCountdownItem != null && Items.Contains(_carrierCountdownItem))
+            {
+                Items.Remove(_carrierCountdownItem);
+                _carrierCountdownItem = null;
+            }
+        }
+
+
+        private void StartCarrierCountdown(TimeSpan initialCountdown, string destination)
+        {
+            StopCarrierCountdown(); // Stop any existing one
+
+            _carrierCountdownItem = new SummaryItemViewModel(
+                "CarrierJumpCountdown",
+                FormatCountdownText(initialCountdown, destination),
+                Brushes.Gold, // Initial color
+                PackIconKind.RocketLaunch)
+            {
+                FontSize = 24
+            };
+
+            Items.Add(_carrierCountdownItem);
+
+            _carrierCountdownTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(1)
+            };
+
+            DateTime targetTime = DateTime.UtcNow.Add(initialCountdown);
+
+            _carrierCountdownTimer.Tick += (s, e) =>
+            {
+                TimeSpan remaining = targetTime - DateTime.UtcNow;
+
+                if (remaining <= TimeSpan.Zero)
+                {
+                    StopCarrierCountdown();
+                    return;
+                }
+
+                _carrierCountdownItem.Content = FormatCountdownText(remaining, destination);
+                _carrierCountdownItem.FontSize = 24;
+
+                // Set color and pulse
+                if (remaining.TotalMinutes <= 2.75)
+                {
+                    _carrierCountdownItem.Foreground = Brushes.Red;
+                    _carrierCountdownItem.Pulse = true;
+                }
+                else if (remaining.TotalMinutes <= 5)
+                {
+                    _carrierCountdownItem.Foreground = Brushes.Gold;
+                    _carrierCountdownItem.Pulse = false;
+                }
+                else
+                {
+                    _carrierCountdownItem.Foreground = Brushes.LightGreen;
+                    _carrierCountdownItem.Pulse = false;
+                }
+            };
+
+
+            _carrierCountdownTimer.Start();
+        }
+
 
         private void UpdateFuelInfo()
         {

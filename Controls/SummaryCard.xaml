@@ -51,17 +51,37 @@
         <ItemsControl ItemsSource="{Binding Items}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                    <StackPanel x:Name="ItemStack"
+                Orientation="Horizontal"
+                Margin="0,4,0,0"
+                Opacity="1">
                         <materialDesign:PackIcon Kind="{Binding Icon}"
-                                         Width="20"
-                                         Height="20"
-                                         Margin="0,0,6,0"
-                                         Foreground="{Binding Foreground}" />
+                                 Width="20"
+                                 Height="20"
+                                 Margin="0,0,6,0"
+                                 Foreground="{Binding Foreground}" />
                         <TextBlock Text="{Binding Content}"
-                           FontSize="18"
-                           Foreground="{Binding Foreground}"
-                           VerticalAlignment="Center" />
+                   FontSize="{Binding FontSize}"
+                   Foreground="{Binding Foreground}"
+                   VerticalAlignment="Center"
+                   FontWeight="Bold"
+                   TextOptions.TextRenderingMode="ClearType" />
                     </StackPanel>
+
+                    <DataTemplate.Triggers>
+                        <DataTrigger Binding="{Binding Pulse}" Value="True">
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                        <DoubleAnimation Storyboard.TargetName="ItemStack"
+                                         Storyboard.TargetProperty="Opacity"
+                                         From="1.0" To="0.4"
+                                         Duration="0:0:0.6" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                        </DataTrigger>
+                    </DataTemplate.Triggers>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
@@ -74,7 +94,7 @@
                FontWeight="SemiBold"
                Text="Fuel"
                Margin="0,0,0,4"/>
-            <TextBlock FontSize="16"
+            <TextBlock FontSize="20"
                Foreground="White">
                 <TextBlock.Text>
                     <MultiBinding StringFormat="Main: {0:0.00}   Reserve: {1:0.00}">
