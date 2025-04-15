@@ -17,7 +17,7 @@ namespace EliteInfoPanel.ViewModels
         private bool _isHyperspaceJumping;
         private string _hyperspaceDestination;
         private string _hyperspaceStarClass;
-        private SnackbarMessageQueue _toastQueue = new SnackbarMessageQueue(System.TimeSpan.FromSeconds(3));
+        public SnackbarMessageQueue _toastQueue = new SnackbarMessageQueue(System.TimeSpan.FromSeconds(3));
 
         public ObservableCollection<CardViewModel> Cards { get; } = new ObservableCollection<CardViewModel>();
 
@@ -46,7 +46,14 @@ public void SetMainGrid(Grid mainGrid)
         public bool IsHyperspaceJumping
         {
             get => _isHyperspaceJumping;
-            set => SetProperty(ref _isHyperspaceJumping, value);
+            set
+            {
+                if (_isHyperspaceJumping != value)
+                {
+                    _isHyperspaceJumping = value;
+                    OnPropertyChanged(nameof(IsHyperspaceJumping));
+                }
+            }
         }
 
         public string HyperspaceDestination
@@ -124,11 +131,24 @@ public void SetMainGrid(Grid mainGrid)
 
         private void OnGameStateUpdated()
         {
-            Log.Debug("GameState update received. Setting IsLoading = false");
-            UpdateLoadingState();
-            IsLoading = false;
+            Log.Debug("GameState update received.");
+
+            var status = _gameState?.CurrentStatus;
+
+            if (status == null || status.Flags == Flag.None)
+            {
+                Log.Debug("Game data not ready. Still waiting...");
+                return; // don’t flip loading off yet
+            }
+
+            UpdateLoadingState(); // will flip IsLoading based on flags
+
+            if (!IsLoading)
+                Log.Information("Game state confirmed. Hiding loading overlay.");
+
             RefreshCardVisibility();
         }
+
 
         private void OnHyperspaceJumping(bool jumping, string systemName)
         {

@@ -3,6 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         xmlns:local="clr-namespace:EliteInfoPanel"
+        xmlns:util="clr-namespace:EliteInfoPanel.Util"
+
         xmlns:controls="clr-namespace:EliteInfoPanel.Controls"
         Background="{DynamicResource MaterialDesignPaper}"
         WindowStyle="None"
@@ -12,6 +14,34 @@
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <Style x:Key="NonAnimatedProgressBarStyle" TargetType="ProgressBar">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ProgressBar">
+                        <Grid x:Name="TemplateRoot" SnapsToDevicePixels="true">
+                            <Rectangle x:Name="PART_Track"
+                               Fill="{TemplateBinding Background}"
+                               Height="{TemplateBinding Height}" />
+                            <Rectangle x:Name="PART_Indicator"
+                               Fill="{TemplateBinding Foreground}"
+                               Height="{TemplateBinding Height}"
+                               HorizontalAlignment="Left">
+                                <Rectangle.Width>
+                                    <MultiBinding Converter="{StaticResource ProgressToWidthMultiConverter}">
+                                        <Binding Path="Value" RelativeSource="{RelativeSource TemplatedParent}" />
+                                        <Binding Path="ActualWidth" RelativeSource="{RelativeSource TemplatedParent}" />
+                                    </MultiBinding>
+                                </Rectangle.Width>
+                            </Rectangle>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+
+        <!-- Converter used to calculate width -->
+   
     </Window.Resources>
 
     <Grid x:Name="RootGrid">
