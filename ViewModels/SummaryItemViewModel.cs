@@ -25,7 +25,13 @@ namespace EliteInfoPanel.ViewModels
             get => _pulse;
             set => SetProperty(ref _pulse, value);
         }
-        public Brush Foreground { get; set; }
+        private Brush _foreground;
+        public Brush Foreground
+        {
+            get => _foreground;
+            set => SetProperty(ref _foreground, value);
+        }
+
         public PackIconKind Icon { get; set; }
 
         public SummaryItemViewModel(string tag, string content, Brush foreground, PackIconKind icon)

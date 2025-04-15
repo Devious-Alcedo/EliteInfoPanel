@@ -100,6 +100,24 @@
                              Background="Transparent"/>
             </StackPanel>
         </Grid>
+        <Grid Visibility="{Binding IsCarrierJumping, Converter={StaticResource BoolToVis}}"
+      Background="#CC000000"
+      Panel.ZIndex="9997">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Vertical">
+                <TextBlock Text="Carrier Jump In Progress..."
+                   FontSize="48"
+                   FontWeight="Bold"
+                   Foreground="Orange"
+                   TextAlignment="Center" />
+                <ProgressBar Width="300"
+                     Height="10"
+                     IsIndeterminate="True"
+                     Foreground="Orange"
+                     Background="Transparent"
+                     Margin="0,20,0,0" />
+            </StackPanel>
+        </Grid>
+
 
         <!-- Main Content Grid - We'll add cards to this dynamically -->
         <Grid x:Name="MainGrid" 

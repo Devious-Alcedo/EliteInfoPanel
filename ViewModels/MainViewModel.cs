@@ -18,7 +18,12 @@ namespace EliteInfoPanel.ViewModels
         private string _hyperspaceDestination;
         private string _hyperspaceStarClass;
         public SnackbarMessageQueue _toastQueue = new SnackbarMessageQueue(System.TimeSpan.FromSeconds(3));
-
+        private bool _isCarrierJumping;
+        public bool IsCarrierJumping
+        {
+            get => _isCarrierJumping;
+            set => SetProperty(ref _isCarrierJumping, value);
+        }
         public ObservableCollection<CardViewModel> Cards { get; } = new ObservableCollection<CardViewModel>();
 
         // Individual card ViewModels
@@ -134,7 +139,11 @@ public void SetMainGrid(Grid mainGrid)
             Log.Debug("GameState update received.");
 
             var status = _gameState?.CurrentStatus;
-
+            if (!string.IsNullOrEmpty(_gameState.CarrierJumpDestinationSystem) &&
+                _gameState.FleetCarrierJumpInProgress == false)
+            {
+                IsCarrierJumping = false;
+            }
             if (status == null || status.Flags == Flag.None)
             {
                 Log.Debug("Game data not ready. Still waiting...");

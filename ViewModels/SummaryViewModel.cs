@@ -149,12 +149,17 @@ namespace EliteInfoPanel.ViewModels
                 UpdateFuelInfo();
                 if (_gameState.JumpCountdown is TimeSpan countdown && countdown.TotalSeconds > 0)
                 {
-                    StartCarrierCountdown(countdown, _gameState.CarrierJumpDestinationSystem);
+                    if (_carrierCountdownTimer == null)
+                    {
+                        StartCarrierCountdown(countdown, _gameState.CarrierJumpDestinationSystem);
+                    }
                 }
                 else
                 {
                     StopCarrierCountdown();
                 }
+
+
 
             }
             catch (Exception ex)
@@ -186,18 +191,26 @@ namespace EliteInfoPanel.ViewModels
 
         private void StartCarrierCountdown(TimeSpan initialCountdown, string destination)
         {
-            StopCarrierCountdown(); // Stop any existing one
-
-            _carrierCountdownItem = new SummaryItemViewModel(
-                "CarrierJumpCountdown",
-                FormatCountdownText(initialCountdown, destination),
-                Brushes.Gold, // Initial color
-                PackIconKind.RocketLaunch)
+            if (_carrierCountdownItem == null)
             {
-                FontSize = 24
-            };
+                _carrierCountdownItem = new SummaryItemViewModel(
+                    "CarrierJumpCountdown",
+                    FormatCountdownText(initialCountdown, destination),
+                    Brushes.Gold,
+                    PackIconKind.RocketLaunch)
+                {
+                    FontSize = 24
+                };
 
-            Items.Add(_carrierCountdownItem);
+                Items.Add(_carrierCountdownItem);
+            }
+            else
+            {
+                _carrierCountdownItem.Content = FormatCountdownText(initialCountdown, destination);
+                _carrierCountdownItem.Foreground = Brushes.Gold;
+                _carrierCountdownItem.Pulse = false;
+            }
+
 
             _carrierCountdownTimer = new DispatcherTimer
             {
@@ -213,8 +226,29 @@ namespace EliteInfoPanel.ViewModels
                 if (remaining <= TimeSpan.Zero)
                 {
                     StopCarrierCountdown();
+
+                    // Only show jump overlay if we're docked on the carrier
+                    var status = _gameState.CurrentStatus;
+                    var station = _gameState.CurrentStationName;
+                    var carrierName = _gameState.CarrierJumpDestinationSystem;
+
+                    if (status?.Flags.HasFlag(Flag.Docked) == true &&
+                        !string.IsNullOrEmpty(station) &&
+                        _gameState.CarrierJumpDestinationSystem != null &&
+                        _gameState.CurrentSystem == _gameState.CarrierJumpDestinationSystem) // optional: match system
+                    {
+                        App.Current.Dispatcher.Invoke(() =>
+                        {
+                            if (App.Current.MainWindow?.DataContext is MainViewModel mainVm)
+                            {
+                                mainVm.IsCarrierJumping = true;
+                            }
+                        });
+                    }
+
                     return;
                 }
+
 
                 _carrierCountdownItem.Content = FormatCountdownText(remaining, destination);
                 _carrierCountdownItem.FontSize = 24;
@@ -225,7 +259,7 @@ namespace EliteInfoPanel.ViewModels
                     _carrierCountdownItem.Foreground = Brushes.Red;
                     _carrierCountdownItem.Pulse = true;
                 }
-                else if (remaining.TotalMinutes <= 5)
+                else if (remaining.TotalMinutes  <= 10)
                 {
                     _carrierCountdownItem.Foreground = Brushes.Gold;
                     _carrierCountdownItem.Pulse = false;

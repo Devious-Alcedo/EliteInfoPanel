@@ -15,13 +15,14 @@ namespace EliteInfoPanel.Core
         private static readonly SolidColorBrush CountdownRedBrush = new SolidColorBrush(Colors.Red);
         private static readonly SolidColorBrush CountdownGoldBrush = new SolidColorBrush(Colors.Gold);
         private static readonly SolidColorBrush CountdownGreenBrush = new SolidColorBrush(Colors.Green);
-
+        public string CurrentStationName { get; private set; }
         private string gamePath;
         private long lastJournalPosition = 0;
         private string latestJournalPath;
         private FileSystemWatcher watcher;
-        public bool CarrierJumpInProgress { get;  set; }
+      
         public DateTime? CarrierJumpScheduledTime { get; private set; }
+        public bool FleetCarrierJumpInProgress { get; private set; }
 
         #endregion
 
@@ -388,7 +389,7 @@ namespace EliteInfoPanel.Core
                             CarrierJumpScheduledTime = null;
                             CarrierJumpDestinationSystem = null;
                             CarrierJumpDestinationBody = null;
-                            CarrierJumpInProgress = false;
+                            FleetCarrierJumpInProgress = false;
                             break;
 
 
@@ -399,9 +400,10 @@ namespace EliteInfoPanel.Core
                             CarrierJumpScheduledTime = null;
                             CarrierJumpDestinationSystem = null;
                             CarrierJumpDestinationBody = null;
-                            CarrierJumpInProgress = false;
+                       
                             FleetCarrierJumpArrived = true;
-
+                            FleetCarrierJumpInProgress = false;
+                            RaiseDataUpdated();
                             // force re-check system after jump
                             if (root.TryGetProperty("StarSystem", out var carrierSystem))
                             {
@@ -423,8 +425,9 @@ namespace EliteInfoPanel.Core
                                     CarrierJumpScheduledTime = departureTime;
                                     CarrierJumpDestinationSystem = root.TryGetProperty("SystemName", out var sysName) ? sysName.GetString() : null;
                                     CarrierJumpDestinationBody = root.TryGetProperty("Body", out var bodyName) ? bodyName.GetString() : null;
-                                    CarrierJumpInProgress = false;
+                                  
                                     FleetCarrierJumpArrived = false;
+                                    FleetCarrierJumpInProgress = true;
                                     Log.Debug($"Carrier jump scheduled for {departureTime:u}");
                                 }
                                 else
@@ -443,7 +446,9 @@ namespace EliteInfoPanel.Core
                                 CarrierJumpDestinationSystem = null;
                                 CarrierJumpDestinationBody = null;
                                 FleetCarrierJumpArrived = true;
-                                CarrierJumpInProgress = false;
+                              
+                                FleetCarrierJumpInProgress = false;
+                                RaiseDataUpdated();
 
                                 RaiseDataUpdated(); // ✅ Add this
                             }
@@ -494,8 +499,22 @@ namespace EliteInfoPanel.Core
                             CarrierJumpScheduledTime = null;
                             CarrierJumpDestinationSystem = null;
                             CarrierJumpDestinationBody = null;
-                            CarrierJumpInProgress = false;
+                            FleetCarrierJumpInProgress = false;
                             RaiseDataUpdated();
+                            break;
+                        case "Docked":
+                            if (root.TryGetProperty("StationName", out var stationProp))
+                            {
+                                CurrentStationName = stationProp.GetString();
+                                Log.Debug("Docked at station: {Station}", CurrentStationName);
+                            }
+                            else
+                            {
+                                CurrentStationName = null;
+                            }
+                            break;
+                        case "Undocked":
+                            CurrentStationName = null;
                             break;
 
 
