@@ -15,6 +15,10 @@ namespace EliteInfoPanel.ViewModels
         private DispatcherTimer _carrierCountdownTimer;
         private SummaryItemViewModel _carrierCountdownItem;
         public ObservableCollection<SummaryItemViewModel> Items { get; } = new();
+        private SummaryItemViewModel FindItemByTag(string tag)
+        {
+            return Items.FirstOrDefault(x => x.Tag == tag);
+        }
 
         private bool _showFuelBar;
         public bool ShowFuelBar
@@ -56,6 +60,28 @@ namespace EliteInfoPanel.ViewModels
             Log.Information("SummaryViewModel: Manual initialization requested");
             UpdateSummary();
         }
+        private void RemoveNonCustomItems()
+        {
+            Log.Debug("🧹 Running RemoveNonCustomItems...");
+
+            for (int i = Items.Count - 1; i >= 0; i--)
+            {
+                var item = Items[i];
+                Log.Debug("🔍 Inspecting item at index {Index}: Tag = {Tag}, Content = {Content}", i, item.Tag, item.Content);
+
+                if (item.Tag == "CarrierJumpCountdown")
+                {
+                    Log.Debug("✅ Keeping CarrierJumpCountdown item");
+                    continue;
+                }
+
+                Log.Debug("❌ Removing item with Tag = {Tag}", item.Tag);
+                Items.RemoveAt(i);
+            }
+
+            Log.Debug("📦 Items after cleanup: {Count}", Items.Count);
+        }
+
 
         private void UpdateSummary()
         {
@@ -67,7 +93,7 @@ namespace EliteInfoPanel.ViewModels
 
             try
             {
-                Items.Clear();
+                RemoveNonCustomItems();
 
                 if (_gameState.CurrentStatus == null)
                     return;
@@ -76,6 +102,7 @@ namespace EliteInfoPanel.ViewModels
                 if (!string.IsNullOrEmpty(_gameState.CommanderName))
                 {
                     Items.Add(new SummaryItemViewModel(
+                        "Commander",
                         $"CMDR {_gameState.CommanderName}",
                         Brushes.WhiteSmoke,
                         PackIconKind.AccountCircle));
@@ -85,6 +112,7 @@ namespace EliteInfoPanel.ViewModels
                 if (!string.IsNullOrEmpty(_gameState.SquadronName))
                 {
                     Items.Add(new SummaryItemViewModel(
+                        "Squadron",
                         _gameState.SquadronName,
                         Brushes.LightGoldenrodYellow,
                         PackIconKind.AccountGroup));
@@ -111,6 +139,7 @@ namespace EliteInfoPanel.ViewModels
                     }
 
                     Items.Add(new SummaryItemViewModel(
+                        "Ship",
                         shipText,
                         Brushes.LightBlue,
                         PackIconKind.SpaceStation));
@@ -121,6 +150,7 @@ namespace EliteInfoPanel.ViewModels
                 {
                     string balanceText = $"{_gameState.Balance.Value:N0} Cr";
                     Items.Add(new SummaryItemViewModel(
+                        "Balance",
                         balanceText,
                         Brushes.LightGreen,
                         PackIconKind.CurrencyUsd));
@@ -130,35 +160,32 @@ namespace EliteInfoPanel.ViewModels
                 if (!string.IsNullOrEmpty(_gameState.CurrentSystem))
                 {
                     Items.Add(new SummaryItemViewModel(
+                        "System",
                         _gameState.CurrentSystem,
                         Brushes.Orange,
                         PackIconKind.Earth));
                 }
 
                 // Heat
-                if (_gameState.CurrentStatus?.Heat > 0.75f)
-                {
-                    var heatColor = _gameState.CurrentStatus.Heat > 0.95f ? Brushes.Red : Brushes.Orange;
-                    Items.Add(new SummaryItemViewModel(
-                        $"Heat: {_gameState.CurrentStatus.Heat * 100:F0}%",
-                        heatColor,
-                        PackIconKind.Thermometer));
-                }
+             
 
 
                 UpdateFuelInfo();
                 if (_gameState.JumpCountdown is TimeSpan countdown && countdown.TotalSeconds > 0)
                 {
-                    if (_carrierCountdownTimer == null)
-                    {
-                        StartCarrierCountdown(countdown, _gameState.CarrierJumpDestinationSystem);
-                    }
+                    StartCarrierCountdown(countdown, _gameState.CarrierJumpDestinationSystem);
                 }
+
                 else
                 {
                     StopCarrierCountdown();
                 }
 
+                Log.Debug("📋 Final Summary Items:");
+                foreach (var item in Items)
+                {
+                    Log.Debug("  - Tag: {Tag}, Content: {Content}", item.Tag, item.Content);
+                }
 
 
             }
@@ -178,6 +205,7 @@ namespace EliteInfoPanel.ViewModels
         }
         private void StopCarrierCountdown()
         {
+            Log.Debug("🛑 Stopping CarrierCountdown");
             _carrierCountdownTimer?.Stop();
             _carrierCountdownTimer = null;
 
@@ -191,7 +219,9 @@ namespace EliteInfoPanel.ViewModels
 
         private void StartCarrierCountdown(TimeSpan initialCountdown, string destination)
         {
-            if (_carrierCountdownItem == null)
+            var existing = FindItemByTag("CarrierJumpCountdown");
+
+            if (existing == null)
             {
                 _carrierCountdownItem = new SummaryItemViewModel(
                     "CarrierJumpCountdown",
@@ -203,39 +233,63 @@ namespace EliteInfoPanel.ViewModels
                 };
 
                 Items.Add(_carrierCountdownItem);
+                Log.Debug("➕ Added CarrierJumpCountdown to Items.");
             }
             else
             {
+                _carrierCountdownItem = existing;
                 _carrierCountdownItem.Content = FormatCountdownText(initialCountdown, destination);
-                _carrierCountdownItem.Foreground = Brushes.Gold;
-                _carrierCountdownItem.Pulse = false;
+
+                // ✅ Only reset color if not red or green
+                if (_carrierCountdownItem.Foreground != Brushes.Red &&
+                    _carrierCountdownItem.Foreground != Brushes.LightGreen)
+                {
+                    _carrierCountdownItem.Foreground = Brushes.Gold;
+                    _carrierCountdownItem.Pulse = false;
+                }
+
+                Log.Debug("🔁 Reusing existing CarrierJumpCountdown item.");
             }
 
+            // ✅ Move to end of list (if not already last)
+            if (Items.IndexOf(_carrierCountdownItem) != Items.Count - 1)
+            {
+                Items.Remove(_carrierCountdownItem);
+                Items.Add(_carrierCountdownItem);
+            }
+
+            Log.Debug("🚀 CarrierJumpCountdown item state:");
+            Log.Debug("   - Content: {Content}", _carrierCountdownItem.Content);
+            Log.Debug("   - Foreground: {Foreground}", _carrierCountdownItem.Foreground.ToString());
+            Log.Debug("   - Pulse: {Pulse}", _carrierCountdownItem.Pulse);
+            Log.Debug("   - Items count (post-add if new): {Count}", Items.Count);
+
+            if (_carrierCountdownTimer != null)
+                return;
 
             _carrierCountdownTimer = new DispatcherTimer
             {
                 Interval = TimeSpan.FromSeconds(1)
             };
 
-            DateTime targetTime = DateTime.UtcNow.Add(initialCountdown);
+            var targetTime = DateTime.UtcNow.Add(initialCountdown);
 
             _carrierCountdownTimer.Tick += (s, e) =>
             {
-                TimeSpan remaining = targetTime - DateTime.UtcNow;
+                var remaining = targetTime - DateTime.UtcNow;
 
                 if (remaining <= TimeSpan.Zero)
                 {
                     StopCarrierCountdown();
 
-                    // Only show jump overlay if we're docked on the carrier
                     var status = _gameState.CurrentStatus;
                     var station = _gameState.CurrentStationName;
-                    var carrierName = _gameState.CarrierJumpDestinationSystem;
+                    var carrierDest = _gameState.CarrierJumpDestinationSystem;
 
                     if (status?.Flags.HasFlag(Flag.Docked) == true &&
                         !string.IsNullOrEmpty(station) &&
-                        _gameState.CarrierJumpDestinationSystem != null &&
-                        _gameState.CurrentSystem == _gameState.CarrierJumpDestinationSystem) // optional: match system
+                        !string.IsNullOrEmpty(carrierDest) &&
+                        _gameState.CurrentSystem == carrierDest)
                     {
                         App.Current.Dispatcher.Invoke(() =>
                         {
@@ -249,28 +303,37 @@ namespace EliteInfoPanel.ViewModels
                     return;
                 }
 
-
                 _carrierCountdownItem.Content = FormatCountdownText(remaining, destination);
                 _carrierCountdownItem.FontSize = 24;
 
-                // Set color and pulse
-                if (remaining.TotalMinutes <= 2.75)
+                // ✅ Style logic
+                if (remaining.TotalMinutes <= 2.75 && _carrierCountdownItem.Foreground != Brushes.Red)
                 {
                     _carrierCountdownItem.Foreground = Brushes.Red;
                     _carrierCountdownItem.Pulse = true;
                 }
-                else if (remaining.TotalMinutes  <= 10)
+                else if (remaining.TotalMinutes <= 10 && _carrierCountdownItem.Foreground != Brushes.Gold)
                 {
                     _carrierCountdownItem.Foreground = Brushes.Gold;
                     _carrierCountdownItem.Pulse = false;
                 }
-                else
+                else if (_carrierCountdownItem.Foreground != Brushes.LightGreen)
                 {
                     _carrierCountdownItem.Foreground = Brushes.LightGreen;
                     _carrierCountdownItem.Pulse = false;
                 }
-            };
 
+                Log.Debug("⏱ Tick Update: {Content}", _carrierCountdownItem.Content);
+                Log.Debug(" - Foreground: {Foreground}", _carrierCountdownItem.Foreground.ToString());
+                Log.Debug(" - Pulse: {Pulse}", _carrierCountdownItem.Pulse);
+                Log.Debug(" - Items.Count: {Count}", Items.Count);
+
+                for (int i = 0; i < Items.Count; i++)
+                {
+                    var item = Items[i];
+                    Log.Debug("   - Item[{0}] Tag={1}, Content={2}", i, item.Tag, item.Content);
+                }
+            };
 
             _carrierCountdownTimer.Start();
         }

@@ -153,7 +153,7 @@ public void SetMainGrid(Grid mainGrid)
             UpdateLoadingState(); // will flip IsLoading based on flags
 
             if (!IsLoading)
-                Log.Information("Game state confirmed. Hiding loading overlay.");
+              //  Log.Information("Game state confirmed. Hiding loading overlay.");
 
             RefreshCardVisibility();
         }

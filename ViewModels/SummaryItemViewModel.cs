@@ -7,11 +7,12 @@ namespace EliteInfoPanel.ViewModels
     public class SummaryItemViewModel : ViewModelBase
     {
         public string Tag { get; set; }
+        public string Key { get; }
         private string _content;
         public string Content
         {
             get => _content;
-            set => SetProperty(ref _content, value);
+            set => SetProperty(ref _content, value); // This must raise PropertyChanged
         }
         private int _fontSize = 20;
         public int FontSize
@@ -41,12 +42,7 @@ namespace EliteInfoPanel.ViewModels
             Foreground = foreground;
             Icon = icon;
         }
-        public SummaryItemViewModel(string content, Brush foreground, PackIconKind icon)
-        {
-            Content = content;
-            Foreground = foreground;
-            Icon = icon;
-        }
-
+      
+    
     }
 }

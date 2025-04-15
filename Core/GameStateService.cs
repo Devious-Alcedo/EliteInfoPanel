@@ -15,12 +15,15 @@ namespace EliteInfoPanel.Core
         private static readonly SolidColorBrush CountdownRedBrush = new SolidColorBrush(Colors.Red);
         private static readonly SolidColorBrush CountdownGoldBrush = new SolidColorBrush(Colors.Gold);
         private static readonly SolidColorBrush CountdownGreenBrush = new SolidColorBrush(Colors.Green);
+        private bool _isInitializing = true;
         public string CurrentStationName { get; private set; }
         private string gamePath;
         private long lastJournalPosition = 0;
         private string latestJournalPath;
         private FileSystemWatcher watcher;
-      
+        private bool _firstLoadCompleted = false;
+        public bool FirstLoadCompleted => _firstLoadCompleted;
+
         public DateTime? CarrierJumpScheduledTime { get; private set; }
         public bool FleetCarrierJumpInProgress { get; private set; }
 
@@ -82,6 +85,7 @@ namespace EliteInfoPanel.Core
                 {
                     LoadAllData();
                     await ProcessJournalAsync();
+                  
                     DataUpdated?.Invoke();
                     await Task.Delay(4000);
                 }
@@ -142,6 +146,7 @@ namespace EliteInfoPanel.Core
         // In GameStateService.cs
         private void RaiseDataUpdated()
         {
+
             if (DataUpdated == null) return;
 
             if (System.Windows.Threading.Dispatcher.CurrentDispatcher.CheckAccess())
@@ -303,6 +308,8 @@ namespace EliteInfoPanel.Core
                 fs.Seek(lastJournalPosition, SeekOrigin.Begin);
 
                 using var sr = new StreamReader(fs);
+                bool suppressUIUpdates = !_firstLoadCompleted; // true if this is the first pass
+
                 while (!sr.EndOfStream)
                 {
                     string line = await sr.ReadLineAsync();
@@ -403,13 +410,15 @@ namespace EliteInfoPanel.Core
                        
                             FleetCarrierJumpArrived = true;
                             FleetCarrierJumpInProgress = false;
-                            RaiseDataUpdated();
+                            if (!suppressUIUpdates)
+                                RaiseDataUpdated();
                             // force re-check system after jump
                             if (root.TryGetProperty("StarSystem", out var carrierSystem))
                             {
                                 CurrentSystem = carrierSystem.GetString();
                                 Log.Debug("Updated CurrentSystem from CarrierLocation: {System}", CurrentSystem);
-                                DataUpdated?.Invoke();
+                                if (!suppressUIUpdates)
+                                    DataUpdated?.Invoke();
                             }
                             break;
 
@@ -448,9 +457,9 @@ namespace EliteInfoPanel.Core
                                 FleetCarrierJumpArrived = true;
                               
                                 FleetCarrierJumpInProgress = false;
-                                RaiseDataUpdated();
+                                if (!suppressUIUpdates)
+                                    RaiseDataUpdated();
 
-                                RaiseDataUpdated(); // ✅ Add this
                             }
 
                             else
@@ -494,14 +503,25 @@ namespace EliteInfoPanel.Core
                             }
                             break;
                         case "CarrierJumpCancelled":
-                            Log.Information("Carrier jump was cancelled — clearing jump state");
-                            FleetCarrierJumpTime = null;
-                            CarrierJumpScheduledTime = null;
-                            CarrierJumpDestinationSystem = null;
-                            CarrierJumpDestinationBody = null;
-                            FleetCarrierJumpInProgress = false;
-                            RaiseDataUpdated();
+                            // Only process this if a jump was actually scheduled
+                            if (FleetCarrierJumpTime != null || CarrierJumpScheduledTime != null)
+                            {
+                                Log.Information("Carrier jump was cancelled ... clearing jump state");
+                                FleetCarrierJumpTime = null;
+                                CarrierJumpScheduledTime = null;
+                                CarrierJumpDestinationSystem = null;
+                                CarrierJumpDestinationBody = null;
+                                FleetCarrierJumpInProgress = false;
+
+                                if (!suppressUIUpdates)
+                                    RaiseDataUpdated();
+                            }
+                            else
+                            {
+                                Log.Debug("Ignoring CarrierJumpCancelled as no jump was active.");
+                            }
                             break;
+
                         case "Docked":
                             if (root.TryGetProperty("StationName", out var stationProp))
                             {
@@ -589,12 +609,20 @@ namespace EliteInfoPanel.Core
 
                     }
                 }
+                if (!_firstLoadCompleted)
+                {
+                    _firstLoadCompleted = true;
+                    Log.Information("✅ First journal scan completed, raising final UI update");
+                    RaiseDataUpdated();
+                }
             }
             catch (Exception ex)
             {
                 Log.Warning(ex, "Error processing journal file");
             }
         }
+      
+
         private void ScanJournalForPendingCarrierJump()
         {
             try

@@ -127,7 +127,7 @@ namespace EliteInfoPanel.ViewModels
                 }
                 if (item != null)
                     // log the item
-                    Log.Debug("Adding LeftItem: {name} ({slot} on page {page})", item.Name, item.Slot, CurrentPage     );
+                 //   Log.Debug("Adding LeftItem: {name} ({slot} on page {page})", item.Name, item.Slot, CurrentPage     );
                 LeftItems.Add(item);
             }
 
@@ -139,7 +139,7 @@ namespace EliteInfoPanel.ViewModels
                 }
                 else
                 {
-                    Log.Debug("Adding RightItem: {name} ({slot}) - Health: {health}", item.Name, item.Slot, item.Health);
+                  //  Log.Debug("Adding RightItem: {name} ({slot}) - Health: {health}", item.Name, item.Slot, item.Health);
                     // log the item
 
                     RightItems.Add(item);
@@ -216,10 +216,10 @@ namespace EliteInfoPanel.ViewModels
                         _pagedLeft.Add(pageItems.Take(half).ToList());
                         _pagedRight.Add(pageItems.Skip(half).ToList());
                     }
-                    Log.Debug("Loaded {left} left and {right} right modules for page {page}",
-                          _pagedLeft[CurrentPage].Count,
-                          _pagedRight[CurrentPage].Count,
-                          CurrentPage);
+                 //   Log.Debug("Loaded {left} left and {right} right modules for page {page}",
+                          //_pagedLeft[CurrentPage].Count,
+                          //_pagedRight[CurrentPage].Count,
+                          //CurrentPage);
 
                     if (_pagedRight[CurrentPage].Any(m => m == null))
                         Log.Warning("Null item found in _pagedRight[{page}]", CurrentPage);

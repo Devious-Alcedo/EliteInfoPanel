@@ -12,20 +12,25 @@
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
-        <util:ProgressToWidthMultiConverter x:Key="ProgressToWidthMultiConverter"/>
+        <util:ProgressToWidthMultiConverter x:Key="ProgressToWidthMultiConverter" />
+        <converters:TagFilterConverter x:Key="TagFilterConverter" />
 
+        <!-- Summary (non-jump) items -->
+        <CollectionViewSource x:Key="NormalItemsView"
+                      Source="{Binding Items}" />
+
+        <!-- Jump countdown -->
+        <CollectionViewSource x:Key="CarrierCountdownView"
+                      Source="{Binding Items}" />
+
+        <!-- Fuel ProgressBar style -->
         <Style x:Key="NonAnimatedProgressBarStyle" TargetType="ProgressBar">
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ProgressBar">
-                        <Grid x:Name="TemplateRoot" SnapsToDevicePixels="true">
-                            <Rectangle x:Name="PART_Track"
-                                       Fill="{TemplateBinding Background}"
-                                       Height="{TemplateBinding Height}" />
-                            <Rectangle x:Name="PART_Indicator"
-                                       Fill="{TemplateBinding Foreground}"
-                                       Height="{TemplateBinding Height}"
-                                       HorizontalAlignment="Left">
+                        <Grid SnapsToDevicePixels="true">
+                            <Rectangle Fill="{TemplateBinding Background}" Height="{TemplateBinding Height}" />
+                            <Rectangle Fill="{TemplateBinding Foreground}" Height="{TemplateBinding Height}" HorizontalAlignment="Left">
                                 <Rectangle.Width>
                                     <MultiBinding Converter="{StaticResource ProgressToWidthMultiConverter}">
                                         <Binding Path="Value" RelativeSource="{RelativeSource TemplatedParent}" />
@@ -40,6 +45,7 @@
         </Style>
     </UserControl.Resources>
 
+    <!-- Single Root Panel -->
     <StackPanel Margin="8,4,8,8">
         <!-- Title -->
         <TextBlock Text="{Binding Title}" 
@@ -48,24 +54,26 @@
                    Foreground="Orange" 
                    Margin="0,0,0,8"/>
 
-        <ItemsControl ItemsSource="{Binding Items}">
+        <!-- Regular summary items -->
+        <ItemsControl ItemsSource="{Binding Source={StaticResource NormalItemsView}}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
                     <StackPanel x:Name="ItemStack"
-                Orientation="Horizontal"
-                Margin="0,4,0,0"
-                Opacity="1">
+                                Orientation="Horizontal"
+                                Margin="0,4,0,0"
+                                Opacity="1">
                         <materialDesign:PackIcon Kind="{Binding Icon}"
-                                 Width="20"
-                                 Height="20"
-                                 Margin="0,0,6,0"
-                                 Foreground="{Binding Foreground}" />
-                        <TextBlock Text="{Binding Content}"
-                   FontSize="{Binding FontSize}"
-                   Foreground="{Binding Foreground}"
-                   VerticalAlignment="Center"
-                   FontWeight="Bold"
-                   TextOptions.TextRenderingMode="ClearType" />
+                                                 Width="20"
+                                                 Height="20"
+                                                 Margin="0,0,6,0"
+                                                 Foreground="{Binding Foreground}" />
+                        <TextBlock x:Name="ItemText"
+                                   Text="{Binding Content}"
+                                   FontSize="{Binding FontSize}"
+                                   Foreground="{Binding Foreground}"
+                                   VerticalAlignment="Center"
+                                   FontWeight="Bold"
+                                   TextOptions.TextRenderingMode="ClearType" />
                     </StackPanel>
 
                     <DataTemplate.Triggers>
@@ -74,9 +82,9 @@
                                 <BeginStoryboard>
                                     <Storyboard RepeatBehavior="Forever" AutoReverse="True">
                                         <DoubleAnimation Storyboard.TargetName="ItemStack"
-                                         Storyboard.TargetProperty="Opacity"
-                                         From="1.0" To="0.4"
-                                         Duration="0:0:0.6" />
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         From="1.0" To="0.4"
+                                                         Duration="0:0:0.6" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </DataTrigger.EnterActions>
@@ -86,16 +94,15 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-
         <!-- Fuel Info -->
         <StackPanel Visibility="{Binding ShowFuelBar, Converter={StaticResource BoolToVis}}" Margin="0,12,0,0">
             <TextBlock FontSize="20"
-               Foreground="Orange"
-               FontWeight="SemiBold"
-               Text="Fuel"
-               Margin="0,0,0,4"/>
+                       Foreground="Orange"
+                       FontWeight="SemiBold"
+                       Text="Fuel"
+                       Margin="0,0,0,4"/>
             <TextBlock FontSize="20"
-               Foreground="White">
+                       Foreground="White">
                 <TextBlock.Text>
                     <MultiBinding StringFormat="Main: {0:0.00}   Reserve: {1:0.00}">
                         <Binding Path="FuelMain" />
@@ -105,13 +112,52 @@
             </TextBlock>
 
             <ProgressBar Height="20"
-                 Margin="0,6,0,0"
-                 Value="{Binding FuelBarRatio}"
-                 Maximum="1.0"
-                 Foreground="Orange"
-                 Background="DarkSlateGray"
-                 Style="{StaticResource NonAnimatedProgressBarStyle}" />
+                         Margin="0,6,0,0"
+                         Value="{Binding FuelBarRatio}"
+                         Maximum="1.0"
+                         Foreground="Orange"
+                         Background="DarkSlateGray"
+                         Style="{StaticResource NonAnimatedProgressBarStyle}" />
         </StackPanel>
 
+        <!-- Carrier Countdown -->
+        <ItemsControl ItemsSource="{Binding Source={StaticResource CarrierCountdownView}}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel x:Name="ItemStack"
+                                Orientation="Horizontal"
+                                Margin="0,4,0,0"
+                                Opacity="1">
+                        <materialDesign:PackIcon Kind="{Binding Icon}"
+                                                 Width="20"
+                                                 Height="20"
+                                                 Margin="0,0,6,0"
+                                                 Foreground="{Binding Foreground}" />
+                        <TextBlock x:Name="ItemText"
+                                   Text="{Binding Content}"
+                                   FontSize="{Binding FontSize}"
+                                   Foreground="{Binding Foreground}"
+                                   VerticalAlignment="Center"
+                                   FontWeight="Bold"
+                                   TextOptions.TextRenderingMode="ClearType" />
+                    </StackPanel>
+
+                    <DataTemplate.Triggers>
+                        <DataTrigger Binding="{Binding Pulse}" Value="True">
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                        <DoubleAnimation Storyboard.TargetName="ItemStack"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         From="1.0" To="0.4"
+                                                         Duration="0:0:0.6" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                        </DataTrigger>
+                    </DataTemplate.Triggers>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
     </StackPanel>
 </UserControl>

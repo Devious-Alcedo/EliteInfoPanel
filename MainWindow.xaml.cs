@@ -19,7 +19,7 @@ namespace EliteInfoPanel
             InitializeComponent();
 
             // Configure logging
-            LoggingConfig.Configure();
+            LoggingConfig.Configure(enableDebugLogging: false);
 
             // Initialize the GameStateService
             var gamePath = EliteDangerousPaths.GetSavedGamesPath();

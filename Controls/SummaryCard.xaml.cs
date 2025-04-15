@@ -1,5 +1,7 @@
-﻿using System;
+﻿using EliteInfoPanel.Converters;
+using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -20,9 +22,39 @@ namespace EliteInfoPanel.Controls
     /// </summary>
     public partial class SummaryCard : UserControl
     {
+        private readonly TagFilterConverter _tagFilterConverter = new();
+
         public SummaryCard()
         {
             InitializeComponent();
+            Loaded += SummaryCard_Loaded;
+        }
+
+        private void SummaryCard_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (Resources["NormalItemsView"] is CollectionViewSource normalView)
+            {
+                normalView.Filter += (s, args) =>
+                {
+                    args.Accepted = (bool)_tagFilterConverter.Convert(
+                        new object[] { args.Item },
+                        typeof(bool),
+                        "!CarrierJumpCountdown",
+                        CultureInfo.CurrentCulture);
+                };
+            }
+
+            if (Resources["CarrierCountdownView"] is CollectionViewSource countdownView)
+            {
+                countdownView.Filter += (s, args) =>
+                {
+                    args.Accepted = (bool)_tagFilterConverter.Convert(
+                        new object[] { args.Item },
+                        typeof(bool),
+                        "CarrierJumpCountdown",
+                        CultureInfo.CurrentCulture);
+                };
+            }
         }
     }
 }
