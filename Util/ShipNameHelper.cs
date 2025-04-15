@@ -55,6 +55,9 @@ namespace EliteInfoPanel.Util
 
         public static string GetLocalisedName(string internalName)
         {
+            if (string.IsNullOrEmpty(internalName))
+                return "(Unknown Ship)"; // Or any default value
+
             return ShipNameMap.TryGetValue(internalName.ToLowerInvariant(), out var name)
                 ? name
                 : internalName;

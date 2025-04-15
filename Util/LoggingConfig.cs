@@ -19,28 +19,33 @@ namespace EliteInfoPanel.Util
 
         #region Public Methods
 
-        public static void Configure()
+        public static void Configure(bool enableDebugLogging = false)
         {
             var filePathHook = new CaptureFilePathHook();
             string appDataFolder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             string folderPath = Path.Combine(appDataFolder, "EliteInfoPanel");
             var logFilePath = Path.Combine(folderPath, "EliteInfoPanel_Log.log");
 
+            var level = enableDebugLogging
+                ? Serilog.Events.LogEventLevel.Debug
+                : Serilog.Events.LogEventLevel.Information;
+
             Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.Debug()
+                .MinimumLevel.Is(level)
                 .Enrich.FromLogContext()
                 .WriteTo.Console()
                 .WriteTo.File(logFilePath,
                               rollingInterval: RollingInterval.Day,
-                              fileSizeLimitBytes: 10_000_000, // 10 MB file size limit
-                              retainedFileCountLimit: 1, // Retain only the last file
+                              fileSizeLimitBytes: 10_000_000,
+                              retainedFileCountLimit: 1,
                               hooks: filePathHook,
-                              rollOnFileSizeLimit: true) // Roll over on file size limit
+                              rollOnFileSizeLimit: true)
                 .CreateLogger();
 
-            Log.Information("Logger Created");
+            Log.Information("Logger Created (Debug={DebugEnabled})", enableDebugLogging);
             logFileFullPath = filePathHook.Path;
         }
+
 
 
         #endregion Public Methods

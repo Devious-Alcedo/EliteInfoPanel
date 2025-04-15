@@ -5,6 +5,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text;
 using System.Windows.Media;
+using EliteInfoPanel.Util;
 
 namespace EliteInfoPanel.Core
 {
@@ -14,13 +15,17 @@ namespace EliteInfoPanel.Core
         private static readonly SolidColorBrush CountdownRedBrush = new SolidColorBrush(Colors.Red);
         private static readonly SolidColorBrush CountdownGoldBrush = new SolidColorBrush(Colors.Gold);
         private static readonly SolidColorBrush CountdownGreenBrush = new SolidColorBrush(Colors.Green);
-
+        private bool _isInitializing = true;
+        public string CurrentStationName { get; private set; }
         private string gamePath;
         private long lastJournalPosition = 0;
         private string latestJournalPath;
         private FileSystemWatcher watcher;
-        public bool CarrierJumpInProgress { get;  set; }
+        private bool _firstLoadCompleted = false;
+        public bool FirstLoadCompleted => _firstLoadCompleted;
+
         public DateTime? CarrierJumpScheduledTime { get; private set; }
+        public bool FleetCarrierJumpInProgress { get; private set; }
 
         #endregion
 
@@ -80,6 +85,7 @@ namespace EliteInfoPanel.Core
                 {
                     LoadAllData();
                     await ProcessJournalAsync();
+                  
                     DataUpdated?.Invoke();
                     await Task.Delay(4000);
                 }
@@ -137,9 +143,22 @@ namespace EliteInfoPanel.Core
 
         #region Public Methods
 
-        public void RaiseDataUpdated()
+        // In GameStateService.cs
+        private void RaiseDataUpdated()
         {
-            DataUpdated?.Invoke();
+
+            if (DataUpdated == null) return;
+
+            if (System.Windows.Threading.Dispatcher.CurrentDispatcher.CheckAccess())
+            {
+                DataUpdated.Invoke();
+            }
+            else
+            {
+                System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(
+                    System.Windows.Threading.DispatcherPriority.DataBind,
+                    new Action(() => DataUpdated.Invoke()));
+            }
         }
         public void ResetFleetCarrierJumpFlag()
         {
@@ -289,6 +308,8 @@ namespace EliteInfoPanel.Core
                 fs.Seek(lastJournalPosition, SeekOrigin.Begin);
 
                 using var sr = new StreamReader(fs);
+                bool suppressUIUpdates = !_firstLoadCompleted; // true if this is the first pass
+
                 while (!sr.EndOfStream)
                 {
                     string line = await sr.ReadLineAsync();
@@ -320,25 +341,42 @@ namespace EliteInfoPanel.Core
                         // Add a case for "ShipyardSwap" in your switch statement
 
                         case "ShipyardSwap":
-                            if (root.TryGetProperty("ShipType", out var shipTypeProperty) &&
-                                root.TryGetProperty("ShipType_Localised", out var shipTypeLocalisedProperty))
+                            if (root.TryGetProperty("ShipType", out var shipTypeProperty))
                             {
                                 string shipType = shipTypeProperty.GetString();
-                                string shipTypeName = shipTypeLocalisedProperty.GetString();
+                                string shipTypeName = root.TryGetProperty("ShipType_Localised", out var localisedProp) && !string.IsNullOrWhiteSpace(localisedProp.GetString())
+                                    ? localisedProp.GetString()
+                                    : ShipNameHelper.GetLocalisedName(shipType); // fallback if null or missing
 
-                                // Update the ship information
                                 ShipName = shipType;
                                 ShipLocalised = shipTypeName;
 
                                 Log.Information("Ship changed to: {Type} ({Localised})", shipType, shipTypeName);
 
-                                // Clear the loadout since it's now a different ship
+                                // Clear current loadout
                                 CurrentLoadout = null;
-
-                                // We should get a Loadout event soon, but let's trigger a refresh now
                                 LoadAllData();
                             }
                             break;
+                        case "SetUserShipName":
+                            if (root.TryGetProperty("Ship", out var setShipTypeProperty) &&
+                                root.TryGetProperty("ShipID", out var setShipIdProperty))
+                            {
+                                string shipType = setShipTypeProperty.GetString();
+                                int shipId = setShipIdProperty.GetInt32();
+
+                                string? userShipName = root.TryGetProperty("UserShipName", out var nameProp) ? nameProp.GetString() : null;
+                                string? userShipId = root.TryGetProperty("UserShipId", out var idProp) ? idProp.GetString() : null;
+
+                                Log.Information("Received ship name info for {Ship}: {UserShipName} [{UserShipId}]", shipType, userShipName, userShipId);
+
+                                ShipName = shipType;
+                                UserShipName = userShipName;
+                                UserShipId = userShipId;
+                            }
+                            break;
+
+
                         case "Loadout":
                             var loadout = JsonSerializer.Deserialize<LoadoutJson>(line);
                             Log.Debug("Updating fuel: FuelMain={0}, FuelReservoir={1}, Max={2}");
@@ -358,7 +396,7 @@ namespace EliteInfoPanel.Core
                             CarrierJumpScheduledTime = null;
                             CarrierJumpDestinationSystem = null;
                             CarrierJumpDestinationBody = null;
-                            CarrierJumpInProgress = false;
+                            FleetCarrierJumpInProgress = false;
                             break;
 
 
@@ -369,15 +407,18 @@ namespace EliteInfoPanel.Core
                             CarrierJumpScheduledTime = null;
                             CarrierJumpDestinationSystem = null;
                             CarrierJumpDestinationBody = null;
-                            CarrierJumpInProgress = false;
+                       
                             FleetCarrierJumpArrived = true;
-
+                            FleetCarrierJumpInProgress = false;
+                            if (!suppressUIUpdates)
+                                RaiseDataUpdated();
                             // force re-check system after jump
                             if (root.TryGetProperty("StarSystem", out var carrierSystem))
                             {
                                 CurrentSystem = carrierSystem.GetString();
                                 Log.Debug("Updated CurrentSystem from CarrierLocation: {System}", CurrentSystem);
-                                DataUpdated?.Invoke();
+                                if (!suppressUIUpdates)
+                                    DataUpdated?.Invoke();
                             }
                             break;
 
@@ -393,8 +434,9 @@ namespace EliteInfoPanel.Core
                                     CarrierJumpScheduledTime = departureTime;
                                     CarrierJumpDestinationSystem = root.TryGetProperty("SystemName", out var sysName) ? sysName.GetString() : null;
                                     CarrierJumpDestinationBody = root.TryGetProperty("Body", out var bodyName) ? bodyName.GetString() : null;
-                                    CarrierJumpInProgress = false;
+                                  
                                     FleetCarrierJumpArrived = false;
+                                    FleetCarrierJumpInProgress = true;
                                     Log.Debug($"Carrier jump scheduled for {departureTime:u}");
                                 }
                                 else
@@ -409,13 +451,17 @@ namespace EliteInfoPanel.Core
                             // Only clear state if we see arrival confirmation
                             if (root.TryGetProperty("Docked", out var dockedProp) && dockedProp.GetBoolean())
                             {
-                             //   Log.Debug("Carrier jump complete — clearing jump state");
                                 FleetCarrierJumpTime = null;
                                 CarrierJumpDestinationSystem = null;
                                 CarrierJumpDestinationBody = null;
                                 FleetCarrierJumpArrived = true;
-                                CarrierJumpInProgress = false;
+                              
+                                FleetCarrierJumpInProgress = false;
+                                if (!suppressUIUpdates)
+                                    RaiseDataUpdated();
+
                             }
+
                             else
                             {
                               //  Log.Debug("CarrierJump event seen — jump still in progress.");
@@ -441,28 +487,70 @@ namespace EliteInfoPanel.Core
                                     Log.Information("Hyperspace jump initiated");
                                     IsHyperspaceJumping = true;
 
-                                    // Get the destination system from the StartJump event
                                     if (root.TryGetProperty("StarSystem", out var starSystem))
                                         HyperspaceDestination = starSystem.GetString();
 
                                     if (root.TryGetProperty("StarClass", out var starClass))
                                         HyperspaceStarClass = starClass.GetString();
+
+                                    isInHyperspace = true;
+                                    HyperspaceJumping?.Invoke(true, HyperspaceDestination); // ✅ fire event
                                 }
                                 else if (jumpTypeString == "Supercruise")
                                 {
                                     Log.Information("Supercruise initiated");
-                                    // Do not set IsHyperspaceJumping for supercruise
                                 }
                             }
                             break;
+                        case "CarrierJumpCancelled":
+                            // Only process this if a jump was actually scheduled
+                            if (FleetCarrierJumpTime != null || CarrierJumpScheduledTime != null)
+                            {
+                                Log.Information("Carrier jump was cancelled ... clearing jump state");
+                                FleetCarrierJumpTime = null;
+                                CarrierJumpScheduledTime = null;
+                                CarrierJumpDestinationSystem = null;
+                                CarrierJumpDestinationBody = null;
+                                FleetCarrierJumpInProgress = false;
+
+                                if (!suppressUIUpdates)
+                                    RaiseDataUpdated();
+                            }
+                            else
+                            {
+                                Log.Debug("Ignoring CarrierJumpCancelled as no jump was active.");
+                            }
+                            break;
+
+                        case "Docked":
+                            if (root.TryGetProperty("StationName", out var stationProp))
+                            {
+                                CurrentStationName = stationProp.GetString();
+                                Log.Debug("Docked at station: {Station}", CurrentStationName);
+                            }
+                            else
+                            {
+                                CurrentStationName = null;
+                            }
+                            break;
+                        case "Undocked":
+                            CurrentStationName = null;
+                            break;
+
 
                         case "FSDJump":
-                            // Reset hyperspace jumping flag when the jump is complete
                             Log.Information("Hyperspace jump completed");
                             IsHyperspaceJumping = false;
                             HyperspaceDestination = null;
                             HyperspaceStarClass = null;
+
+                            if (isInHyperspace)
+                            {
+                                isInHyperspace = false;
+                                HyperspaceJumping?.Invoke(false, ""); // ✅ notify view model
+                            }
                             break;
+
 
                         case "SupercruiseEntry":
                             Log.Information("Entered supercruise");
@@ -521,12 +609,20 @@ namespace EliteInfoPanel.Core
 
                     }
                 }
+                if (!_firstLoadCompleted)
+                {
+                    _firstLoadCompleted = true;
+                    Log.Information("✅ First journal scan completed, raising final UI update");
+                    RaiseDataUpdated();
+                }
             }
             catch (Exception ex)
             {
                 Log.Warning(ex, "Error processing journal file");
             }
         }
+      
+
         private void ScanJournalForPendingCarrierJump()
         {
             try
