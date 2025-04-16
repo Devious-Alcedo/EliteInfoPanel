@@ -114,7 +114,11 @@ namespace EliteInfoPanel.ViewModels
                     }
 
 
-                    foreach (var jump in _gameState.CurrentRoute.Route.Skip(1))
+                    var nextJumps = _gameState.CurrentRoute.Route
+                        .SkipWhile(j => string.Equals(j.StarSystem, _gameState.CurrentSystem, StringComparison.OrdinalIgnoreCase))
+                        .Take(4);
+
+                    foreach (var jump in nextJumps)
 
                     {
                         // Determine scoopable status

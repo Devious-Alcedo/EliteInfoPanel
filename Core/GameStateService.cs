@@ -8,6 +8,7 @@ using System.Text;
 using System.Windows.Media;
 using EliteInfoPanel.Util;
 using System.Text.RegularExpressions;
+using EliteInfoPanel.Core.Models;
 
 namespace EliteInfoPanel.Core
 {
@@ -17,6 +18,12 @@ namespace EliteInfoPanel.Core
         private static readonly SolidColorBrush CountdownRedBrush = new SolidColorBrush(Colors.Red);
         private static readonly SolidColorBrush CountdownGoldBrush = new SolidColorBrush(Colors.Gold);
         private static readonly SolidColorBrush CountdownGreenBrush = new SolidColorBrush(Colors.Green);
+        public string LastVisitedSystem { get; private set; }
+        private const string RouteProgressFile = "RouteProgress.json";
+        private RouteProgressState _routeProgress = new();
+
+
+
         private bool _isInitializing = true;
         public string CurrentStationName { get; private set; }
         private string gamePath;
@@ -146,6 +153,34 @@ namespace EliteInfoPanel.Core
         #endregion
 
         #region Public Methods
+        private void LoadRouteProgress()
+        {
+            try
+            {
+                if (File.Exists(RouteProgressFile))
+                {
+                    string json = File.ReadAllText(RouteProgressFile);
+                    _routeProgress = JsonSerializer.Deserialize<RouteProgressState>(json) ?? new RouteProgressState();
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to load RouteProgress.json");
+            }
+        }
+        private void SaveRouteProgress()
+        {
+            try
+            {
+                string json = JsonSerializer.Serialize(_routeProgress, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(RouteProgressFile, json);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to save RouteProgress.json");
+            }
+        }
+
 
         // In GameStateService.cs
         private void RaiseDataUpdated()
@@ -187,27 +222,24 @@ namespace EliteInfoPanel.Core
         }
 
         #endregion
-     
-        #region Private Methods
-        private void PruneCompletedRouteSystems()
-        {
-            if (CurrentRoute?.Route?.Count == 0)
-            {
-                routeWasActive = false;
-            }
 
+        #region Private Methods
+        public void PruneCompletedRouteSystems()
+        {
             if (CurrentRoute?.Route == null || string.IsNullOrWhiteSpace(CurrentSystem))
                 return;
 
-            int index = CurrentRoute.Route.FindIndex(r =>
-                string.Equals(r.StarSystem, CurrentSystem, StringComparison.OrdinalIgnoreCase));
+            // Try to match the current system (case-insensitive) to a route entry
+            int index = CurrentRoute.Route.FindIndex(j =>
+                string.Equals(j.StarSystem, CurrentSystem, StringComparison.OrdinalIgnoreCase));
 
             if (index >= 0)
             {
-              //  Log.Debug("Pruning route up to and including current system: {System}", CurrentSystem);
-                CurrentRoute.Route = CurrentRoute.Route.Skip(index + 1).ToList();
-            }
+                Log.Information("📍 Pruning route - current system is {0}, removing {1} previous entries",
+                    CurrentSystem, index);
 
+                CurrentRoute.Route = CurrentRoute.Route.Skip(index).ToList();
+            }
         }
 
 
@@ -293,12 +325,15 @@ namespace EliteInfoPanel.Core
             LoadCargoData();
             LoadBackpackData();
             LoadMaterialsData();
-            // Include additional calls if other JSON files exist
-            //  LoadLoadoutData(); // Optional, based on your scenario
+
             latestJournalPath = Directory.GetFiles(gamePath, "Journal.*.log")
-         .OrderByDescending(File.GetLastWriteTime)
-         .FirstOrDefault();
+                .OrderByDescending(File.GetLastWriteTime)
+                .FirstOrDefault();
+
+            LoadRouteProgress(); // 👈 Add this here
         }
+
+
 
 
         private async Task ProcessJournalAsync()
@@ -561,12 +596,38 @@ namespace EliteInfoPanel.Core
                             HyperspaceDestination = null;
                             HyperspaceStarClass = null;
 
+                            if (root.TryGetProperty("StarSystem", out JsonElement systemElement))
+                            {
+                                string currentSystem = systemElement.GetString();
+
+                                if (!string.Equals(LastVisitedSystem, currentSystem, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    LastVisitedSystem = currentSystem;
+                                }
+
+                                CurrentSystem = currentSystem;
+
+                                // 🧠 NEW: Track and persist progress
+                                if (!_routeProgress.CompletedSystems.Contains(CurrentSystem))
+                                {
+                                    _routeProgress.CompletedSystems.Add(CurrentSystem);
+                                    _routeProgress.LastKnownSystem = CurrentSystem;
+                                    SaveRouteProgress(); // persist to disk
+                                }
+
+                                PruneCompletedRouteSystems();
+
+                                if (!suppressUIUpdates)
+                                    RaiseDataUpdated();
+                            }
+
                             if (isInHyperspace)
                             {
                                 isInHyperspace = false;
-                                HyperspaceJumping?.Invoke(false, ""); // ✅ notify view model
+                                HyperspaceJumping?.Invoke(false, "");
                             }
                             break;
+
 
 
                         case "SupercruiseEntry":
@@ -581,13 +642,24 @@ namespace EliteInfoPanel.Core
                                 isInHyperspace = false;
                                 HyperspaceJumping?.Invoke(false, "");
                             }
-
-                            if (root.TryGetProperty("StarSystem", out JsonElement locationSystemElement))
+                            PruneCompletedRouteSystems();
+                            if (root.TryGetProperty("StarSystem", out JsonElement locationElement))
                             {
-                                CurrentSystem = locationSystemElement.GetString();
+                                string currentSystem = locationElement.GetString();
+
+                                if (!string.Equals(LastVisitedSystem, currentSystem, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    LastVisitedSystem = currentSystem;
+                                }
+
+                                CurrentSystem = currentSystem;
                                 PruneCompletedRouteSystems();
+
+                                RaiseDataUpdated(); // ensure route view updates
                             }
                             break;
+
+
 
                         case "SupercruiseExit":
                             if (isInHyperspace)
@@ -600,6 +672,8 @@ namespace EliteInfoPanel.Core
                             {
                                 CurrentSystem = exitSystemElement.GetString();
                                 PruneCompletedRouteSystems();
+                                RaiseDataUpdated();
+
                             }
                             break;
 
