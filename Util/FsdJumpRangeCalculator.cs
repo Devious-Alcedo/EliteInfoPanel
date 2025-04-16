@@ -109,10 +109,21 @@ namespace EliteInfoPanel.Util
             double maxFuelPerJump = specs.MaxFuelPerJump;
 
             // Apply engineering modifiers if applicable
+            // Apply engineering modifiers if applicable
             var optMassModifier = fsd.Engineering?.Modifiers?
                 .FirstOrDefault(m => m.Label.Equals("FSDOptimalMass", StringComparison.OrdinalIgnoreCase));
             if (optMassModifier != null)
                 optimalMass = optMassModifier.Value;
+
+            // Check for jump range boost (Mass Manager, etc.)
+            double jumpBoost = 0;
+            var experimental = fsd.Engineering?.ExperimentalEffect?.ToLowerInvariant();
+            if (!string.IsNullOrEmpty(experimental) &&
+                (experimental.Contains("mass_manager") || experimental.Contains("fsd") || experimental.Contains("range")))
+            {
+                jumpBoost = 1.0; // Conservative flat bonus, EDSY sometimes estimates ~1.0 LY
+            }
+
 
             // Calculate the fuel used for this jump
             double fuelUsed = maxFuel
@@ -130,13 +141,15 @@ namespace EliteInfoPanel.Util
             {
                 // Current jump range includes cargo and fuel
                 double cargoMass = cargo?.Inventory?.Sum(i => i.Count) ?? 0;
-                double fuelMass = status?.Fuel?.FuelMain ?? 0;
+                double fuelMass = (status?.Fuel?.FuelMain ?? 0) * 0.95;
+
                 shipMass = loadout.UnladenMass + cargoMass + fuelMass;
             }
 
             // Apply the formula without any scaling
-            double jumpRange = (Math.Pow(100, 1 / classConstant) * optimalMass *
-                              Math.Pow(fuelUsed / ratingConstant, 1 / classConstant)) / shipMass;
+            double jumpRange = ((Math.Pow(100, 1 / classConstant) * optimalMass *
+                        Math.Pow(fuelUsed / ratingConstant, 1 / classConstant)) / shipMass) + jumpBoost;
+
 
             Log.Information("⚙ {0} Jump Range → Size: {1}, Rating: {2}, ClassConst: {3}, RatingConst: {4}, " +
                           "OptMass: {5}, FuelUsed: {6}, ShipMass: {7} = {8:0.00} LY (unscaled)",
