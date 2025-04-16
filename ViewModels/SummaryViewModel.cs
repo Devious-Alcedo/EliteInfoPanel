@@ -19,6 +19,12 @@ namespace EliteInfoPanel.ViewModels
         {
             return Items.FirstOrDefault(x => x.Tag == tag);
         }
+        private string _fuelPanelTitle;
+        public string FuelPanelTitle
+        {
+            get => _fuelPanelTitle;
+            set => SetProperty(ref _fuelPanelTitle, value);
+        }
 
         private bool _showFuelBar;
         public bool ShowFuelBar
@@ -356,6 +362,7 @@ namespace EliteInfoPanel.ViewModels
                     ShowFuelBar = false;
                     return;
                 }
+              
 
                 if (status.Flags.HasFlag(Flag.InSRV) && status.SRV != null)
                 {
@@ -366,6 +373,8 @@ namespace EliteInfoPanel.ViewModels
                 }
                 else if (status.Fuel != null)
                 {
+                    double maxRange = FsdJumpRangeCalculator.EstimateMaxJumpRange(_gameState.CurrentLoadout);
+                    FuelPanelTitle = $"Fuel - Max Range: {maxRange:0.00}LY";
                     FuelMain = Math.Round(status.Fuel.FuelMain, 2);
                     FuelReservoir = Math.Round(status.Fuel.FuelReservoir, 2);
 

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
@@ -22,9 +23,15 @@ namespace EliteInfoPanel.Core
             public string Ship { get; set; }
             public string ShipIdent { get; set; }
             public string ShipName { get; set; }
-
+            public string Slot { get; set; }
+            public int Class { get; set; }  // e.g. 5
+            public string Rating { get; set; } // e.g. A
             #endregion Public Properties
+            public float HullValue { get; set; }
+            public float ModulesValue { get; set; }
 
+            // optional: fuel capacity if needed
+     
             #region Public Classes
 
             public class FuelCapacityInfo

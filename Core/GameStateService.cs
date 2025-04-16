@@ -23,6 +23,7 @@ namespace EliteInfoPanel.Core
         private FileSystemWatcher watcher;
         private bool _firstLoadCompleted = false;
         public bool FirstLoadCompleted => _firstLoadCompleted;
+        public double MaxJumpRange { get; private set; }
 
         public DateTime? CarrierJumpScheduledTime { get; private set; }
         public bool FleetCarrierJumpInProgress { get; private set; }
@@ -383,6 +384,23 @@ namespace EliteInfoPanel.Core
                             if (loadout != null)
                             {
                                 CurrentLoadout = loadout;
+                                if (loadout?.FuelCapacity?.Main > 0 && loadout.FuelCapacity.Main > 0 && loadout.Modules != null)
+                                {
+                                    var fsd = loadout.Modules.FirstOrDefault(m => m.Slot == "Slot06_Size5");
+                                    if (fsd != null && fsd.EngineerLevel > 0)
+                                    {
+                                        MaxJumpRange = fsd.EngineerLevel switch
+                                        {
+                                            1 => 20.0,
+                                            2 => 25.0,
+                                            3 => 30.0,
+                                            4 => 35.0,
+                                            5 => 40.0,
+                                            _ => 25.0
+                                        };
+                                    }
+                                }
+
                                 UserShipName = loadout.ShipName;
                                 UserShipId = loadout.ShipIdent;
                                 Log.Debug("Shipname " + loadout.ShipName);
