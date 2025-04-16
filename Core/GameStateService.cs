@@ -22,6 +22,7 @@ namespace EliteInfoPanel.Core
         private const string RouteProgressFile = "RouteProgress.json";
         private RouteProgressState _routeProgress = new();
 
+        private bool _isRouteLoaded = false;
 
 
         private bool _isInitializing = true;
@@ -289,13 +290,31 @@ namespace EliteInfoPanel.Core
 
         private void LoadNavRouteData()
         {
-            CurrentRoute = DeserializeJsonFile<NavRouteJson>(Path.Combine(gamePath, "NavRoute.json"));
-            if (CurrentRoute?.Route == null || CurrentRoute.Route.Count == 0)
+            var loadedRoute = DeserializeJsonFile<NavRouteJson>(Path.Combine(gamePath, "NavRoute.json"));
+
+            if (loadedRoute?.Route == null || loadedRoute.Route.Count == 0)
             {
                 CurrentRoute = null;
                 RemainingJumps = null;
+                return;
             }
+
+            // Avoid overwriting if identical (simple comparison using just system names)
+            if (CurrentRoute != null &&
+                CurrentRoute.Route.Select(r => r.StarSystem)
+                    .SequenceEqual(loadedRoute.Route.Select(r => r.StarSystem), StringComparer.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            CurrentRoute = loadedRoute;
+
+            // Immediately prune jumps already completed
+            PruneCompletedRouteSystems();
         }
+
+
+
 
         private void LoadCargoData()
         {
