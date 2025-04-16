@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace EliteInfoPanel.Core
@@ -22,7 +23,7 @@ namespace EliteInfoPanel.Core
         public string? Slot { get; set; }
         public int Class { get; set; }
         public string Rating { get; set; }
-
+       
         #endregion Public Properties
     }
 

@@ -1,4 +1,5 @@
-﻿using EliteInfoPanel.Core.EliteInfoPanel.Core;
+﻿using System.Text.RegularExpressions;
+using EliteInfoPanel.Core.EliteInfoPanel.Core;
 using Serilog;
 using System.Diagnostics;
 using System.IO;
@@ -6,6 +7,7 @@ using System.Text.Json;
 using System.Text;
 using System.Windows.Media;
 using EliteInfoPanel.Util;
+using System.Text.RegularExpressions;
 
 namespace EliteInfoPanel.Core
 {
@@ -380,24 +382,20 @@ namespace EliteInfoPanel.Core
 
                         case "Loadout":
                             var loadout = JsonSerializer.Deserialize<LoadoutJson>(line);
-                            Log.Debug("Updating fuel: FuelMain={0}, FuelReservoir={1}, Max={2}");
+                            Log.Debug("Loadout modules:");
+                            foreach (var mod in loadout.Modules)
+                            {
+                                Log.Debug(" - Item: {Item}, Slot: {Slot}, Class: {Class}, Rating: {Rating}", mod.Item, mod.Slot, mod.Class, mod.Rating);
+                            }
                             if (loadout != null)
                             {
                                 CurrentLoadout = loadout;
-                                if (loadout?.FuelCapacity?.Main > 0 && loadout.FuelCapacity.Main > 0 && loadout.Modules != null)
+
+                                foreach (var module in loadout.Modules)
                                 {
-                                    var fsd = loadout.Modules.FirstOrDefault(m => m.Slot == "Slot06_Size5");
-                                    if (fsd != null && fsd.EngineerLevel > 0)
+                                    if (module.Class == 0 || string.IsNullOrEmpty(module.Rating))
                                     {
-                                        MaxJumpRange = fsd.EngineerLevel switch
-                                        {
-                                            1 => 20.0,
-                                            2 => 25.0,
-                                            3 => 30.0,
-                                            4 => 35.0,
-                                            5 => 40.0,
-                                            _ => 25.0
-                                        };
+                                        InferClassAndRatingFromItem(module);
                                     }
                                 }
 
@@ -639,7 +637,22 @@ namespace EliteInfoPanel.Core
                 Log.Warning(ex, "Error processing journal file");
             }
         }
-      
+        private void InferClassAndRatingFromItem(LoadoutModule module)
+        {
+            if (!string.IsNullOrEmpty(module.Item))
+            {
+                var match = Regex.Match(module.Item, @"_(size)?(?<class>\d+)_class(?<rating>\d+)", RegexOptions.IgnoreCase);
+                if (match.Success)
+                {
+                    if (int.TryParse(match.Groups["class"].Value, out var classNum))
+                    {
+                        module.Class = classNum;
+                    }
+                    module.Rating = match.Groups["rating"].Value;
+                }
+            }
+        }
+
 
         private void ScanJournalForPendingCarrierJump()
         {

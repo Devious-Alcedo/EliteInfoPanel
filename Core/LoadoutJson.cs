@@ -29,9 +29,9 @@ namespace EliteInfoPanel.Core
             #endregion Public Properties
             public float HullValue { get; set; }
             public float ModulesValue { get; set; }
-
+            public double UnladenMass { get; set; }
             // optional: fuel capacity if needed
-     
+            public float MaxJumpRange { get; set; }
             #region Public Classes
 
             public class FuelCapacityInfo
