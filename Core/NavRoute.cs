@@ -16,6 +16,8 @@ namespace EliteInfoPanel.Core
             public long SystemAddress { get; set; }
             public double[] StarPos { get; set; }
             public string StarClass { get; set; }
+
+            public float Distance { get; set; }
         }
     }
 

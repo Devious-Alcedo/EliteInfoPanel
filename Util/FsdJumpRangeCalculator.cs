@@ -165,6 +165,46 @@ namespace EliteInfoPanel.Util
             var (_, max) = CalculateJumpRanges(fsd, loadout, status, cargo);
             return max;
         }
+        public static double EstimateFuelUsage(LoadoutModule fsd, LoadoutJson loadout, double distance, CargoJson? cargo = null)
+        {
+            var fsdKey = GetFsdSpecKeyFromItem(fsd.Item);
+            if (string.IsNullOrEmpty(fsdKey) || !FsdSpecs.TryGetValue(fsdKey, out var specs))
+                return 0;
+
+            double optimalMass = specs.OptimalMass;
+            double maxFuelPerJump = specs.MaxFuelPerJump;
+
+            var optMassModifier = fsd.Engineering?.Modifiers?
+                .FirstOrDefault(m => m.Label.Equals("FSDOptimalMass", StringComparison.OrdinalIgnoreCase));
+            if (optMassModifier != null)
+                optimalMass = optMassModifier.Value;
+
+            double ratingConstant = GetRatingConstant(fsdKey[1]);
+            double exponent = GetClassExponent(fsdKey[0] - '0'); // '6' → 6
+
+            if (ratingConstant == 0 || exponent == 0 || optimalMass == 0)
+                return 0;
+
+            // Estimate ship mass including cargo
+            double cargoMass = cargo?.Inventory?.Sum(i => i.Count) ?? 0;
+            double shipMass = loadout.UnladenMass + cargoMass;
+
+            // Rearranged from the jump range formula: D = (fuel / R)^1/E * M / mass
+            // Solve for fuel:
+            double ratio = (distance * shipMass / optimalMass);
+            double fuel = Math.Pow(ratio, exponent) * ratingConstant;
+
+            return Math.Min(fuel, maxFuelPerJump); // clamp to max
+        }
+        private static double GetRatingConstant(char rating)
+        {
+            return RatingConstants.TryGetValue(rating, out double value) ? value : 0;
+        }
+
+        private static double GetClassExponent(int size)
+        {
+            return ClassConstants.TryGetValue(size, out double value) ? value : 0;
+        }
 
         public static double CalculateCurrentJumpRange(LoadoutModule fsd, LoadoutJson loadout, StatusJson status, CargoJson cargo)
         {

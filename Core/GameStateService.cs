@@ -24,6 +24,7 @@ namespace EliteInfoPanel.Core
         private string latestJournalPath;
         private FileSystemWatcher watcher;
         private bool _firstLoadCompleted = false;
+        public (double X, double Y, double Z)? CurrentSystemCoordinates { get; set; }
         public bool FirstLoadCompleted => _firstLoadCompleted;
         public double MaxJumpRange { get; private set; }
 
