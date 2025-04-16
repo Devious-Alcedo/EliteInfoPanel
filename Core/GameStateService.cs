@@ -418,7 +418,7 @@ namespace EliteInfoPanel.Core
                                 CurrentSystem = carrierSystem.GetString();
                                 Log.Debug("Updated CurrentSystem from CarrierLocation: {System}", CurrentSystem);
                                 if (!suppressUIUpdates)
-                                    DataUpdated?.Invoke();
+                                    RaiseDataUpdated();
                             }
                             break;
 

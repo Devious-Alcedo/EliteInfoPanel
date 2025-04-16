@@ -16,7 +16,7 @@ namespace EliteInfoPanel.Core
             public FuelCapacityInfo FuelCapacity { get; set; }
             // Optionally:
             public float FuelMainCapacity => FuelCapacity?.Main ?? 0;
-
+            public int CargoCapacity { get; set; }
             public float? HullHealth { get; set; }
             public List<LoadoutModule> Modules { get; set; }
             public string Ship { get; set; }

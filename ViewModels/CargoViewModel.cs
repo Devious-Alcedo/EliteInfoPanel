@@ -30,8 +30,6 @@ namespace EliteInfoPanel.ViewModels
             {
                 Items.Clear();
 
-
-
                 if (_gameState.CurrentCargo?.Inventory == null)
                     return;
 
@@ -43,8 +41,25 @@ namespace EliteInfoPanel.ViewModels
                         CommodityMapper.GetDisplayName(item.Name),
                         item.Count));
                 }
+
+                UpdateCargoTitle(); // ✅ Call this at the end
             });
         }
+
+        private void UpdateCargoTitle()
+        {
+            int used = 0;
+            int total = 0;
+
+            if (_gameState.CurrentCargo?.Inventory != null)
+                used = _gameState.CurrentCargo.Inventory.Sum(i => i.Count);
+
+            if (_gameState.CurrentLoadout != null)
+                total = _gameState.CurrentLoadout.CargoCapacity;
+
+            Title = $"Cargo {used}/{total}";
+        }
+
     }
 
     public class CargoItemViewModel : ViewModelBase
