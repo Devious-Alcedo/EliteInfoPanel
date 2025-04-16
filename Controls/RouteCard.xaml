@@ -40,7 +40,7 @@
                                             <Setter.Value>
                                                 <ControlTemplate>
                                                     <TextBlock Text="{Binding Text}" 
-                                                               FontSize="20" 
+                                                               FontSize="18" 
                                                                Margin="0,0,0,6"
                                                                Foreground="{DynamicResource MaterialDesignBody}"/>
                                                 </ControlTemplate>
@@ -51,7 +51,7 @@
                                         <Setter Property="Template">
                                             <Setter.Value>
                                                 <ControlTemplate>
-                                                    <TextBlock FontSize="24" 
+                                                    <TextBlock FontSize="18" 
                                                                Margin="8,0,0,2"
                                                                Foreground="{DynamicResource MaterialDesignBody}"
                                                                Cursor="Hand"

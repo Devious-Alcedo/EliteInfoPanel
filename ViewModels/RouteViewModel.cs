@@ -4,6 +4,8 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows.Input;
 using EliteInfoPanel.Core;
+using EliteInfoPanel.Util;
+using Serilog;
 using TextCopy;
 
 namespace EliteInfoPanel.ViewModels
@@ -11,6 +13,7 @@ namespace EliteInfoPanel.ViewModels
     public class RouteViewModel : CardViewModel
     {
         private readonly GameStateService _gameState;
+        public double EstimatedFuelRemaining { get; set; } // in tonnes
 
         public ObservableCollection<RouteItemViewModel> Items { get; } = new();
         public ICommand CopySystemNameCommand { get; }
@@ -31,6 +34,21 @@ namespace EliteInfoPanel.ViewModels
 
         private void UpdateRoute()
         {
+            // Seed starting point from first jump that has valid StarPos
+            var jumps = _gameState.CurrentRoute?.Route?.Where(j => j.StarPos?.Length == 3).ToList();
+            if (jumps != null && jumps.Count > 0)
+            {
+                _gameState.CurrentSystemCoordinates = (
+                    jumps[0].StarPos[0],
+                    jumps[0].StarPos[1],
+                    jumps[0].StarPos[2]
+                );
+            }
+            else
+            {
+                _gameState.CurrentSystemCoordinates = null;
+            }
+
             RunOnUIThread(() =>
             {
                 Items.Clear();
@@ -74,18 +92,76 @@ namespace EliteInfoPanel.ViewModels
                             null, null, RouteItemType.Destination));
                     }
                 }
+                var fuelStatus = _gameState.CurrentStatus?.Fuel;
+                var fsd = _gameState.CurrentLoadout?.Modules?.FirstOrDefault(m => m.Slot == "FrameShiftDrive");
+                var loadout = _gameState.CurrentLoadout;
+                var cargo = _gameState.CurrentCargo;
+
+                double remainingFuel = fuelStatus?.FuelMain ?? 0;
 
                 // Show route systems
                 if (_gameState.CurrentRoute?.Route?.Any() == true)
                 {
-                    foreach (var jump in _gameState.CurrentRoute.Route)
+                    // Seed starting coordinates from the first jump's StarPos
+                    var firstJumpWithStarPos = _gameState.CurrentRoute.Route.FirstOrDefault(j => j.StarPos is { Length: 3 });
+                    if (firstJumpWithStarPos?.StarPos is { Length: 3 } starPos)
                     {
+                        _gameState.CurrentSystemCoordinates = (starPos[0], starPos[1], starPos[2]);
+                    }
+                    else
+                    {
+                        _gameState.CurrentSystemCoordinates = null;
+                    }
+
+
+                    var nextJumps = _gameState.CurrentRoute.Route
+                        .SkipWhile(j => string.Equals(j.StarSystem, _gameState.CurrentSystem, StringComparison.OrdinalIgnoreCase))
+                        .Take(4);
+
+                    foreach (var jump in nextJumps)
+
+                    {
+                        // Determine scoopable status
+                        string scoopIcon = "🔴"; // default to non-scoopable
+                        if (!string.IsNullOrWhiteSpace(jump.StarClass))
+                        {
+                            char primaryClass = char.ToUpper(jump.StarClass[0]);
+                            if ("OBAFGKM".Contains(primaryClass))
+                            {
+                                scoopIcon = "🟡"; // scoopable
+                            }
+                        }
+
+                        string label = $"{scoopIcon} {jump.StarSystem}";
+
+
+                        double jumpDistance = 0;
+                        double fuelUsed = 0;
+
+                        if (fsd != null && loadout != null && cargo != null && remainingFuel > 0)
+                        {
+                            if (jump.StarPos != null && jump.StarPos.Length == 3 && _gameState.CurrentSystemCoordinates != null)
+                            {
+                                var currentSystem = (jump.StarPos[0], jump.StarPos[1], jump.StarPos[2]);
+                                jumpDistance = VectorUtil.CalculateDistance(_gameState.CurrentSystemCoordinates.Value, currentSystem);
+                                _gameState.CurrentSystemCoordinates = currentSystem;
+
+                                fuelUsed = FsdJumpRangeCalculator.EstimateFuelUsage(fsd, loadout, jumpDistance, cargo);
+                                remainingFuel -= fuelUsed;
+                                remainingFuel = Math.Max(remainingFuel, 0);
+
+                                label += $"\n  [Distance: {jumpDistance:0.00} LY]\n  [Fuel: ⛽ {remainingFuel:0.00} t]";
+
+                            }
+                        }
+
                         Items.Add(new RouteItemViewModel(
-                            jump.StarSystem,
+                            label,
                             jump.StarClass,
                             jump.SystemAddress,
                             RouteItemType.System));
                     }
+
                 }
             });
         }
@@ -141,6 +217,7 @@ namespace EliteInfoPanel.ViewModels
             System.Diagnostics.Debug.WriteLine($"Toast: {message}");
         }
     }
+
 
     public enum RouteItemType
     {

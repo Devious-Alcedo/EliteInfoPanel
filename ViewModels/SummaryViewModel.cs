@@ -19,6 +19,12 @@ namespace EliteInfoPanel.ViewModels
         {
             return Items.FirstOrDefault(x => x.Tag == tag);
         }
+        private string _fuelPanelTitle;
+        public string FuelPanelTitle
+        {
+            get => _fuelPanelTitle;
+            set => SetProperty(ref _fuelPanelTitle, value);
+        }
 
         private bool _showFuelBar;
         public bool ShowFuelBar
@@ -346,17 +352,14 @@ namespace EliteInfoPanel.ViewModels
                 System.Windows.Application.Current.Dispatcher.Invoke(UpdateFuelInfo);
                 return;
             }
-
             try
             {
                 var status = _gameState.CurrentStatus;
-
                 if (status?.Fuel == null)
                 {
                     ShowFuelBar = false;
                     return;
                 }
-
                 if (status.Flags.HasFlag(Flag.InSRV) && status.SRV != null)
                 {
                     FuelMain = Math.Round(status.SRV.Fuel, 2);
@@ -366,10 +369,94 @@ namespace EliteInfoPanel.ViewModels
                 }
                 else if (status.Fuel != null)
                 {
+                    // Find the FSD module in the loadout
+                    var loadout = _gameState.CurrentLoadout;
+                    var cargo = _gameState.CurrentCargo;
+
+                    // Debug FSD module identification
+                    var fsd = loadout?.Modules?.FirstOrDefault(m => m.Slot == "FrameShiftDrive");
+
+                    if (fsd != null && loadout != null && status != null && cargo != null)
+                    {
+                        // Log detailed information about the parameters for debugging
+                        var fsdKey = FsdJumpRangeCalculator.GetFsdSpecKeyFromItem(fsd.Item);
+                        double cargoMass = cargo?.Inventory?.Sum(i => i.Count) ?? 0;
+
+                        Log.Information("🚀 Jump Range Debug - Parameters:");
+                        Log.Information("  - FSD Module: {0}, Key: {1}", fsd.Item, fsdKey);
+                        Log.Information("  - Loadout: UnladenMass={0}, Game MaxJumpRange={1}",
+                            loadout.UnladenMass, loadout.MaxJumpRange);
+                        Log.Information("  - Fuel: Main={0}, Reserve={1}",
+                            status.Fuel.FuelMain, status.Fuel.FuelReservoir);
+                        Log.Information("  - Cargo Mass: {0}", cargoMass);
+
+                        // Log FSD engineering if present
+                        if (fsd.Engineering != null && fsd.Engineering.Modifiers != null)
+                        {
+                            var optMassModifier = fsd.Engineering.Modifiers
+                                .FirstOrDefault(m => m.Label.Equals("FSDOptimalMass", StringComparison.OrdinalIgnoreCase));
+                            if (optMassModifier != null)
+                            {
+                                Log.Information("  - FSD Engineering: OptimalMass={0}", optMassModifier.Value);
+                            }
+                        }
+
+                        // Try different base constant values for debugging
+                        if (fsdKey != null)
+                        {
+                            int size = int.Parse(fsdKey[0].ToString());
+                            char rating = fsdKey[1];
+
+                            // Get constants from dictionaries (assuming these are accessible)
+                            // This is just pseudocode - adjust to match your actual implementation
+                            double classConstant = 0;
+                            double ratingConstant = 0;
+
+                            // Use reflection to get the constants if they're private
+                            var classConstants = typeof(FsdJumpRangeCalculator)
+                                .GetField("ClassConstants", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
+                                ?.GetValue(null) as Dictionary<int, double>;
+
+                            var ratingConstants = typeof(FsdJumpRangeCalculator)
+                                .GetField("RatingConstants", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
+                                ?.GetValue(null) as Dictionary<char, double>;
+
+                            if (classConstants != null && ratingConstants != null)
+                            {
+                                classConstants.TryGetValue(size, out classConstant);
+                                ratingConstants.TryGetValue(rating, out ratingConstant);
+
+                                Log.Information("  - Constants: Class={0}, Rating={1}", classConstant, ratingConstant);
+                            }
+                        }
+
+                        // Calculate the jump ranges
+                        double maxRange = FsdJumpRangeCalculator.CalculateMaxJumpRange(fsd, loadout, status, cargo);
+                        double currentRange = FsdJumpRangeCalculator.CalculateCurrentJumpRange(fsd, loadout, status, cargo);
+
+                        // Compare with game provided value if available
+                        if (loadout.MaxJumpRange > 0)
+                        {
+                            Log.Information("  - COMPARISON - Calculated Max: {0:0.00} LY, Game Max: {1:0.00} LY, Ratio: {2:0.00}",
+                                maxRange, loadout.MaxJumpRange, loadout.MaxJumpRange / maxRange);
+                        }
+
+                        Log.Information("  - Final calculated values - Current: {0:0.00} LY, Max: {1:0.00} LY",
+                            currentRange, maxRange);
+
+                        FuelPanelTitle = $"Fuel - Current: {currentRange:0.00} LY | Max: {maxRange:0.00} LY";
+                    }
+                    else
+                    {
+                        // Log which components are missing
+                        Log.Warning("Missing components for jump range calculation: FSD={0}, Loadout={1}, Status={2}, Cargo={3}",
+                            fsd != null, loadout != null, status != null, cargo != null);
+
+                        FuelPanelTitle = "Fuel - Jump range: Unknown";
+                    }
+
                     FuelMain = Math.Round(status.Fuel.FuelMain, 2);
                     FuelReservoir = Math.Round(status.Fuel.FuelReservoir, 2);
-
-                    var loadout = _gameState.CurrentLoadout;
                     if (loadout?.FuelCapacity?.Main > 0)
                     {
                         double max = loadout.FuelCapacity.Main;
