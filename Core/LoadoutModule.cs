@@ -22,6 +22,7 @@ namespace EliteInfoPanel.Core
         public string? Slot { get; set; }
         public int Class { get; set; }
         public string Rating { get; set; }
+
         #endregion Public Properties
     }
 
