@@ -10,10 +10,7 @@
 
     <StackPanel>
         <TextBlock Text="{Binding Title}" 
-                   FontSize="24" 
-                   FontWeight="Bold" 
-                   Foreground="Orange" 
-                   Margin="0,0,0,5"/>
+                   Style="{StaticResource CardTitleStyle}"/>
 
         <!-- Flags container -->
         <WrapPanel Orientation="Horizontal">
@@ -27,6 +24,7 @@
                     <DataTemplate>
                         <materialDesign:Chip Content="{Binding DisplayText}"
                                              Margin="6"
+                                             FontSize="{DynamicResource BaseFontSize}"
                                              Background="#FF2196F3"
                                              Foreground="White">
                             <materialDesign:Chip.Icon>

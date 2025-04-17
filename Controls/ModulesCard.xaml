@@ -16,15 +16,11 @@
             <DoubleAnimation Storyboard.TargetProperty="Opacity"
                      From="0" To="1" Duration="0:0:0.5"/>
         </Storyboard>
-
     </UserControl.Resources>
 
     <StackPanel>
         <TextBlock Text="{Binding Title}" 
-                   FontSize="24" 
-                   FontWeight="Bold" 
-                   Foreground="Orange" 
-                   Margin="0,0,0,5"/>
+                   Style="{StaticResource CardTitleStyle}"/>
 
         <Grid x:Name="modulesContent">
             <Grid.ColumnDefinitions>
@@ -35,9 +31,7 @@
             <!-- Left Column -->
             <ItemsControl x:Name="LeftItemsControl"
                   Grid.Column="0"
-                  ItemsSource="{Binding LeftItems}"
-                    
-                >
+                  ItemsSource="{Binding LeftItems}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <StackPanel />
@@ -45,7 +39,7 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <TextBlock FontSize="20"
+                        <TextBlock FontSize="{DynamicResource BaseFontSize}"
                            Margin="4"
                            Foreground="{Binding HealthColor}"
                            TextWrapping="Wrap"
@@ -66,9 +60,7 @@
             <!-- Right Column -->
             <ItemsControl x:Name="RightItemsControl"
                   Grid.Column="1"
-                  ItemsSource="{Binding RightItems}"
-                            
-            >
+                  ItemsSource="{Binding RightItems}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <StackPanel />
@@ -76,7 +68,7 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <TextBlock FontSize="20"
+                        <TextBlock FontSize="{DynamicResource BaseFontSize}"
                            Margin="4"
                            Foreground="{Binding HealthColor}"
                            TextWrapping="Wrap"

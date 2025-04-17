@@ -7,6 +7,7 @@ using Serilog;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
 using EliteInfoPanel.ViewModels;
+using EliteInfoPanel.Converters;
 using WpfScreenHelper;
 using System.Windows.Data;
 
@@ -38,6 +39,13 @@ namespace EliteInfoPanel.Dialogs
             settings.DisplayOptions ??= new DisplayOptions();
             settings.DisplayOptions.VisibleFlags ??= new List<Flag>();
 
+            // Initialize font scales if they're 0
+            if (settings.FullscreenFontScale <= 0)
+                settings.FullscreenFontScale = 1.0;
+
+            if (settings.FloatingFontScale <= 0)
+                settings.FloatingFontScale = 1.0;
+
             Log.Information("Loaded settings: {@Settings}", settings);
 
             // Create view model
@@ -58,6 +66,9 @@ namespace EliteInfoPanel.Dialogs
                     WindowModeChanged?.Invoke(_viewModel.IsFloatingWindowMode);
                 }
 
+                // Notify about font size change
+                FontSizeChanged?.Invoke();
+
                 // Close the dialog
                 DialogResult = true;
                 Close();
@@ -73,6 +84,7 @@ namespace EliteInfoPanel.Dialogs
 
             // Subscribe to events
             _viewModel.ScreenChanged += screen => ScreenChanged?.Invoke(screen);
+            _viewModel.FontSizeChanged += () => FontSizeChanged?.Invoke();
 
             // Position the window
             PositionWindowOnScreen(settings);
@@ -92,6 +104,7 @@ namespace EliteInfoPanel.Dialogs
 
         public event Action<Screen> ScreenChanged;
         public event Action<bool> WindowModeChanged;
+        public event Action FontSizeChanged;
 
         #endregion Public Events
 

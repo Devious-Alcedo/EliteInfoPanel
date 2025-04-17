@@ -49,10 +49,7 @@
     <StackPanel Margin="8,4,8,8">
         <!-- Title -->
         <TextBlock Text="{Binding Title}" 
-                   FontSize="24" 
-                   FontWeight="Bold" 
-                   Foreground="Orange" 
-                   Margin="0,0,0,8"/>
+                   Style="{StaticResource CardTitleStyle}"/>
 
         <!-- Regular summary items -->
         <ItemsControl ItemsSource="{Binding Source={StaticResource NormalItemsView}}">
@@ -69,7 +66,7 @@
                                                  Foreground="{Binding Foreground}" />
                         <TextBlock x:Name="ItemText"
                                    Text="{Binding Content}"
-                                   FontSize="{Binding FontSize}"
+                                   FontSize="{DynamicResource BaseFontSize}"
                                    Foreground="{Binding Foreground}"
                                    VerticalAlignment="Center"
                                    FontWeight="Bold"
@@ -96,12 +93,12 @@
 
         <!-- Fuel Info -->
         <StackPanel Visibility="{Binding ShowFuelBar, Converter={StaticResource BoolToVis}}" Margin="0,12,0,0">
-            <TextBlock FontSize="20"
+            <TextBlock FontSize="{DynamicResource BaseFontSize}"
                        Foreground="Orange"
                        FontWeight="SemiBold"
                        Text="{Binding FuelPanelTitle}"
                        Margin="0,0,0,4"/>
-            <TextBlock FontSize="20"
+            <TextBlock FontSize="{DynamicResource BaseFontSize}"
                        Foreground="White">
                 <TextBlock.Text>
                     <MultiBinding StringFormat="Main: {0:0.00}   Reserve: {1:0.00}">
@@ -135,7 +132,7 @@
                                                  Foreground="{Binding Foreground}" />
                         <TextBlock x:Name="ItemText"
                                    Text="{Binding Content}"
-                                   FontSize="{Binding FontSize}"
+                                   FontSize="{DynamicResource BaseFontSize}"
                                    Foreground="{Binding Foreground}"
                                    VerticalAlignment="Center"
                                    FontWeight="Bold"

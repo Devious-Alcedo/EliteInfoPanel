@@ -350,7 +350,44 @@ namespace EliteInfoPanel.ViewModels
                 }
             }
         }
+        // Public method to refresh layout when font size changes
+        public void RefreshLayout()
+        {
+            // First refresh visibility to ensure the right cards are shown
+            RefreshCardVisibility();
 
+            // Force recreate all cards to apply new font sizes
+            RecreateAllCards();
+
+            // Then update the layout to apply new spacing/fonts
+            UpdateCardLayout();
+        }
+
+        // Forces recreation of all cards to apply new font settings
+        private void RecreateAllCards()
+        {
+            // Make sure we're on the UI thread
+            if (!System.Windows.Application.Current.Dispatcher.CheckAccess())
+            {
+                System.Windows.Application.Current.Dispatcher.Invoke(RecreateAllCards);
+                return;
+            }
+
+            if (_mainGrid == null) return;
+
+            // Clear all card elements from the grid
+            for (int i = _mainGrid.Children.Count - 1; i >= 0; i--)
+            {
+                if (_mainGrid.Children[i] is Card)
+                {
+                    _mainGrid.Children.RemoveAt(i);
+                }
+            }
+
+            // Force layout update
+            _mainGrid.UpdateLayout();
+        }
+    
         private void OpenOptions()
         {
             // This will be handled in the view

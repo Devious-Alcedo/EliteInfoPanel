@@ -28,6 +28,13 @@ namespace EliteInfoPanel
             // Load settings
             _appSettings = SettingsManager.Load();
 
+            // Initialize default font scales if needed
+            if (_appSettings.FullscreenFontScale <= 0)
+                _appSettings.FullscreenFontScale = 1.0;
+
+            if (_appSettings.FloatingFontScale <= 0)
+                _appSettings.FloatingFontScale = 1.0;
+
             // Initialize the GameStateService
             var gamePath = EliteDangerousPaths.GetSavedGamesPath();
             var gameState = new GameStateService(gamePath);
@@ -81,7 +88,6 @@ namespace EliteInfoPanel
                 ResizeMode = ResizeMode.CanResize;
                 Topmost = _appSettings.AlwaysOnTop;
                 WindowState = WindowState.Normal;
-               
 
                 // Set size and position from saved settings
                 Left = _appSettings.FloatingWindowLeft;
@@ -94,7 +100,6 @@ namespace EliteInfoPanel
                 Log.Information("Applied floating window settings: {Left}x{Top} {Width}x{Height}",
                     Left, Top, Width, Height);
                 UpdateFontResources();
-
             }
             else
             {
@@ -228,20 +233,34 @@ namespace EliteInfoPanel
         }
         private void UpdateFontResources()
         {
-            // Define font sizes based on window mode
-            double baseFontSize = _appSettings.UseFloatingWindow ? 11.0 : 14.0;
-            double headerFontSize = _appSettings.UseFloatingWindow ? 13.0 : 16.0;
-            double smallFontSize = _appSettings.UseFloatingWindow ? 9.0 : 12.0;
+            // Get the current font scale based on window mode
+            double fontScale = _appSettings.UseFloatingWindow
+                ? _appSettings.FloatingFontScale
+                : _appSettings.FullscreenFontScale;
+
+            // Apply the scale to the base font sizes
+            double baseFontSize = _appSettings.UseFloatingWindow
+                ? AppSettings.DEFAULT_FLOATING_BASE * fontScale
+                : AppSettings.DEFAULT_FULLSCREEN_BASE * fontScale;
+
+            double headerFontSize = _appSettings.UseFloatingWindow
+                ? AppSettings.DEFAULT_FLOATING_HEADER * fontScale
+                : AppSettings.DEFAULT_FULLSCREEN_HEADER * fontScale;
+
+            double smallFontSize = _appSettings.UseFloatingWindow
+                ? AppSettings.DEFAULT_FLOATING_SMALL * fontScale
+                : AppSettings.DEFAULT_FULLSCREEN_SMALL * fontScale;
 
             // Update application resources
             Application.Current.Resources["BaseFontSize"] = baseFontSize;
             Application.Current.Resources["HeaderFontSize"] = headerFontSize;
             Application.Current.Resources["SmallFontSize"] = smallFontSize;
 
-            Log.Debug("Updated font resources for {Mode} mode: Base={Base}, Header={Header}, Small={Small}",
+            Log.Debug("Updated font resources for {Mode} mode with scale {Scale}: Base={Base}, Header={Header}, Small={Small}",
                 _appSettings.UseFloatingWindow ? "floating window" : "full screen",
-                baseFontSize, headerFontSize, smallFontSize);
+                fontScale, baseFontSize, headerFontSize, smallFontSize);
         }
+
         private void ApplyScreenBounds(Screen targetScreen)
         {
             WindowState = WindowState.Normal; // Force out of maximized state
@@ -271,6 +290,25 @@ namespace EliteInfoPanel
             {
                 _appSettings.UseFloatingWindow = useFloatingWindow;
                 ApplyWindowSettings();
+            };
+
+            // Add handler for font size changes
+            options.FontSizeChanged += () =>
+            {
+                // Update font resources when font size changes
+                UpdateFontResources();
+
+                // Force application-wide refresh of resources
+                App.RefreshResources();
+
+                // Force immediate application of new resources
+                InvalidateVisual();
+
+                // Refresh the layout to apply new font sizes to all elements
+                _viewModel.RefreshLayout();
+
+                // Force a complete refresh of the window
+                this.UpdateLayout();
             };
 
             options.ShowDialog();

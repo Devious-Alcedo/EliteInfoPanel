@@ -10,10 +10,7 @@
 
     <StackPanel>
         <TextBlock Text="{Binding Title}" 
-                   FontSize="24" 
-                   FontWeight="Bold" 
-                   Foreground="Orange" 
-                   Margin="0,0,0,5"/>
+                   Style="{StaticResource CardTitleStyle}"/>
 
         <ItemsControl ItemsSource="{Binding Items}">
             <ItemsControl.ItemTemplate>
@@ -28,7 +25,7 @@
                                             <Setter.Value>
                                                 <ControlTemplate>
                                                     <TextBlock Text="{Binding Text}" 
-                                                               FontSize="20" 
+                                                               FontSize="{DynamicResource BaseFontSize}" 
                                                                Margin="0,0,0,6"
                                                                Foreground="{DynamicResource MaterialDesignBody}"/>
                                                 </ControlTemplate>
@@ -40,7 +37,7 @@
                                             <Setter.Value>
                                                 <ControlTemplate>
                                                     <TextBlock Text="{Binding Text}" 
-                                                               FontSize="18" 
+                                                               FontSize="{DynamicResource BaseFontSize}" 
                                                                Margin="0,0,0,6"
                                                                Foreground="{DynamicResource MaterialDesignBody}"/>
                                                 </ControlTemplate>
@@ -51,7 +48,7 @@
                                         <Setter Property="Template">
                                             <Setter.Value>
                                                 <ControlTemplate>
-                                                    <TextBlock FontSize="18" 
+                                                    <TextBlock FontSize="{DynamicResource BaseFontSize}" 
                            Margin="8,0,0,2"
                            Foreground="{DynamicResource MaterialDesignBody}"
                            Cursor="Hand"
