@@ -31,10 +31,10 @@
             <GroupBox Header="Font Size" Margin="0,0,0,16">
                 <StackPanel Margin="0,8,0,0">
                     <!-- Font size preview -->
-                    <TextBlock Text="Sample Text - Font Size Preview" 
-                               HorizontalAlignment="Center" 
+                    <TextBlock Text="Sample Text" FontSize="{Binding FontSizePreview}" 
+                    HorizontalAlignment="Center" 
                                Margin="0,0,0,10"
-                               FontSize="{Binding CurrentFontScale, Converter={StaticResource ScaleToFontSizeConverter}, ConverterParameter=14}"/>
+                             />
 
                     <!-- Font size slider -->
                     <Grid>

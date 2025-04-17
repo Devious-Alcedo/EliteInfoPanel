@@ -9,6 +9,12 @@ namespace EliteInfoPanel.ViewModels
     public class BackpackViewModel : CardViewModel
     {
         private readonly GameStateService _gameState;
+        private int _fontSize = 14;
+        public int FontSize
+        {
+            get => _fontSize;
+            set => SetProperty(ref _fontSize, value);
+        }
 
         public ObservableCollection<BackpackItemViewModel> Items { get; } = new();
 

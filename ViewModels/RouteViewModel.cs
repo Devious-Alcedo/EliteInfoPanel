@@ -14,6 +14,24 @@ namespace EliteInfoPanel.ViewModels
     {
         private readonly GameStateService _gameState;
         public double EstimatedFuelRemaining { get; set; } // in tonnes
+        private int _fontSize = 14;
+       
+        public override double FontSize
+        {
+            get => base.FontSize;
+            set
+            {
+                if (base.FontSize != value)
+                {
+                    base.FontSize = value;
+
+                    foreach (var item in Items)
+                    {
+                        item.FontSize = (int)value;
+                    }
+                }
+            }
+        }
 
         public ObservableCollection<RouteItemViewModel> Items { get; } = new();
         public ICommand CopySystemNameCommand { get; }
@@ -287,6 +305,12 @@ namespace EliteInfoPanel.ViewModels
         private string _starClass;
         private long? _systemAddress;
         private RouteItemType _itemType;
+        private int _fontSize = 14;
+        public int FontSize
+        {
+            get => _fontSize;
+            set => SetProperty(ref _fontSize, value);
+        }
 
         public string Text
         {

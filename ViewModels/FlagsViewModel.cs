@@ -12,7 +12,26 @@ namespace EliteInfoPanel.ViewModels
         private readonly GameStateService _gameState;
         private readonly AppSettings _appSettings;
 
-      
+        private int _fontSize = 14;
+        public override double FontSize
+        {
+            get => base.FontSize;
+            set
+            {
+                if (base.FontSize != value)
+                {
+                    base.FontSize = value;
+
+                    foreach (var item in Items)
+                    {
+                        item.FontSize = (int)value;
+                    }
+                }
+            }
+        }
+
+
+
         public ObservableCollection<FlagItemViewModel> Items { get; } = new();
 
         public FlagsViewModel(GameStateService gameState) : base("Status Flags")
@@ -89,6 +108,12 @@ namespace EliteInfoPanel.ViewModels
         {
             get => _flag;
             set => SetProperty(ref _flag, value);
+        }
+        private int _fontSize = 14;
+        public int FontSize
+        {
+            get => _fontSize;
+            set => SetProperty(ref _fontSize, value);
         }
 
         public string DisplayText

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Windows;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
 using WpfScreenHelper;
@@ -12,6 +13,18 @@ namespace EliteInfoPanel.ViewModels
         private AppSettings _appSettings;
         public AppSettings AppSettings => _appSettings;
         public event Action DisplayChangeRequested;
+        private double _fontSizePreview = 14;
+        public double FontSizePreview
+        {
+            get => _fontSizePreview;
+            set => SetProperty(ref _fontSizePreview, value);
+        }
+        private int _fontSize = 14;
+        public int FontSize
+        {
+            get => _fontSize;
+            set => SetProperty(ref _fontSize, value);
+        }
 
         // Font scale properties
         public double FullscreenFontScale
@@ -56,12 +69,31 @@ namespace EliteInfoPanel.ViewModels
                 else
                     FullscreenFontScale = value;
 
-                OnPropertyChanged();
+                // 💡 Calculate the font size first
+                double baseFontSize = AppSettings.UseFloatingWindow
+                    ? AppSettings.DEFAULT_FLOATING_BASE * FloatingFontScale
+                    : AppSettings.DEFAULT_FULLSCREEN_BASE * FullscreenFontScale;
 
-                // Trigger immediate font size change event for live preview
+                // ✅ Now it's safe to use it
+                if (Application.Current.MainWindow is MainWindow mw && mw.DataContext is MainViewModel vm)
+                {
+                    foreach (var card in vm.Cards)
+                    {
+                        card.FontSize = baseFontSize;
+                    }
+                }
+
+                // Optional: update app resources too (if you still use them anywhere)
+                Application.Current.Resources["BaseFontSize"] = baseFontSize;
+                Application.Current.Resources["HeaderFontSize"] = baseFontSize + 4;
+                Application.Current.Resources["SmallFontSize"] = baseFontSize - 2;
+
+                OnPropertyChanged();
                 FontSizeChanged?.Invoke();
             }
         }
+
+
 
         // Flag properties
         public bool ShowFlag_ShieldsUp

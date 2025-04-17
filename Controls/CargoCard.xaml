@@ -15,6 +15,7 @@
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
                     <TextBlock Style="{StaticResource CardContentStyle}"
+                               FontSize="{Binding FontSize}"
                                Margin="0,2,0,2">
                         <TextBlock.Text>
                             <MultiBinding StringFormat="{}{0}: {1}">

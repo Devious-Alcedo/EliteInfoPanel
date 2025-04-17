@@ -23,10 +23,31 @@ namespace EliteInfoPanel.ViewModels
         public ObservableCollection<ModuleItemViewModel> RightItems { get; } = new();
         public Func<int, Task>? OnRequestPageFade { get; set; }
 
+        private int _fontSize = 14;
+        public override double FontSize
+        {
+            get => base.FontSize;
+            set
+            {
+                if (base.FontSize != value)
+                {
+                    base.FontSize = value;
+
+                    foreach (var item in LeftItems)
+                        item.FontSize = (int)value;
+
+                    foreach (var item in RightItems)
+                        item.FontSize = (int)value;
+                }
+            }
+        }
+
+
 
 
         private List<List<ModuleItemViewModel>> _pagedLeft = new();
         private List<List<ModuleItemViewModel>> _pagedRight = new();
+    
 
 
         public int CurrentPage
@@ -241,7 +262,12 @@ namespace EliteInfoPanel.ViewModels
         private float _health;
         private string _slot;
         private bool _isOn;
-
+        private int _fontSize = 14;
+        public int FontSize
+        {
+            get => _fontSize;
+            set => SetProperty(ref _fontSize, value);
+        }
         public string Name
         {
             get => _name;
@@ -295,7 +321,10 @@ namespace EliteInfoPanel.ViewModels
             _slot = slot;
             _isOn = isOn;
 
-        }
+      
+
 
     }
+
+}
 }

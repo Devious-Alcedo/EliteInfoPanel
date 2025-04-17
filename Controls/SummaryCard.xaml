@@ -66,7 +66,7 @@
                                                  Foreground="{Binding Foreground}" />
                         <TextBlock x:Name="ItemText"
                                    Text="{Binding Content}"
-                                   FontSize="{DynamicResource BaseFontSize}"
+                                   FontSize="{Binding FontSize}"
                                    Foreground="{Binding Foreground}"
                                    VerticalAlignment="Center"
                                    FontWeight="Bold"
@@ -93,12 +93,12 @@
 
         <!-- Fuel Info -->
         <StackPanel Visibility="{Binding ShowFuelBar, Converter={StaticResource BoolToVis}}" Margin="0,12,0,0">
-            <TextBlock FontSize="{DynamicResource BaseFontSize}"
+            <TextBlock FontSize="{Binding FontSize}"
                        Foreground="Orange"
                        FontWeight="SemiBold"
                        Text="{Binding FuelPanelTitle}"
                        Margin="0,0,0,4"/>
-            <TextBlock FontSize="{DynamicResource BaseFontSize}"
+            <TextBlock FontSize="{Binding FontSize}"
                        Foreground="White">
                 <TextBlock.Text>
                     <MultiBinding StringFormat="Main: {0:0.00}   Reserve: {1:0.00}">
@@ -132,7 +132,7 @@
                                                  Foreground="{Binding Foreground}" />
                         <TextBlock x:Name="ItemText"
                                    Text="{Binding Content}"
-                                   FontSize="{DynamicResource BaseFontSize}"
+                                   FontSize="{Binding FontSize}"
                                    Foreground="{Binding Foreground}"
                                    VerticalAlignment="Center"
                                    FontWeight="Bold"

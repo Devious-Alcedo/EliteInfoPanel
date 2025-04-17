@@ -4,6 +4,7 @@ using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
 using System.Linq;
 using System.Windows;
+using static MaterialDesignThemes.Wpf.Theme.ToolBar;
 
 namespace EliteInfoPanel.ViewModels
 {
@@ -45,6 +46,22 @@ namespace EliteInfoPanel.ViewModels
                 UpdateCargoTitle(); // ✅ Call this at the end
             });
         }
+        public override double FontSize
+        {
+            get => base.FontSize;
+            set
+            {
+                if (base.FontSize != value)
+                {
+                    base.FontSize = value;
+
+                    foreach (var item in Items)
+                    {
+                        item.FontSize = (int)value;
+                    }
+                }
+            }
+        }
 
         private void UpdateCargoTitle()
         {
@@ -78,6 +95,13 @@ namespace EliteInfoPanel.ViewModels
             get => _count;
             set => SetProperty(ref _count, value);
         }
+        private int _fontSize = 14;
+        public int FontSize
+        {
+            get => _fontSize;
+            set => SetProperty(ref _fontSize, value);
+        }
+
 
         public CargoItemViewModel(string name, int count)
         {

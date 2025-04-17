@@ -15,10 +15,29 @@ namespace EliteInfoPanel.ViewModels
         private DispatcherTimer _carrierCountdownTimer;
         private SummaryItemViewModel _carrierCountdownItem;
         public ObservableCollection<SummaryItemViewModel> Items { get; } = new();
+
         private SummaryItemViewModel FindItemByTag(string tag)
         {
             return Items.FirstOrDefault(x => x.Tag == tag);
         }
+        public override double FontSize
+        {
+            get => base.FontSize;
+            set
+            {
+                if (base.FontSize != value)
+                {
+                    base.FontSize = value;
+
+                    foreach (var item in Items)
+                    {
+                        item.FontSize = (int)value;
+                    }
+                }
+            }
+        }
+
+
         private string _fuelPanelTitle;
         public string FuelPanelTitle
         {
@@ -235,7 +254,7 @@ namespace EliteInfoPanel.ViewModels
                     Brushes.Gold,
                     PackIconKind.RocketLaunch)
                 {
-                    FontSize = 24
+                    FontSize = 1
                 };
 
                 Items.Add(_carrierCountdownItem);

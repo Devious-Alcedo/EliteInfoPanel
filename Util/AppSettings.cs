@@ -19,7 +19,7 @@ namespace EliteInfoPanel.Util
         public double FloatingWindowLeft { get; set; } = 100;
         public double FloatingWindowTop { get; set; } = 100;
         public bool AlwaysOnTop { get; set; } = true;
-
+        public const double BaseFontSizeBase = 14;
         // Font scale properties (1.0 = default size)
         public double FullscreenFontScale { get; set; } = 1.0;
         public double FloatingFontScale { get; set; } = 1.0;

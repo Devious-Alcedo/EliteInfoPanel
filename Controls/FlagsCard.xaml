@@ -24,7 +24,7 @@
                     <DataTemplate>
                         <materialDesign:Chip Content="{Binding DisplayText}"
                                              Margin="6"
-                                             FontSize="{DynamicResource BaseFontSize}"
+                                             FontSize="{Binding FontSize}"
                                              Background="#FF2196F3"
                                              Foreground="White">
                             <materialDesign:Chip.Icon>
