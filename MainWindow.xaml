@@ -9,7 +9,7 @@
         WindowStyle="None"
         ResizeMode="NoResize"
         WindowStartupLocation="Manual"
-        Opacity="{Binding WindowOpacity}"
+      
         Title="Elite Info Panel">
 
     <Window.Resources>

@@ -60,11 +60,23 @@ namespace EliteInfoPanel.ViewModels
             {
                 if (SetProperty(ref _currentPage, value))
                 {
-                    LoadCurrentPage(); // Only load, don’t rebuild anything
+                    LoadCurrentPage();
+                    OnPropertyChanged(nameof(TitleWithPage)); // 🆕 Notify
                 }
             }
         }
 
+
+        public string TitleWithPage
+        {
+            get
+            {
+                if (_pagedLeft.Count <= 1)
+                    return Title;
+
+                return $"{Title} (Page {CurrentPage + 1} of {_pagedLeft.Count})";
+            }
+        }
 
 
 
@@ -313,6 +325,7 @@ namespace EliteInfoPanel.ViewModels
                             rightHeight += height;
                         }
                     }
+                  
 
                     // Final page (if anything remains)
                     if (currentPageLeft.Any() || currentPageRight.Any())
@@ -332,7 +345,7 @@ namespace EliteInfoPanel.ViewModels
                     // Restore or clamp current page
                     if (_currentPage >= _pagedLeft.Count)
                         _currentPage = Math.Max(0, _pagedLeft.Count - 1);
-
+                    OnPropertyChanged(nameof(TitleWithPage));
                     LoadCurrentPage();
                 }
                 catch (Exception ex)

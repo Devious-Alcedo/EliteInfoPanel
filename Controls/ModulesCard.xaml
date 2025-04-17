@@ -22,8 +22,8 @@
 
     <DockPanel>
         <!-- Card Title -->
-        <TextBlock Text="{Binding Title}" 
-               Style="{StaticResource CardTitleStyle}" 
+        <TextBlock Text="{Binding TitleWithPage}"
+           Style="{StaticResource CardTitleStyle}" 
                DockPanel.Dock="Top" />
 
         <!-- Scrollable Content Area -->

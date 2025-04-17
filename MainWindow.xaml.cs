@@ -95,11 +95,11 @@ namespace EliteInfoPanel
                 Width = _appSettings.FloatingWindowWidth;
                 Height = _appSettings.FloatingWindowHeight;
 
-                // Ensure window is visible
+                // Ensure window is within visible screen bounds
                 EnsureWindowIsVisible();
+
                 Log.Information("Applied floating window settings: {Left}x{Top} {Width}x{Height}",
                     Left, Top, Width, Height);
-                UpdateFontResources();
             }
             else
             {
@@ -116,34 +116,47 @@ namespace EliteInfoPanel
                     if (dialog.ShowDialog() == true && dialog.SelectedScreen != null)
                     {
                         _currentScreen = dialog.SelectedScreen;
+                        _appSettings.UseFloatingWindow = false;
                         _appSettings.SelectedScreenId = _currentScreen.DeviceName;
                         _appSettings.SelectedScreenBounds = _currentScreen.WpfBounds;
-                        SettingsManager.Save(_appSettings);
+
+                        SettingsManager.Save(_appSettings); // ✅ ensure saved
                     }
                     else
                     {
-                        // Default to the first screen if none selected
                         _currentScreen = allScreens.FirstOrDefault();
                     }
                 }
-                UpdateFontResources();
+                else
+                {
+                    // Even if screen was already known, save if switching to fullscreen
+                    _appSettings.UseFloatingWindow = false;
+                    SettingsManager.Save(_appSettings); // ✅ ensure saved
+                }
+
 
                 ApplyScreenBounds(_currentScreen);
+
                 Log.Information("Applied full-screen settings on screen: {Screen}",
                     _currentScreen?.DeviceName ?? "Unknown");
             }
-        double fontScale = _appSettings.UseFloatingWindow
-            ? _appSettings.FloatingFontScale
-            : _appSettings.FullscreenFontScale;
 
-                    double baseFontSize = _appSettings.UseFloatingWindow
-                        ? AppSettings.DEFAULT_FLOATING_BASE * fontScale
-                        : AppSettings.DEFAULT_FULLSCREEN_BASE * fontScale;
+            // ✅ Update font scaling for all cards
+            double fontScale = _appSettings.UseFloatingWindow
+                ? _appSettings.FloatingFontScale
+                : _appSettings.FullscreenFontScale;
 
-                    foreach (var card in _viewModel.Cards)
-                    {
-                        card.FontSize = baseFontSize;
-                    }
+            double baseFontSize = _appSettings.UseFloatingWindow
+                ? AppSettings.DEFAULT_FLOATING_BASE * fontScale
+                : AppSettings.DEFAULT_FULLSCREEN_BASE * fontScale;
+
+            foreach (var card in _viewModel.Cards)
+            {
+                card.FontSize = baseFontSize;
+            }
+
+            // Update font resources for dynamic styles
+            UpdateFontResources();
         }
 
         private void EnsureWindowIsVisible()
@@ -321,6 +334,16 @@ namespace EliteInfoPanel
                 var newWindow = new MainWindow();
                 newWindow.Show();
                 this.Close();
+            };
+
+
+                options.FontSizeChanged += () =>
+            {
+                UpdateFontResources();             // 🟢 Rebuild font size resources
+                App.RefreshResources();            // 🟢 Apply to app
+                InvalidateVisual();                // 🟢 Force redraw
+                _viewModel.RefreshLayout();        // 🟢 Notify all cards
+                UpdateLayout();
             };
 
             options.ShowDialog();
