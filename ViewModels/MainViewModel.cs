@@ -17,13 +17,16 @@ namespace EliteInfoPanel.ViewModels
         private bool _isHyperspaceJumping;
         private string _hyperspaceDestination;
         private string _hyperspaceStarClass;
-        public SnackbarMessageQueue _toastQueue = new SnackbarMessageQueue(System.TimeSpan.FromSeconds(3));
+        private SnackbarMessageQueue _toastQueue = new SnackbarMessageQueue(TimeSpan.FromSeconds(3));
         private bool _isCarrierJumping;
+        private CardLayoutManager _layoutManager;
+
         public bool IsCarrierJumping
         {
             get => _isCarrierJumping;
             set => SetProperty(ref _isCarrierJumping, value);
         }
+
         public ObservableCollection<CardViewModel> Cards { get; } = new ObservableCollection<CardViewModel>();
 
         // Individual card ViewModels
@@ -35,13 +38,18 @@ namespace EliteInfoPanel.ViewModels
         public FlagsViewModel FlagsCard { get; }
         private Grid _mainGrid;
 
-public void SetMainGrid(Grid mainGrid)
-{
-    _mainGrid = mainGrid;
-    
-    // Do initial layout
-    UpdateCardLayout();
-}
+        public void SetMainGrid(Grid mainGrid)
+        {
+            _mainGrid = mainGrid;
+
+            // Initialize layout manager
+            var appSettings = SettingsManager.Load();
+            _layoutManager = new CardLayoutManager(_mainGrid, appSettings, this);
+
+            // Do initial layout
+            UpdateCardLayout();
+        }
+
         public bool IsLoading
         {
             get => _isLoading;
@@ -80,7 +88,7 @@ public void SetMainGrid(Grid mainGrid)
         }
 
         public RelayCommand OpenOptionsCommand { get; set; }
-        public RelayCommand CloseCommand { get; }
+        public RelayCommand CloseCommand { get; } = new RelayCommand(_ => Application.Current.Shutdown());
 
         public MainViewModel(GameStateService gameState)
         {
@@ -88,7 +96,6 @@ public void SetMainGrid(Grid mainGrid)
 
             // Initialize commands
             OpenOptionsCommand = new RelayCommand(_ => OpenOptions());
-            CloseCommand = new RelayCommand(_ => System.Windows.Application.Current.Shutdown());
 
             // Initialize card ViewModels
             SummaryCard = new SummaryViewModel(gameState) { Title = "Summary" };
@@ -147,15 +154,15 @@ public void SetMainGrid(Grid mainGrid)
             if (status == null || status.Flags == Flag.None)
             {
                 Log.Debug("Game data not ready. Still waiting...");
-                return; // don’t flip loading off yet
+                return; // don't flip loading off yet
             }
 
             UpdateLoadingState(); // will flip IsLoading based on flags
 
             if (!IsLoading)
-              //  Log.Information("Game state confirmed. Hiding loading overlay.");
+                //  Log.Information("Game state confirmed. Hiding loading overlay.");
 
-            RefreshCardVisibility();
+                RefreshCardVisibility();
         }
 
 
@@ -244,18 +251,32 @@ public void SetMainGrid(Grid mainGrid)
             // Now that visibility is set, update the layout
             UpdateCardLayout();
         }
+
         private void UpdateCardLayout()
+        {
+            // Use the layout manager if it's been initialized
+            if (_layoutManager != null)
+            {
+                _layoutManager.UpdateLayout();
+            }
+            else
+            {
+                // Otherwise, use the original layout method
+                UpdateCardLayoutOriginal();
+            }
+        }
+
+        private void UpdateCardLayoutOriginal()
         {
             // First, clear all columns to ensure fresh layout
             if (_mainGrid != null)
             {
                 _mainGrid.ColumnDefinitions.Clear();
 
-
                 // Remove all cards from the grid (but not other elements like buttons)
                 for (int i = _mainGrid.Children.Count - 1; i >= 0; i--)
                 {
-                    if (_mainGrid.Children[i] is MaterialDesignThemes.Wpf.Card)
+                    if (_mainGrid.Children[i] is Card)
                     {
                         _mainGrid.Children.RemoveAt(i);
                     }
@@ -302,7 +323,7 @@ public void SetMainGrid(Grid mainGrid)
                     var card = visibleCards[i];
 
                     // Create the materialDesign Card
-                    var cardElement = new MaterialDesignThemes.Wpf.Card
+                    var cardElement = new Card
                     {
                         Margin = new Thickness(5),
                         Padding = new Thickness(5),
@@ -329,7 +350,8 @@ public void SetMainGrid(Grid mainGrid)
                 }
             }
         }
-        private bool _isUpdatingVisibility = false; private void OpenOptions()
+
+        private void OpenOptions()
         {
             // This will be handled in the view
             System.Diagnostics.Debug.WriteLine("Open Options requested");
@@ -340,5 +362,4 @@ public void SetMainGrid(Grid mainGrid)
             ToastQueue.Enqueue(message);
         }
     }
- 
 }

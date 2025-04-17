@@ -12,6 +12,7 @@ namespace EliteInfoPanel.ViewModels
         private AppSettings _appSettings;
         public AppSettings AppSettings => _appSettings;
         public event Action DisplayChangeRequested;
+
         // Flag properties
         public bool ShowFlag_ShieldsUp
         {
@@ -105,15 +106,58 @@ namespace EliteInfoPanel.ViewModels
             }
         }
 
+        // Window mode properties
+        public bool IsFullScreenMode
+        {
+            get => !_appSettings.UseFloatingWindow;
+            set
+            {
+                if (_appSettings.UseFloatingWindow == value)
+                {
+                    _appSettings.UseFloatingWindow = !value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsFloatingWindowMode));
+                }
+            }
+        }
+
+        public bool IsFloatingWindowMode
+        {
+            get => _appSettings.UseFloatingWindow;
+            set
+            {
+                if (_appSettings.UseFloatingWindow != value)
+                {
+                    _appSettings.UseFloatingWindow = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsFullScreenMode));
+                }
+            }
+        }
+
+        public bool AlwaysOnTop
+        {
+            get => _appSettings.AlwaysOnTop;
+            set
+            {
+                if (_appSettings.AlwaysOnTop != value)
+                {
+                    _appSettings.AlwaysOnTop = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         // Commands
         public RelayCommand SaveCommand { get; set; }
         public RelayCommand CancelCommand { get; set; }
         public RelayCommand ChangeDisplayCommand { get; set; }
+
         private void RequestDisplayChange()
         {
             DisplayChangeRequested?.Invoke();
-            System.Diagnostics.Debug.WriteLine("Display change requested");
         }
+
         // Event for screen change notification
         public event Action<Screen> ScreenChanged;
 
@@ -130,10 +174,7 @@ namespace EliteInfoPanel.ViewModels
         public void SaveSettings()
         {
             SettingsManager.Save(_appSettings);
-            System.Diagnostics.Debug.WriteLine("Settings saved");
         }
-
-     
 
         // Method to handle screen selection
         public void SelectScreen(Screen screen)

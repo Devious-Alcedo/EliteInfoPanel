@@ -1,11 +1,14 @@
-﻿using System.Windows;
+﻿using System;
+using System.ComponentModel;
+using System.Linq;
+using System.Windows;
+using System.Windows.Input;
 using EliteInfoPanel.Core;
+using EliteInfoPanel.Dialogs;
 using EliteInfoPanel.Util;
 using EliteInfoPanel.ViewModels;
-using EliteInfoPanel.Dialogs;
-using WpfScreenHelper;
-using System.Windows.Input;
 using Serilog;
+using WpfScreenHelper;
 
 namespace EliteInfoPanel
 {
@@ -13,6 +16,7 @@ namespace EliteInfoPanel
     {
         private readonly MainViewModel _viewModel;
         private Screen _currentScreen;
+        private readonly AppSettings _appSettings;
 
         public MainWindow()
         {
@@ -20,6 +24,9 @@ namespace EliteInfoPanel
 
             // Configure logging
             LoggingConfig.Configure(enableDebugLogging: false);
+
+            // Load settings
+            _appSettings = SettingsManager.Load();
 
             // Initialize the GameStateService
             var gamePath = EliteDangerousPaths.GetSavedGamesPath();
@@ -32,41 +39,112 @@ namespace EliteInfoPanel
 
             // Connect OpenOptionsCommand to event handler
             _viewModel.OpenOptionsCommand = new RelayCommand(_ => OpenOptions());
-            
+
             // Set up event handlers
             Loaded += Window_Loaded;
             PreviewKeyDown += MainWindow_PreviewKeyDown;
+            Closing += MainWindow_Closing;
         }
 
-        private async void Window_Loaded(object sender, RoutedEventArgs e)
+        private void MainWindow_Closing(object sender, CancelEventArgs e)
         {
-            // Position the window on the specified screen
-            var appSettings = SettingsManager.Load();
-            var allScreens = Screen.AllScreens;
+            SaveWindowPosition();
+        }
 
-            _currentScreen = allScreens.FirstOrDefault(s =>
-                s.DeviceName == appSettings.SelectedScreenId ||
-                s.WpfBounds == appSettings.SelectedScreenBounds) ?? allScreens.FirstOrDefault();
-
-            if (_currentScreen == null)
+        private void SaveWindowPosition()
+        {
+            if (_appSettings.UseFloatingWindow && WindowState == WindowState.Normal)
             {
-                var dialog = new SelectScreenDialog(allScreens.ToList(), this);
+                _appSettings.FloatingWindowLeft = Left;
+                _appSettings.FloatingWindowTop = Top;
+                _appSettings.FloatingWindowWidth = Width;
+                _appSettings.FloatingWindowHeight = Height;
+                SettingsManager.Save(_appSettings);
 
-                if (dialog.ShowDialog() == true && dialog.SelectedScreen != null)
-                {
-                    _currentScreen = dialog.SelectedScreen;
-                    appSettings.SelectedScreenId = _currentScreen.DeviceName;
-                    appSettings.SelectedScreenBounds = _currentScreen.WpfBounds;
-                    SettingsManager.Save(appSettings);
-                }
-                else
-                {
-                    // Default to the first screen if none selected
-                    _currentScreen = allScreens.FirstOrDefault();
-                }
+                Log.Information("Saved floating window position: {Left}x{Top} {Width}x{Height}",
+                    Left, Top, Width, Height);
             }
+        }
 
-            ApplyScreenBounds(_currentScreen);
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            // Apply window mode settings
+            ApplyWindowSettings();
+        }
+
+        private void ApplyWindowSettings()
+        {
+            if (_appSettings.UseFloatingWindow)
+            {
+                // Apply floating window settings
+                WindowStyle = WindowStyle.SingleBorderWindow;
+                ResizeMode = ResizeMode.CanResize;
+                Topmost = _appSettings.AlwaysOnTop;
+                WindowState = WindowState.Normal;
+               
+
+                // Set size and position from saved settings
+                Left = _appSettings.FloatingWindowLeft;
+                Top = _appSettings.FloatingWindowTop;
+                Width = _appSettings.FloatingWindowWidth;
+                Height = _appSettings.FloatingWindowHeight;
+
+                // Ensure window is visible
+                EnsureWindowIsVisible();
+                Log.Information("Applied floating window settings: {Left}x{Top} {Width}x{Height}",
+                    Left, Top, Width, Height);
+                UpdateFontResources();
+
+            }
+            else
+            {
+                // Position on the selected screen in full-screen mode
+                var allScreens = Screen.AllScreens;
+
+                _currentScreen = allScreens.FirstOrDefault(s =>
+                    s.DeviceName == _appSettings.SelectedScreenId) ?? allScreens.FirstOrDefault();
+
+                if (_currentScreen == null)
+                {
+                    var dialog = new SelectScreenDialog(allScreens.ToList(), this);
+
+                    if (dialog.ShowDialog() == true && dialog.SelectedScreen != null)
+                    {
+                        _currentScreen = dialog.SelectedScreen;
+                        _appSettings.SelectedScreenId = _currentScreen.DeviceName;
+                        _appSettings.SelectedScreenBounds = _currentScreen.WpfBounds;
+                        SettingsManager.Save(_appSettings);
+                    }
+                    else
+                    {
+                        // Default to the first screen if none selected
+                        _currentScreen = allScreens.FirstOrDefault();
+                    }
+                }
+                UpdateFontResources();
+
+                ApplyScreenBounds(_currentScreen);
+                Log.Information("Applied full-screen settings on screen: {Screen}",
+                    _currentScreen?.DeviceName ?? "Unknown");
+            }
+        }
+
+        private void EnsureWindowIsVisible()
+        {
+            // Make sure the window isn't positioned off-screen
+            var virtualScreenWidth = SystemParameters.VirtualScreenWidth;
+            var virtualScreenHeight = SystemParameters.VirtualScreenHeight;
+
+            if (Left < 0) Left = 0;
+            if (Top < 0) Top = 0;
+            if (Left + Width > virtualScreenWidth)
+                Left = Math.Max(0, virtualScreenWidth - Width);
+            if (Top + Height > virtualScreenHeight)
+                Top = Math.Max(0, virtualScreenHeight - Height);
+
+            // Ensure minimum size
+            Width = Math.Max(Width, 400);
+            Height = Math.Max(Height, 300);
         }
 
         private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -75,13 +153,18 @@ namespace EliteInfoPanel
             {
                 OpenCurrentLogFile();
             }
+            else if (e.Key == Key.Escape && _appSettings.UseFloatingWindow)
+            {
+                // Allow ESC to close in floating window mode
+                Close();
+            }
         }
 
         private void OpenCurrentLogFile()
         {
             try
             {
-                string appDataFolder = System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData);
+                string appDataFolder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
                 string logDirectory = System.IO.Path.Combine(appDataFolder, "EliteInfoPanel");
 
                 if (!System.IO.Directory.Exists(logDirectory))
@@ -118,24 +201,60 @@ namespace EliteInfoPanel
                     });
                 }
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 MessageBox.Show($"Could not open log file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+        private void FloatingTitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            // Enable dragging of the window when user clicks and drags the title bar
+            if (e.ButtonState == MouseButtonState.Pressed)
+            {
+                this.DragMove();
+            }
+        }
 
+        private void MinimizeButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Minimize the window
+            this.WindowState = WindowState.Minimized;
+        }
+
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Close the application
+            this.Close();
+        }
+        private void UpdateFontResources()
+        {
+            // Define font sizes based on window mode
+            double baseFontSize = _appSettings.UseFloatingWindow ? 11.0 : 14.0;
+            double headerFontSize = _appSettings.UseFloatingWindow ? 13.0 : 16.0;
+            double smallFontSize = _appSettings.UseFloatingWindow ? 9.0 : 12.0;
+
+            // Update application resources
+            Application.Current.Resources["BaseFontSize"] = baseFontSize;
+            Application.Current.Resources["HeaderFontSize"] = headerFontSize;
+            Application.Current.Resources["SmallFontSize"] = smallFontSize;
+
+            Log.Debug("Updated font resources for {Mode} mode: Base={Base}, Header={Header}, Small={Small}",
+                _appSettings.UseFloatingWindow ? "floating window" : "full screen",
+                baseFontSize, headerFontSize, smallFontSize);
+        }
         private void ApplyScreenBounds(Screen targetScreen)
         {
             WindowState = WindowState.Normal; // Force out of maximized state
+            WindowStyle = WindowStyle.None;
+            ResizeMode = ResizeMode.NoResize;
 
             Left = targetScreen.WpfBounds.Left;
             Top = targetScreen.WpfBounds.Top;
             Width = targetScreen.WpfBounds.Width;
             Height = targetScreen.WpfBounds.Height;
 
-            WindowStyle = WindowStyle.None;
-            WindowState = WindowState.Maximized;
             Topmost = true;
+            WindowState = WindowState.Maximized;
         }
 
         private void OpenOptions()
@@ -144,7 +263,14 @@ namespace EliteInfoPanel
             options.ScreenChanged += screen =>
             {
                 _currentScreen = screen;
+                _appSettings.UseFloatingWindow = false;
                 ApplyScreenBounds(screen);
+            };
+
+            options.WindowModeChanged += useFloatingWindow =>
+            {
+                _appSettings.UseFloatingWindow = useFloatingWindow;
+                ApplyWindowSettings();
             };
 
             options.ShowDialog();
