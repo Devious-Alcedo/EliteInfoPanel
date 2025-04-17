@@ -2,6 +2,7 @@
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 using EliteInfoPanel.Controls;
@@ -116,14 +117,17 @@ namespace EliteInfoPanel.ViewModels
 
         public async void NextPage()
         {
-            if (_pagedLeft == null || _pagedLeft.Count == 0)
-                return;
+            if (_pagedLeft == null || _pagedLeft.Count <= 1)
+                return; // 🔒 Nothing to page through
 
             int nextPage = (CurrentPage + 1) % _pagedLeft.Count;
 
+            if (nextPage == CurrentPage)
+                return; // 🔁 Don't fade to same page
+
             if (OnRequestPageFade != null)
             {
-                await OnRequestPageFade.Invoke(nextPage); // pass target page
+                await OnRequestPageFade.Invoke(nextPage); // 🎬 Trigger fade + update
             }
             else
             {
@@ -131,6 +135,7 @@ namespace EliteInfoPanel.ViewModels
                 LoadCurrentPage();
             }
         }
+
 
 
 
@@ -186,6 +191,22 @@ namespace EliteInfoPanel.ViewModels
             Log.Information("🧮 Rows per column based on {Height}px available: {Rows}", AvailableHeight, rows);
             return Math.Max(rows, 2); // minimum of 2
         }
+        public double MeasureModuleHeight(ModuleItemViewModel module, double columnWidth)
+        {
+            var textBlock = new TextBlock
+            {
+                TextWrapping = TextWrapping.Wrap,
+                TextTrimming = TextTrimming.None,
+                FontSize = module.FontSize,
+                MaxWidth = columnWidth,
+                Margin = new Thickness(3),
+                Text = $"{module.Name} ({module.Health:P0})"
+            };
+
+            textBlock.Measure(new Size(columnWidth, double.PositiveInfinity));
+            return textBlock.DesiredSize.Height + 8; // Add margin (4 top + 4 bottom)
+        }
+
 
 
 
@@ -198,7 +219,6 @@ namespace EliteInfoPanel.ViewModels
                     LeftItems.Clear();
                     RightItems.Clear();
 
-                    // ✅ Preserve the current page before clearing
                     int previousPage = CurrentPage;
 
                     _pagedLeft.Clear();
@@ -246,39 +266,74 @@ namespace EliteInfoPanel.ViewModels
                             FontSize = fontSize
                         })
                         .ToList();
+
                     Log.Information("🔧 Found {Count} valid modules", modules.Count);
-                    _allModules = modules;
 
-                    int rowsPerColumn = CalculateRowsPerColumn();
-                    int itemsPerPage = rowsPerColumn * 2;
+                    // === NEW PAGING LOGIC BASED ON MEASURED HEIGHTS ===
+                    double maxHeight = AvailableHeight;
+                    double columnWidth = 280; // Should match MaxWidth in XAML
+                    var currentPageLeft = new List<ModuleItemViewModel>();
+                    var currentPageRight = new List<ModuleItemViewModel>();
+                    double leftHeight = 0;
+                    double rightHeight = 0;
 
-                    var pages = new List<(List<ModuleItemViewModel> Left, List<ModuleItemViewModel> Right)>();
-
-                    for (int i = 0; i < modules.Count; i += itemsPerPage)
+                    foreach (var module in modules)
                     {
-                        var pageItems = modules.Skip(i).Take(itemsPerPage).ToList();
-                        int half = (int)Math.Ceiling(pageItems.Count / 2.0);
-                        var left = pageItems.Take(half).ToList();
-                        var right = pageItems.Skip(half).ToList();
+                        double height = MeasureModuleHeight(module, columnWidth);
 
-                        pages.Add((left, right));
-                        Log.Information("📄 Page {Page}: {LeftCount} left, {RightCount} right", pages.Count - 1, left.Count, right.Count);
+                        // Decide where to place this module
+                        if (leftHeight <= rightHeight)
+                        {
+                            if (leftHeight + height > maxHeight && currentPageLeft.Count > 0)
+                            {
+                                _pagedLeft.Add(currentPageLeft);
+                                _pagedRight.Add(currentPageRight);
+                                currentPageLeft = new();
+                                currentPageRight = new();
+                                leftHeight = 0;
+                                rightHeight = 0;
+                            }
+
+                            currentPageLeft.Add(module);
+                            leftHeight += height;
+                        }
+                        else
+                        {
+                            if (rightHeight + height > maxHeight && currentPageRight.Count > 0)
+                            {
+                                _pagedLeft.Add(currentPageLeft);
+                                _pagedRight.Add(currentPageRight);
+                                currentPageLeft = new();
+                                currentPageRight = new();
+                                leftHeight = 0;
+                                rightHeight = 0;
+                            }
+
+                            currentPageRight.Add(module);
+                            rightHeight += height;
+                        }
                     }
 
-                    _pagedLeft = pages.Select(p => p.Left).ToList();
-                    _pagedRight = pages.Select(p => p.Right).ToList();
+                    // Final page (if anything remains)
+                    if (currentPageLeft.Any() || currentPageRight.Any())
+                    {
+                        _pagedLeft.Add(currentPageLeft);
+                        _pagedRight.Add(currentPageRight);
+                    }
+
+                    for (int i = 0; i < _pagedLeft.Count; i++)
+                    {
+                        Log.Information("📄 Page {PageIndex}: {LeftCount} left, {RightCount} right",
+                            i, _pagedLeft[i].Count, _pagedRight[i].Count);
+                    }
+
                     Log.Information("✅ Generated {PageCount} pages", _pagedLeft.Count);
 
-
+                    // Restore or clamp current page
                     if (_currentPage >= _pagedLeft.Count)
-                        CurrentPage = Math.Max(0, _pagedLeft.Count - 1);
-                    else
-                        LoadCurrentPage(); // ✅ otherwise, reuse current page
+                        _currentPage = Math.Max(0, _pagedLeft.Count - 1);
 
-
-
-
-
+                    LoadCurrentPage();
                 }
                 catch (Exception ex)
                 {
