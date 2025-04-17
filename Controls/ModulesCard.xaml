@@ -7,7 +7,9 @@
              xmlns:local="clr-namespace:EliteInfoPanel.Controls"
              xmlns:converters="clr-namespace:EliteInfoPanel.Converters"
              mc:Ignorable="d" 
-             d:DesignHeight="450" d:DesignWidth="600">
+             d:DesignHeight="450" d:DesignWidth="600"
+             Loaded="UserControl_Loaded"
+             SizeChanged="UserControl_SizeChanged">
 
     <UserControl.Resources>
         <converters:EvenIndexConverter x:Key="EvenIndexConverter" />
@@ -18,73 +20,80 @@
         </Storyboard>
     </UserControl.Resources>
 
-    <StackPanel>
+    <DockPanel>
+        <!-- Card Title -->
         <TextBlock Text="{Binding Title}" 
-                   Style="{StaticResource CardTitleStyle}"/>
+               Style="{StaticResource CardTitleStyle}" 
+               DockPanel.Dock="Top" />
 
-        <Grid x:Name="modulesContent">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
+        <!-- Scrollable Content Area -->
+        <ScrollViewer x:Name="modulesScroll"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+            <Grid x:Name="modulesContent">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
 
-            <!-- Left Column -->
-            <ItemsControl x:Name="LeftItemsControl"
-                  Grid.Column="0"
-                  ItemsSource="{Binding LeftItems}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <StackPanel />
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <TextBlock FontSize="{Binding FontSize}"
-                           Margin="4"
-                           Foreground="{Binding HealthColor}"
-                                TextWrapping="Wrap"
-                                TextTrimming="None"
-                           MaxWidth="280"
-                           ToolTip="{Binding Name}">
-                            <TextBlock.Text>
-                                <MultiBinding StringFormat="{}{0} ({1:P0})">
-                                    <Binding Path="Name" />
-                                    <Binding Path="Health" />
-                                </MultiBinding>
-                            </TextBlock.Text>
-                        </TextBlock>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                <!-- Left Column -->
+                <ItemsControl x:Name="LeftItemsControl"
+                          Grid.Column="0"
+                          ItemsSource="{Binding LeftItems}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock FontSize="{Binding FontSize}"
+                                   Margin="4"
+                                   Foreground="{Binding HealthColor}"
+                                   TextWrapping="Wrap"
+                                   TextTrimming="None"
+                                   MaxWidth="280"
+                                   ToolTip="{Binding Name}">
+                                <TextBlock.Text>
+                                    <MultiBinding StringFormat="{}{0} ({1:P0})">
+                                        <Binding Path="Name" />
+                                        <Binding Path="Health" />
+                                    </MultiBinding>
+                                </TextBlock.Text>
+                            </TextBlock>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
 
-            <!-- Right Column -->
-            <ItemsControl x:Name="RightItemsControl"
-                  Grid.Column="1"
-                  ItemsSource="{Binding RightItems}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <StackPanel />
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <TextBlock FontSize="{Binding FontSize}"
-                           Margin="4"
-                           Foreground="{Binding HealthColor}"
-                            TextWrapping="Wrap"
-                            TextTrimming="None"
-                           MaxWidth="280"
-                           ToolTip="{Binding Name}">
-                            <TextBlock.Text>
-                                <MultiBinding StringFormat="{}{0} ({1:P0})">
-                                    <Binding Path="Name" />
-                                    <Binding Path="Health" />
-                                </MultiBinding>
-                            </TextBlock.Text>
-                        </TextBlock>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </Grid>
-    </StackPanel>
+                <!-- Right Column -->
+                <ItemsControl x:Name="RightItemsControl"
+                          Grid.Column="1"
+                          ItemsSource="{Binding RightItems}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock FontSize="{Binding FontSize}"
+                                   Margin="4"
+                                   Foreground="{Binding HealthColor}"
+                                   TextWrapping="Wrap"
+                                   TextTrimming="None"
+                                   MaxWidth="280"
+                                   ToolTip="{Binding Name}">
+                                <TextBlock.Text>
+                                    <MultiBinding StringFormat="{}{0} ({1:P0})">
+                                        <Binding Path="Name" />
+                                        <Binding Path="Health" />
+                                    </MultiBinding>
+                                </TextBlock.Text>
+                            </TextBlock>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
+        </ScrollViewer>
+    </DockPanel>
 </UserControl>

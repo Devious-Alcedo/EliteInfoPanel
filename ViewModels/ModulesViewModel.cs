@@ -1,4 +1,4 @@
-﻿// ModulesViewModel.cs
+﻿
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
@@ -17,6 +17,8 @@ namespace EliteInfoPanel.ViewModels
         private readonly GameStateService _gameState;
         private int _currentPage = 0;
         private readonly DispatcherTimer _pageTimer;
+        public double AvailableHeight { get; set; }
+        private List<ModuleItemViewModel> _allModules = new();
 
 
         public ObservableCollection<ModuleItemViewModel> LeftItems { get; } = new();
@@ -47,7 +49,7 @@ namespace EliteInfoPanel.ViewModels
 
         private List<List<ModuleItemViewModel>> _pagedLeft = new();
         private List<List<ModuleItemViewModel>> _pagedRight = new();
-    
+
 
 
         public int CurrentPage
@@ -57,10 +59,13 @@ namespace EliteInfoPanel.ViewModels
             {
                 if (SetProperty(ref _currentPage, value))
                 {
-                    UpdateModules();
+                    LoadCurrentPage(); // Only load, don’t rebuild anything
                 }
             }
         }
+
+
+
 
         public ModulesViewModel(GameStateService gameState) : base("Ship Modules")
         {
@@ -132,6 +137,7 @@ namespace EliteInfoPanel.ViewModels
 
         public void LoadCurrentPage()
         {
+            Log.Information("📥 Loading page {PageIndex}", CurrentPage);
             if (_pagedLeft == null || _pagedRight == null ||
                 _pagedLeft.Count == 0 || _pagedRight.Count == 0 ||
                 CurrentPage >= _pagedLeft.Count || CurrentPage >= _pagedRight.Count)
@@ -148,7 +154,8 @@ namespace EliteInfoPanel.ViewModels
                 }
                 if (item != null)
                     // log the item
-                 //   Log.Debug("Adding LeftItem: {name} ({slot} on page {page})", item.Name, item.Slot, CurrentPage     );
+                    //   Log.Debug("Adding LeftItem: {name} ({slot} on page {page})", item.Name, item.Slot, CurrentPage     );
+                    Log.Information("⬅️ Left: {Name} ({Health:P0})", item.Name, item.Health);
                 LeftItems.Add(item);
             }
 
@@ -160,18 +167,29 @@ namespace EliteInfoPanel.ViewModels
                 }
                 else
                 {
-                  //  Log.Debug("Adding RightItem: {name} ({slot}) - Health: {health}", item.Name, item.Slot, item.Health);
+                    //  Log.Debug("Adding RightItem: {name} ({slot}) - Health: {health}", item.Name, item.Slot, item.Health);
                     // log the item
-
+                    Log.Information("➡️ Right: {Name} ({Health:P0})", item.Name, item.Health);
                     RightItems.Add(item);
                 }
             }
         }
 
 
+        private int CalculateRowsPerColumn()
+        {
+            double estimatedRowHeight = FontSize * 1.8; // accounts for wrapping/margins
+            if (estimatedRowHeight <= 0 || AvailableHeight <= 0)
+                return 10;
+
+            int rows = (int)(AvailableHeight / estimatedRowHeight);
+            Log.Information("🧮 Rows per column based on {Height}px available: {Rows}", AvailableHeight, rows);
+            return Math.Max(rows, 2); // minimum of 2
+        }
 
 
-        private void UpdateModules()
+
+        public void UpdateModules()
         {
             RunOnUIThread(() =>
             {
@@ -179,6 +197,10 @@ namespace EliteInfoPanel.ViewModels
                 {
                     LeftItems.Clear();
                     RightItems.Clear();
+
+                    // ✅ Preserve the current page before clearing
+                    int previousPage = CurrentPage;
+
                     _pagedLeft.Clear();
                     _pagedRight.Clear();
 
@@ -190,23 +212,19 @@ namespace EliteInfoPanel.ViewModels
                                 !status.Flags.HasFlag(Flag.InSRV) &&
                                 !status.Flags.HasFlag(Flag.InFighter);
 
-                    // ✅ Do nothing if the card shouldn't be shown
-                    if (!IsVisible)
-                        return;
-
-                    // ✅ Now it's safe to continue
-                    if (_gameState.CurrentLoadout?.Modules == null)
+                    if (!IsVisible || _gameState.CurrentLoadout?.Modules == null)
                         return;
 
                     var rawModules = _gameState.CurrentLoadout.Modules;
 
                     if (rawModules == null || rawModules.Count == 0)
                         return;
-                    var fontSize = (int)this.FontSize; // ✅ current setting
+
+                    var fontSize = (int)this.FontSize;
 
                     var modules = rawModules
                         .Where(m =>
-                            m != null &&                                  // <-- critical!
+                            m != null &&
                             !string.IsNullOrWhiteSpace(m.Item) &&
                             !m.Item.StartsWith("Decal_", StringComparison.OrdinalIgnoreCase) &&
                             !m.Item.StartsWith("Nameplate_", StringComparison.OrdinalIgnoreCase) &&
@@ -225,32 +243,42 @@ namespace EliteInfoPanel.ViewModels
                             module.Slot,
                             module.On)
                         {
-                            FontSize = fontSize  // ✅ apply current font size
+                            FontSize = fontSize
                         })
                         .ToList();
+                    Log.Information("🔧 Found {Count} valid modules", modules.Count);
+                    _allModules = modules;
 
+                    int rowsPerColumn = CalculateRowsPerColumn();
+                    int itemsPerPage = rowsPerColumn * 2;
 
-                    const int itemsPerPage = 20;
-                    int totalPages = (int)Math.Ceiling(modules.Count / (double)itemsPerPage);
+                    var pages = new List<(List<ModuleItemViewModel> Left, List<ModuleItemViewModel> Right)>();
 
-                    for (int i = 0; i < totalPages; i++)
+                    for (int i = 0; i < modules.Count; i += itemsPerPage)
                     {
-                        var pageItems = modules.Skip(i * itemsPerPage).Take(itemsPerPage).ToList();
+                        var pageItems = modules.Skip(i).Take(itemsPerPage).ToList();
                         int half = (int)Math.Ceiling(pageItems.Count / 2.0);
+                        var left = pageItems.Take(half).ToList();
+                        var right = pageItems.Skip(half).ToList();
 
-                        _pagedLeft.Add(pageItems.Take(half).ToList());
-                        _pagedRight.Add(pageItems.Skip(half).ToList());
+                        pages.Add((left, right));
+                        Log.Information("📄 Page {Page}: {LeftCount} left, {RightCount} right", pages.Count - 1, left.Count, right.Count);
                     }
-                 //   Log.Debug("Loaded {left} left and {right} right modules for page {page}",
-                          //_pagedLeft[CurrentPage].Count,
-                          //_pagedRight[CurrentPage].Count,
-                          //CurrentPage);
 
-                    if (_pagedRight[CurrentPage].Any(m => m == null))
-                        Log.Warning("Null item found in _pagedRight[{page}]", CurrentPage);
+                    _pagedLeft = pages.Select(p => p.Left).ToList();
+                    _pagedRight = pages.Select(p => p.Right).ToList();
+                    Log.Information("✅ Generated {PageCount} pages", _pagedLeft.Count);
 
 
-                    LoadCurrentPage();
+                    if (_currentPage >= _pagedLeft.Count)
+                        CurrentPage = Math.Max(0, _pagedLeft.Count - 1);
+                    else
+                        LoadCurrentPage(); // ✅ otherwise, reuse current page
+
+
+
+
+
                 }
                 catch (Exception ex)
                 {
@@ -258,77 +286,104 @@ namespace EliteInfoPanel.ViewModels
                 }
             });
         }
-    }
 
-    public class ModuleItemViewModel : ViewModelBase
-    {
-        private string _name;
-        private float _health;
-        private string _slot;
-        private bool _isOn;
-        private int _fontSize = 14;
-        public int FontSize
+        public void RebuildPaginationOnly()
         {
-            get => _fontSize;
-            set => SetProperty(ref _fontSize, value);
-        }
-        public string Name
-        {
-            get => _name;
-            set => SetProperty(ref _name, value);
-        }
+            if (_allModules == null || !_allModules.Any()) return;
 
-        public float Health
-        {
-            get => _health;
-            set => SetProperty(ref _health, value);
-        }
+            int rowsPerColumn = CalculateRowsPerColumn();
+            int itemsPerPage = rowsPerColumn * 2;
+            int totalPages = (int)Math.Ceiling(_allModules.Count / (double)itemsPerPage);
 
-        public string Slot
-        {
-            get => _slot;
-            set => SetProperty(ref _slot, value);
-        }
+            _pagedLeft.Clear();
+            _pagedRight.Clear();
 
-        public bool IsOn
-        {
-            get => _isOn;
-            set => SetProperty(ref _isOn, value);
-        }
-
-        public Brush HealthColor
-        {
-            get
+            for (int i = 0; i < totalPages; i++)
             {
-                try
-                {
-                    if (float.IsNaN(Health) || float.IsInfinity(Health))
-                        return Brushes.Gray;
+                var pageItems = _allModules.Skip(i * itemsPerPage).Take(itemsPerPage).ToList();
+                int half = (int)Math.Ceiling(pageItems.Count / 2.0);
+                _pagedLeft.Add(pageItems.Take(half).ToList());
+                _pagedRight.Add(pageItems.Skip(half).ToList());
+            }
 
-                    return Health < 0.7f ? Brushes.Red :
-                    Health < 0.95f ? Brushes.Orange :
-                           Brushes.White;
-                }
-                catch (Exception ex)
+            Log.Information("🌀 Rebuilt pagination: {PageCount} pages", totalPages);
+
+            if (_currentPage >= _pagedLeft.Count)
+                _currentPage = Math.Max(0, _pagedLeft.Count - 1);
+
+            LoadCurrentPage();
+        }
+
+        public class ModuleItemViewModel : ViewModelBase
+        {
+            private string _name;
+            private float _health;
+            private string _slot;
+            private bool _isOn;
+            private int _fontSize = 14;
+            public int FontSize
+            {
+                get => _fontSize;
+                set => SetProperty(ref _fontSize, value);
+            }
+            public string Name
+            {
+                get => _name;
+                set => SetProperty(ref _name, value);
+            }
+
+            public float Health
+            {
+                get => _health;
+                set => SetProperty(ref _health, value);
+            }
+
+            public string Slot
+            {
+                get => _slot;
+                set => SetProperty(ref _slot, value);
+            }
+
+            public bool IsOn
+            {
+                get => _isOn;
+                set => SetProperty(ref _isOn, value);
+            }
+
+            public Brush HealthColor
+            {
+                get
                 {
-                    Log.Error(ex, "Error computing HealthColor for {Name}", Name);
-                    return Brushes.Gray;
+                    try
+                    {
+                        if (float.IsNaN(Health) || float.IsInfinity(Health))
+                            return Brushes.Gray;
+
+                        return Health < 0.7f ? Brushes.Red :
+                        Health < 0.95f ? Brushes.Orange :
+                               Brushes.White;
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "Error computing HealthColor for {Name}", Name);
+                        return Brushes.Gray;
+                    }
                 }
             }
+
+
+            public ModuleItemViewModel(string name, float health, string slot, bool isOn)
+            {
+                _name = name;
+                _health = health;
+                _slot = slot;
+                _isOn = isOn;
+
+
+
+
+            }
+
         }
-
-
-        public ModuleItemViewModel(string name, float health, string slot, bool isOn)
-        {
-            _name = name;
-            _health = health;
-            _slot = slot;
-            _isOn = isOn;
-
-      
-
-
     }
-
-}
 }
