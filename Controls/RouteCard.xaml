@@ -52,22 +52,21 @@
                                             <Setter.Value>
                                                 <ControlTemplate>
                                                     <TextBlock FontSize="18" 
-                                                               Margin="8,0,0,2"
-                                                               Foreground="{DynamicResource MaterialDesignBody}"
-                                                               Cursor="Hand"
-                                                               ToolTip="Click to copy system name">
+                           Margin="8,0,0,2"
+                           Foreground="{DynamicResource MaterialDesignBody}"
+                           Cursor="Hand"
+                           ToolTip="Click to copy system name">
                                                         <TextBlock.Text>
-                                                            <MultiBinding StringFormat="{}{0} ({1})">
+                                                            <MultiBinding StringFormat="{}{0}">
                                                                 <Binding Path="Text" />
-                                                                <Binding Path="StarClass" />
                                                             </MultiBinding>
                                                         </TextBlock.Text>
                                                         <TextBlock.InputBindings>
                                                             <MouseBinding Gesture="LeftClick" 
-                                                                          Command="{Binding DataContext.CopySystemNameCommand, 
-                                                                                    RelativeSource={RelativeSource FindAncestor, 
-                                                                                    AncestorType={x:Type UserControl}}}"
-                                                                          CommandParameter="{Binding Text}"/>
+                                      Command="{Binding DataContext.CopySystemNameCommand, 
+                                                RelativeSource={RelativeSource FindAncestor, 
+                                                AncestorType={x:Type UserControl}}}"
+                                      CommandParameter="{Binding}"/>
                                                         </TextBlock.InputBindings>
                                                     </TextBlock>
                                                 </ControlTemplate>

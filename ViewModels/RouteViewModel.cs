@@ -192,8 +192,64 @@ namespace EliteInfoPanel.ViewModels
 
         private void CopySystemName(object parameter)
         {
-            string text = parameter as string;
-            if (string.IsNullOrWhiteSpace(text))
+            var routeItem = parameter as RouteItemViewModel;
+            if (routeItem == null)
+            {
+                ShowToast("Nothing to copy.");
+                return;
+            }
+
+            // Extract just the system name from the Text property
+            string systemName = null;
+
+            if (routeItem.ItemType == RouteItemType.System)
+            {
+                // The Text now contains: "🔴 SystemName\n  [Distance: 55.28 LY]\n  [Fuel: ⛽ 24.96 t]"
+                // We need to extract just the system name
+                string text = routeItem.Text;
+
+                // Find the system name by removing the icon prefix and everything after the first newline
+                int spaceIndex = text.IndexOf(' ');
+                if (spaceIndex >= 0)
+                {
+                    int newlineIndex = text.IndexOf('\n');
+                    if (newlineIndex > spaceIndex)
+                    {
+                        // Extract just the system name (after the space but before the newline)
+                        systemName = text.Substring(spaceIndex + 1, newlineIndex - spaceIndex - 1).Trim();
+                    }
+                    else
+                    {
+                        // If no newline, just take everything after the first space
+                        systemName = text.Substring(spaceIndex + 1).Trim();
+                    }
+                }
+                else
+                {
+                    // Fallback to the entire text if we can't parse it
+                    systemName = text;
+                }
+            }
+            else if (routeItem.ItemType == RouteItemType.Destination)
+            {
+                // For destination items, extract just the system name if possible
+                string text = routeItem.Text;
+                if (text.StartsWith("Target: "))
+                {
+                    systemName = text.Substring("Target: ".Length);
+                }
+                else
+                {
+                    systemName = text;
+                }
+            }
+            else
+            {
+                // For other item types (like "Jumps Remaining"), use the full text
+                systemName = routeItem.Text;
+            }
+
+            if (string.IsNullOrWhiteSpace(systemName))
             {
                 ShowToast("Nothing to copy.");
                 return;
@@ -201,8 +257,8 @@ namespace EliteInfoPanel.ViewModels
 
             try
             {
-                ClipboardService.SetText(text);
-                ShowToast($"Copied: {text}");
+                ClipboardService.SetText(systemName);
+                ShowToast($"Copied: {systemName}");
             }
             catch (Exception ex)
             {
@@ -210,7 +266,6 @@ namespace EliteInfoPanel.ViewModels
                 Serilog.Log.Warning(ex, "Clipboard error");
             }
         }
-
         private void ShowToast(string message)
         {
             // This will be connected to the main view model's toast queue
