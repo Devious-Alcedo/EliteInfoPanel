@@ -10,11 +10,23 @@ namespace EliteInfoPanel.ViewModels
     {
         private readonly GameStateService _gameState;
         private int _fontSize = 14;
-        public int FontSize
+        public override double FontSize
         {
-            get => _fontSize;
-            set => SetProperty(ref _fontSize, value);
+            get => base.FontSize;
+            set
+            {
+                if (base.FontSize != value)
+                {
+                    base.FontSize = value;
+
+                    foreach (var item in Items)
+                    {
+                        item.FontSize = (int)value;
+                    }
+                }
+            }
         }
+
 
         public ObservableCollection<BackpackItemViewModel> Items { get; } = new();
 
@@ -57,7 +69,10 @@ namespace EliteInfoPanel.ViewModels
                         item.Name_Localised ?? item.Name,
                         item.Count,
                         group.Key,
-                        isFirst));
+                        isFirst)
+                    {
+                        FontSize = (int)this.FontSize
+                    });
 
                     isFirst = false;
                 }
@@ -72,6 +87,12 @@ namespace EliteInfoPanel.ViewModels
         private int _count;
         private string _category;
         private bool _isFirstInCategory;
+        private int _fontSize = 14;
+        public int FontSize
+        {
+            get => _fontSize;
+            set => SetProperty(ref _fontSize, value);
+        }
 
         public string Name
         {

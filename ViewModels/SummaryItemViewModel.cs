@@ -14,12 +14,13 @@ namespace EliteInfoPanel.ViewModels
             get => _content;
             set => SetProperty(ref _content, value); // This must raise PropertyChanged
         }
-        private int _fontSize = 20;
+        private int _fontSize = 14;
         public int FontSize
         {
             get => _fontSize;
             set => SetProperty(ref _fontSize, value);
         }
+
         private bool _pulse;
         public bool Pulse
         {

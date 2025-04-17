@@ -110,16 +110,23 @@ namespace EliteInfoPanel.ViewModels
 
         private void UpdateSummary()
         {
-            if (!System.Windows.Application.Current.Dispatcher.CheckAccess())
+            // null check
+            if (_gameState == null)
             {
-                System.Windows.Application.Current.Dispatcher.Invoke(UpdateSummary);
+                Log.Error("GameStateService is null in UpdateSummary");
                 return;
             }
+            if (System.Windows.Application.Current == null || !System.Windows.Application.Current.Dispatcher.CheckAccess())
+            {
+                System.Windows.Application.Current?.Dispatcher.Invoke(UpdateSummary);
+                return;
+            }
+
 
             try
             {
                 RemoveNonCustomItems();
-
+                int fontSize = (int)this.FontSize;
                 if (_gameState.CurrentStatus == null)
                     return;
 
@@ -130,7 +137,10 @@ namespace EliteInfoPanel.ViewModels
                         "Commander",
                         $"CMDR {_gameState.CommanderName}",
                         Brushes.WhiteSmoke,
-                        PackIconKind.AccountCircle));
+                        PackIconKind.AccountCircle)
+                    {
+                        FontSize = fontSize
+                    });
                 }
 
                 // Squadron
@@ -140,7 +150,10 @@ namespace EliteInfoPanel.ViewModels
                         "Squadron",
                         _gameState.SquadronName,
                         Brushes.LightGoldenrodYellow,
-                        PackIconKind.AccountGroup));
+                        PackIconKind.AccountGroup)
+                    {
+                        FontSize = fontSize
+                    });
                 }
 
                 // Ship
@@ -167,7 +180,10 @@ namespace EliteInfoPanel.ViewModels
                         "Ship",
                         shipText,
                         Brushes.LightBlue,
-                        PackIconKind.SpaceStation));
+                        PackIconKind.SpaceStation)
+                    {
+                        FontSize = fontSize
+                    });
                 }
 
                 // Balance
@@ -178,7 +194,10 @@ namespace EliteInfoPanel.ViewModels
                         "Balance",
                         balanceText,
                         Brushes.LightGreen,
-                        PackIconKind.CurrencyUsd));
+                        PackIconKind.CurrencyUsd)
+                    {
+                        FontSize = fontSize
+                    });
                 }
 
                 // Current System
@@ -188,7 +207,10 @@ namespace EliteInfoPanel.ViewModels
                         "System",
                         _gameState.CurrentSystem,
                         Brushes.Orange,
-                        PackIconKind.Earth));
+                        PackIconKind.Earth)
+                    {
+                        FontSize = fontSize
+                    });
                 }
 
                 // Heat
@@ -254,7 +276,8 @@ namespace EliteInfoPanel.ViewModels
                     Brushes.Gold,
                     PackIconKind.RocketLaunch)
                 {
-                    FontSize = 1
+                    FontSize = (int)this.FontSize
+
                 };
 
                 Items.Add(_carrierCountdownItem);
@@ -329,7 +352,7 @@ namespace EliteInfoPanel.ViewModels
                 }
 
                 _carrierCountdownItem.Content = FormatCountdownText(remaining, destination);
-                _carrierCountdownItem.FontSize = 24;
+            
 
                 // ✅ Style logic
                 if (remaining.TotalMinutes <= 2.75 && _carrierCountdownItem.Foreground != Brushes.Red)

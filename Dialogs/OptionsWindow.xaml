@@ -48,12 +48,12 @@
                                    VerticalAlignment="Center"/>
 
                         <Slider Grid.Column="1"
-                                Minimum="{Binding MinFontScale}" 
-                                Maximum="{Binding MaxFontScale}" 
-                                Value="{Binding CurrentFontScale}"
-                                TickFrequency="{Binding FontScaleStep}"
-                                IsSnapToTickEnabled="True"
-                                VerticalAlignment="Center"/>
+                              Minimum="{Binding MinFontScale}" 
+                              Maximum="{Binding MaxFontScale}" 
+                              Value="{Binding CurrentFontScale}"
+                              TickFrequency="{Binding FontScaleStep}"
+                              IsSnapToTickEnabled="True"
+                              VerticalAlignment="Center"/>
 
                         <TextBlock Text="A" FontSize="20" Grid.Column="2" Margin="8,0,0,0" 
                                    VerticalAlignment="Center"/>

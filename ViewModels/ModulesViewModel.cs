@@ -202,6 +202,7 @@ namespace EliteInfoPanel.ViewModels
 
                     if (rawModules == null || rawModules.Count == 0)
                         return;
+                    var fontSize = (int)this.FontSize; // ✅ current setting
 
                     var modules = rawModules
                         .Where(m =>
@@ -222,7 +223,10 @@ namespace EliteInfoPanel.ViewModels
                             ModuleNameMapper.GetFriendlyName(module.ItemLocalised ?? module.Item),
                             module.Health,
                             module.Slot,
-                            module.On))
+                            module.On)
+                        {
+                            FontSize = fontSize  // ✅ apply current font size
+                        })
                         .ToList();
 
 

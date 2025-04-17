@@ -12,83 +12,21 @@ namespace EliteInfoPanel.ViewModels
 {
     public class MainViewModel : ViewModelBase
     {
+        #region Private Fields
+
         private readonly GameStateService _gameState;
-        private bool _isLoading = true;
-        private bool _isHyperspaceJumping;
         private string _hyperspaceDestination;
         private string _hyperspaceStarClass;
-        private SnackbarMessageQueue _toastQueue = new SnackbarMessageQueue(TimeSpan.FromSeconds(3));
         private bool _isCarrierJumping;
+        private bool _isHyperspaceJumping;
+        private bool _isLoading = true;
         private CardLayoutManager _layoutManager;
-
-        public bool IsCarrierJumping
-        {
-            get => _isCarrierJumping;
-            set => SetProperty(ref _isCarrierJumping, value);
-        }
-
-        public ObservableCollection<CardViewModel> Cards { get; } = new ObservableCollection<CardViewModel>();
-
-        // Individual card ViewModels
-        public SummaryViewModel SummaryCard { get; }
-        public CargoViewModel CargoCard { get; }
-        public BackpackViewModel BackpackCard { get; }
-        public RouteViewModel RouteCard { get; }
-        public ModulesViewModel ModulesCard { get; }
-        public FlagsViewModel FlagsCard { get; }
         private Grid _mainGrid;
+        private SnackbarMessageQueue _toastQueue = new SnackbarMessageQueue(TimeSpan.FromSeconds(3));
 
-        public void SetMainGrid(Grid mainGrid)
-        {
-            _mainGrid = mainGrid;
+        #endregion Private Fields
 
-            // Initialize layout manager
-            var appSettings = SettingsManager.Load();
-            _layoutManager = new CardLayoutManager(_mainGrid, appSettings, this);
-
-            // Do initial layout
-            UpdateCardLayout();
-        }
-
-        public bool IsLoading
-        {
-            get => _isLoading;
-            set => SetProperty(ref _isLoading, value);
-        }
-
-        public bool IsHyperspaceJumping
-        {
-            get => _isHyperspaceJumping;
-            set
-            {
-                if (_isHyperspaceJumping != value)
-                {
-                    _isHyperspaceJumping = value;
-                    OnPropertyChanged(nameof(IsHyperspaceJumping));
-                }
-            }
-        }
-
-        public string HyperspaceDestination
-        {
-            get => _hyperspaceDestination;
-            set => SetProperty(ref _hyperspaceDestination, value);
-        }
-
-        public string HyperspaceStarClass
-        {
-            get => _hyperspaceStarClass;
-            set => SetProperty(ref _hyperspaceStarClass, value);
-        }
-
-        public SnackbarMessageQueue ToastQueue
-        {
-            get => _toastQueue;
-            set => SetProperty(ref _toastQueue, value);
-        }
-
-        public RelayCommand OpenOptionsCommand { get; set; }
-        public RelayCommand CloseCommand { get; } = new RelayCommand(_ => Application.Current.Shutdown());
+        #region Public Constructors
 
         public MainViewModel(GameStateService gameState)
         {
@@ -120,8 +58,144 @@ namespace EliteInfoPanel.ViewModels
             _gameState.HyperspaceJumping += OnHyperspaceJumping;
 
             // Initial update
+          
+            double scale = SettingsManager.Load().UseFloatingWindow
+                ? SettingsManager.Load().FloatingFontScale
+                : SettingsManager.Load().FullscreenFontScale;
+
+            double baseFontSize = AppSettings.DEFAULT_FULLSCREEN_BASE * scale;
+
+            foreach (var card in Cards)
+            {
+                card.FontSize = baseFontSize;
+            }
             RefreshCardVisibility();
+
         }
+
+        #endregion Public Constructors
+
+        #region Public Properties
+
+        public BackpackViewModel BackpackCard { get; }
+
+        public ObservableCollection<CardViewModel> Cards { get; } = new ObservableCollection<CardViewModel>();
+
+        public CargoViewModel CargoCard { get; }
+
+        public RelayCommand CloseCommand { get; } = new RelayCommand(_ => Application.Current.Shutdown());
+
+        public FlagsViewModel FlagsCard { get; }
+
+        public string HyperspaceDestination
+        {
+            get => _hyperspaceDestination;
+            set => SetProperty(ref _hyperspaceDestination, value);
+        }
+
+        public string HyperspaceStarClass
+        {
+            get => _hyperspaceStarClass;
+            set => SetProperty(ref _hyperspaceStarClass, value);
+        }
+
+        public bool IsCarrierJumping
+        {
+            get => _isCarrierJumping;
+            set => SetProperty(ref _isCarrierJumping, value);
+        }
+        public bool IsHyperspaceJumping
+        {
+            get => _isHyperspaceJumping;
+            set
+            {
+                if (_isHyperspaceJumping != value)
+                {
+                    _isHyperspaceJumping = value;
+                    OnPropertyChanged(nameof(IsHyperspaceJumping));
+                }
+            }
+        }
+
+        public bool IsLoading
+        {
+            get => _isLoading;
+            set => SetProperty(ref _isLoading, value);
+        }
+
+        public ModulesViewModel ModulesCard { get; }
+
+        public RelayCommand OpenOptionsCommand { get; set; }
+
+        public RouteViewModel RouteCard { get; }
+
+        // Individual card ViewModels
+        public SummaryViewModel SummaryCard { get; }
+        public SnackbarMessageQueue ToastQueue
+        {
+            get => _toastQueue;
+            set => SetProperty(ref _toastQueue, value);
+        }
+
+        #endregion Public Properties
+
+        #region Public Methods
+
+        // Public method to refresh layout when font size changes
+        public void RefreshLayout()
+        {
+            // First refresh visibility to ensure the right cards are shown
+            RefreshCardVisibility();
+
+            // Force recreate all cards to apply new font sizes
+            RecreateAllCards();
+
+            // Then update the layout to apply new spacing/fonts
+            UpdateCardLayout();
+        }
+
+        public void SetMainGrid(Grid mainGrid)
+        {
+            _mainGrid = mainGrid;
+
+            // Initialize layout manager
+            var appSettings = SettingsManager.Load();
+            _layoutManager = new CardLayoutManager(_mainGrid, appSettings, this);
+
+            // Do initial layout
+            UpdateCardLayout();
+        }
+        public void ShowToast(string message)
+        {
+            ToastQueue.Enqueue(message);
+        }
+
+        public void UpdateLoadingState()
+        {
+            IsLoading = !IsEliteRunning();
+        }
+
+        #endregion Public Methods
+
+        #region Protected Methods
+
+        protected void RunOnUiThread(Action action)
+        {
+            if (System.Windows.Threading.Dispatcher.CurrentDispatcher.CheckAccess())
+            {
+                // We're already on the UI thread
+                action();
+            }
+            else
+            {
+                // We need to invoke the action on the UI thread
+                System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(action);
+            }
+        }
+
+        #endregion Protected Methods
+
+        #region Private Methods
 
         // Add to MainViewModel
         private bool IsEliteRunning()
@@ -135,12 +209,6 @@ namespace EliteInfoPanel.ViewModels
                 status.Flags.HasFlag(Flag.InFighter) ||
                 status.Flags.HasFlag(Flag.InMainShip));
         }
-
-        public void UpdateLoadingState()
-        {
-            IsLoading = !IsEliteRunning();
-        }
-
         private void OnGameStateUpdated()
         {
             Log.Debug("GameState update received.");
@@ -173,19 +241,35 @@ namespace EliteInfoPanel.ViewModels
             HyperspaceStarClass = _gameState.HyperspaceStarClass;
             RefreshCardVisibility();
         }
-
-        protected void RunOnUiThread(Action action)
+        private void OpenOptions()
         {
-            if (System.Windows.Threading.Dispatcher.CurrentDispatcher.CheckAccess())
+            // This will be handled in the view
+            System.Diagnostics.Debug.WriteLine("Open Options requested");
+        }
+
+        // Forces recreation of all cards to apply new font settings
+        private void RecreateAllCards()
+        {
+            // Make sure we're on the UI thread
+            if (!System.Windows.Application.Current.Dispatcher.CheckAccess())
             {
-                // We're already on the UI thread
-                action();
+                System.Windows.Application.Current.Dispatcher.Invoke(RecreateAllCards);
+                return;
             }
-            else
+
+            if (_mainGrid == null) return;
+
+            // Clear all card elements from the grid
+            for (int i = _mainGrid.Children.Count - 1; i >= 0; i--)
             {
-                // We need to invoke the action on the UI thread
-                System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(action);
+                if (_mainGrid.Children[i] is Card)
+                {
+                    _mainGrid.Children.RemoveAt(i);
+                }
             }
+
+            // Force layout update
+            _mainGrid.UpdateLayout();
         }
 
         private void RefreshCardVisibility()
@@ -350,53 +434,7 @@ namespace EliteInfoPanel.ViewModels
                 }
             }
         }
-        // Public method to refresh layout when font size changes
-        public void RefreshLayout()
-        {
-            // First refresh visibility to ensure the right cards are shown
-            RefreshCardVisibility();
 
-            // Force recreate all cards to apply new font sizes
-            RecreateAllCards();
-
-            // Then update the layout to apply new spacing/fonts
-            UpdateCardLayout();
-        }
-
-        // Forces recreation of all cards to apply new font settings
-        private void RecreateAllCards()
-        {
-            // Make sure we're on the UI thread
-            if (!System.Windows.Application.Current.Dispatcher.CheckAccess())
-            {
-                System.Windows.Application.Current.Dispatcher.Invoke(RecreateAllCards);
-                return;
-            }
-
-            if (_mainGrid == null) return;
-
-            // Clear all card elements from the grid
-            for (int i = _mainGrid.Children.Count - 1; i >= 0; i--)
-            {
-                if (_mainGrid.Children[i] is Card)
-                {
-                    _mainGrid.Children.RemoveAt(i);
-                }
-            }
-
-            // Force layout update
-            _mainGrid.UpdateLayout();
-        }
-    
-        private void OpenOptions()
-        {
-            // This will be handled in the view
-            System.Diagnostics.Debug.WriteLine("Open Options requested");
-        }
-
-        public void ShowToast(string message)
-        {
-            ToastQueue.Enqueue(message);
-        }
+        #endregion Private Methods
     }
 }

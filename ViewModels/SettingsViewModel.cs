@@ -27,6 +27,19 @@ namespace EliteInfoPanel.ViewModels
         }
 
         // Font scale properties
+        public double FloatingFontScale
+        {
+            get => _appSettings.FloatingFontScale;
+            set
+            {
+                if (_appSettings.FloatingFontScale != value)
+                {
+                    _appSettings.FloatingFontScale = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public double FullscreenFontScale
         {
             get => _appSettings.FullscreenFontScale;
@@ -40,18 +53,6 @@ namespace EliteInfoPanel.ViewModels
             }
         }
 
-        public double FloatingFontScale
-        {
-            get => _appSettings.FloatingFontScale;
-            set
-            {
-                if (_appSettings.FloatingFontScale != value)
-                {
-                    _appSettings.FloatingFontScale = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
 
         // Font scale bounds
         public double MinFontScale => 0.7;
@@ -269,7 +270,7 @@ namespace EliteInfoPanel.ViewModels
         {
             SettingsManager.Save(_appSettings);
             // Notify that font size might have changed
-            FontSizeChanged?.Invoke();
+           // FontSizeChanged?.Invoke();
         }
 
         // Method to handle screen selection

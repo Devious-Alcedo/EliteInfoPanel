@@ -292,26 +292,26 @@ namespace EliteInfoPanel
                 ApplyWindowSettings();
             };
 
-            // Add handler for font size changes
             options.FontSizeChanged += () =>
             {
-                // Update font resources when font size changes
                 UpdateFontResources();
-
-                // Force application-wide refresh of resources
                 App.RefreshResources();
-
-                // Force immediate application of new resources
                 InvalidateVisual();
-
-                // Refresh the layout to apply new font sizes to all elements
                 _viewModel.RefreshLayout();
-
-                // Force a complete refresh of the window
                 this.UpdateLayout();
             };
 
-            options.ShowDialog();
+            bool? result = options.ShowDialog();
+
+            if (result == true)
+            {
+                _appSettings.UseFloatingWindow = options.Settings.UseFloatingWindow;
+                _appSettings.FloatingFontScale = options.Settings.FloatingFontScale;
+                _appSettings.FullscreenFontScale = options.Settings.FullscreenFontScale;
+                // Add any others you care about persisting
+
+            }
         }
+
     }
 }

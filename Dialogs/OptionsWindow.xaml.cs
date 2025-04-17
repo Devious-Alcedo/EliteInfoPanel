@@ -50,6 +50,7 @@ namespace EliteInfoPanel.Dialogs
 
             // Create view model
             _viewModel = new SettingsViewModel(settings);
+            _viewModel.IsFloatingWindowMode = settings.UseFloatingWindow;
             DataContext = _viewModel;
 
             // Connect commands

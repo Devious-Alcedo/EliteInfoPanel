@@ -94,7 +94,10 @@ namespace EliteInfoPanel.ViewModels
                 {
                     Items.Add(new RouteItemViewModel(
                         $"Jumps Remaining: {_gameState.RemainingJumps.Value}",
-                        null, null, RouteItemType.Info));
+                        null, null, RouteItemType.Info)
+                    {
+                        FontSize = (int)this.FontSize
+                    });
                 }
 
                 // Show destination
@@ -107,7 +110,10 @@ namespace EliteInfoPanel.ViewModels
                     {
                         Items.Add(new RouteItemViewModel(
                             $"Target: {FormatDestinationName(_gameState.CurrentStatus.Destination)}",
-                            null, null, RouteItemType.Destination));
+                            null, null, RouteItemType.Destination)
+                        {
+                            FontSize = (int)this.FontSize
+                        });
                     }
                 }
                 var fuelStatus = _gameState.CurrentStatus?.Fuel;
@@ -177,7 +183,10 @@ namespace EliteInfoPanel.ViewModels
                             label,
                             jump.StarClass,
                             jump.SystemAddress,
-                            RouteItemType.System));
+                            RouteItemType.System)
+                        {
+                            FontSize = (int)this.FontSize
+                        });
                     }
 
                 }

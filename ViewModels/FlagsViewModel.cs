@@ -93,7 +93,10 @@ namespace EliteInfoPanel.ViewModels
                         _ => flag.ToString().Replace("_", " ")
                     };
 
-                    Items.Add(new FlagItemViewModel(flag, displayText));
+                    Items.Add(new FlagItemViewModel(flag, displayText)
+                    {
+                        FontSize = (int)this.FontSize
+                    });
                 }
             });
         }

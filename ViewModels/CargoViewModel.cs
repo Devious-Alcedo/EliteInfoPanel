@@ -39,8 +39,12 @@ namespace EliteInfoPanel.ViewModels
                 foreach (var item in _gameState.CurrentCargo.Inventory.OrderByDescending(i => i.Count))
                 {
                     Items.Add(new CargoItemViewModel(
-                        CommodityMapper.GetDisplayName(item.Name),
-                        item.Count));
+                      CommodityMapper.GetDisplayName(item.Name),
+                      item.Count)
+                    {
+                        FontSize = (int)this.FontSize // ✅ apply current font size after construction
+                    });
+
                 }
 
                 UpdateCargoTitle(); // ✅ Call this at the end
