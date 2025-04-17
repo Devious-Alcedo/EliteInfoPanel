@@ -132,6 +132,18 @@ namespace EliteInfoPanel
                 Log.Information("Applied full-screen settings on screen: {Screen}",
                     _currentScreen?.DeviceName ?? "Unknown");
             }
+        double fontScale = _appSettings.UseFloatingWindow
+            ? _appSettings.FloatingFontScale
+            : _appSettings.FullscreenFontScale;
+
+                    double baseFontSize = _appSettings.UseFloatingWindow
+                        ? AppSettings.DEFAULT_FLOATING_BASE * fontScale
+                        : AppSettings.DEFAULT_FULLSCREEN_BASE * fontScale;
+
+                    foreach (var card in _viewModel.Cards)
+                    {
+                        card.FontSize = baseFontSize;
+                    }
         }
 
         private void EnsureWindowIsVisible()
