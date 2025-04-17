@@ -16,6 +16,9 @@
             <System:Double x:Key="BaseFontSize">14</System:Double>
             <System:Double x:Key="HeaderFontSize">18</System:Double>
             <System:Double x:Key="SmallFontSize">12</System:Double>
+            <Style TargetType="CheckBox">
+                <Setter Property="Foreground" Value="{DynamicResource MaterialDesign.Brush.Foreground}" />
+            </Style>
 
             <!-- Style overrides that use dynamic font sizes -->
             <Style x:Key="ButtonStyle" BasedOn="{StaticResource MaterialDesignRaisedButton}" TargetType="{x:Type Button}">

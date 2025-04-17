@@ -10,6 +10,7 @@ using EliteInfoPanel.ViewModels;
 using EliteInfoPanel.Converters;
 using WpfScreenHelper;
 using System.Windows.Data;
+using System.Collections.ObjectModel;
 
 namespace EliteInfoPanel.Dialogs
 {
@@ -21,6 +22,7 @@ namespace EliteInfoPanel.Dialogs
         private Dictionary<Flag, CheckBox> flagCheckBoxes = new();
         public event Action? RestartRequested;
         private bool _originalUseFloating;
+        public ObservableCollection<CheckBox> FlagCheckBoxes { get; } = new();
         #endregion Private Fields
 
         #region Public Constructors
@@ -316,10 +318,7 @@ namespace EliteInfoPanel.Dialogs
         {
             var appSettings = SettingsManager.Load();
 
-            if (FindName("FlagOptionsPanel") is not StackPanel flagPanel) return;
-
-            flagPanel.Children.Clear();
-            flagCheckBoxes.Clear();
+            FlagCheckBoxes.Clear(); // clear old
 
             var visibleFlags = appSettings.DisplayOptions.VisibleFlags ?? new List<Flag>();
 
@@ -335,16 +334,20 @@ namespace EliteInfoPanel.Dialogs
                     Content = flag.ToString().Replace("_", " "),
                     IsChecked = isChecked,
                     Margin = new Thickness(5),
-                    Tag = flag
+                    Tag = flag,
+                    Style = (Style)FindResource("ThemedCheckBoxStyle")
                 };
 
                 checkBox.Checked += (s, e) => UpdateFlagSetting(flag, true);
                 checkBox.Unchecked += (s, e) => UpdateFlagSetting(flag, false);
 
-                flagPanel.Children.Add(checkBox);
                 flagCheckBoxes[flag] = checkBox;
+                FlagCheckBoxes.Add(checkBox);
             }
+
+            FlagOptionsPanel.ItemsSource = FlagCheckBoxes;
         }
+
 
         private void UpdateFlagSetting(Flag flag, bool isChecked)
         {
