@@ -16,6 +16,8 @@
                 <DataTemplate>
                     <TextBlock Style="{StaticResource CardContentStyle}"
                                FontSize="{Binding FontSize}"
+                                TextWrapping="Wrap"
+                                TextTrimming="None"
                                Margin="0,2,0,2">
                         <TextBlock.Text>
                             <MultiBinding StringFormat="{}{0}: {1}">

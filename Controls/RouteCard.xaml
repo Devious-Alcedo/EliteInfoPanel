@@ -26,6 +26,8 @@
                                                 <ControlTemplate>
                                                     <TextBlock Text="{Binding Text}" 
                                                                FontSize="{Binding FontSize}" 
+                                                                                               TextWrapping="Wrap"
+                                TextTrimming="None"
                                                                Margin="0,0,0,6"
                                                                Foreground="{DynamicResource MaterialDesignBody}"/>
                                                 </ControlTemplate>
@@ -38,6 +40,8 @@
                                                 <ControlTemplate>
                                                     <TextBlock Text="{Binding Text}" 
                                                                FontSize="{Binding FontSize}" 
+                                                                                               TextWrapping="Wrap"
+                                TextTrimming="None"
                                                                Margin="0,0,0,6"
                                                                Foreground="{DynamicResource MaterialDesignBody}"/>
                                                 </ControlTemplate>

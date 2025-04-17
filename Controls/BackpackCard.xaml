@@ -29,12 +29,16 @@
                                    Text="{Binding Category}"
                                    FontWeight="Bold"
                                    FontSize="{Binding FontSize}"
+                                       TextWrapping="Wrap"
+    TextTrimming="None"
                                    Foreground="{DynamicResource MaterialDesignBody}"
                                    Margin="0,10,0,4"
                                    Visibility="{Binding IsFirstInCategory, Converter={StaticResource BoolToVis}}"/>
 
                         <TextBlock Grid.Row="1"
                                    FontSize="{Binding FontSize}"
+                                       TextWrapping="Wrap"
+    TextTrimming="None"
                                    Margin="10,0,0,2"
                                    Foreground="{DynamicResource MaterialDesignBody}">
                             <TextBlock.Text>

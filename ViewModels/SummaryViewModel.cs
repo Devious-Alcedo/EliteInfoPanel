@@ -183,6 +183,7 @@ namespace EliteInfoPanel.ViewModels
                         PackIconKind.SpaceStation)
                     {
                         FontSize = fontSize
+                                                     
                     });
                 }
 

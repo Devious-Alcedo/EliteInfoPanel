@@ -42,8 +42,8 @@
                         <TextBlock FontSize="{Binding FontSize}"
                            Margin="4"
                            Foreground="{Binding HealthColor}"
-                           TextWrapping="Wrap"
-                           TextTrimming="CharacterEllipsis"
+                                TextWrapping="Wrap"
+                                TextTrimming="None"
                            MaxWidth="280"
                            ToolTip="{Binding Name}">
                             <TextBlock.Text>
@@ -71,8 +71,8 @@
                         <TextBlock FontSize="{Binding FontSize}"
                            Margin="4"
                            Foreground="{Binding HealthColor}"
-                           TextWrapping="Wrap"
-                           TextTrimming="CharacterEllipsis"
+                            TextWrapping="Wrap"
+                            TextTrimming="None"
                            MaxWidth="280"
                            ToolTip="{Binding Name}">
                             <TextBlock.Text>
