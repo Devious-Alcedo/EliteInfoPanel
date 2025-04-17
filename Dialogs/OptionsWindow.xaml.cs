@@ -7,7 +7,9 @@ using Serilog;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
 using EliteInfoPanel.ViewModels;
+using EliteInfoPanel.Converters;
 using WpfScreenHelper;
+using System.Windows.Data;
 
 namespace EliteInfoPanel.Dialogs
 {
@@ -37,21 +39,36 @@ namespace EliteInfoPanel.Dialogs
             settings.DisplayOptions ??= new DisplayOptions();
             settings.DisplayOptions.VisibleFlags ??= new List<Flag>();
 
+            // Initialize font scales if they're 0
+            if (settings.FullscreenFontScale <= 0)
+                settings.FullscreenFontScale = 1.0;
+
+            if (settings.FloatingFontScale <= 0)
+                settings.FloatingFontScale = 1.0;
+
             Log.Information("Loaded settings: {@Settings}", settings);
 
             // Create view model
             _viewModel = new SettingsViewModel(settings);
+            _viewModel.IsFloatingWindowMode = settings.UseFloatingWindow;
             DataContext = _viewModel;
+
             // Connect commands
             _viewModel.SaveCommand = new RelayCommand(_ =>
             {
-                // Don't call SaveSettings() again from here
-                var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-                var currentScreen = Screen.FromHandle(handle);
-                Settings.SelectedScreenId = currentScreen.DeviceName;
+                bool windowModeChanged = _viewModel.IsFloatingWindowMode != settings.UseFloatingWindow;
 
                 // Save the settings
-                _viewModel.SaveSettings(); // Call the ViewModel's save method
+                _viewModel.SaveSettings();
+
+                // Notify about window mode change if it changed
+                if (windowModeChanged)
+                {
+                    WindowModeChanged?.Invoke(_viewModel.IsFloatingWindowMode);
+                }
+
+                // Notify about font size change
+                FontSizeChanged?.Invoke();
 
                 // Close the dialog
                 DialogResult = true;
@@ -68,18 +85,17 @@ namespace EliteInfoPanel.Dialogs
 
             // Subscribe to events
             _viewModel.ScreenChanged += screen => ScreenChanged?.Invoke(screen);
+            _viewModel.FontSizeChanged += () => FontSizeChanged?.Invoke();
 
             // Position the window
             PositionWindowOnScreen(settings);
-
-            // Set the data context
-          
 
             // Load UI when window is shown
             Loaded += (s, e) =>
             {
                 PopulateDisplayOptions();
                 PopulateFlagOptions();
+                PopulateWindowModeOptions();
             };
         }
 
@@ -88,6 +104,8 @@ namespace EliteInfoPanel.Dialogs
         #region Public Events
 
         public event Action<Screen> ScreenChanged;
+        public event Action<bool> WindowModeChanged;
+        public event Action FontSizeChanged;
 
         #endregion Public Events
 
@@ -126,6 +144,70 @@ namespace EliteInfoPanel.Dialogs
             // This calls your existing method for changing displays
             ChangeDisplayButton_Click(null, null);
         }
+
+        private void PopulateWindowModeOptions()
+        {
+            // Find the container for window mode options
+            if (FindName("WindowModePanel") is not StackPanel panel) return;
+
+            // Create radio buttons for window mode
+            var fullScreenRadio = new RadioButton
+            {
+                Content = "Full Screen Mode (on selected display)",
+                IsChecked = !_viewModel.AppSettings.UseFloatingWindow,
+                Margin = new Thickness(5),
+                GroupName = "WindowMode"
+            };
+
+            var floatingWindowRadio = new RadioButton
+            {
+                Content = "Floating Window Mode (movable and resizable)",
+                IsChecked = _viewModel.AppSettings.UseFloatingWindow,
+                Margin = new Thickness(5),
+                GroupName = "WindowMode"
+            };
+
+            // Add event handlers
+            fullScreenRadio.Checked += (s, e) =>
+            {
+                _viewModel.IsFloatingWindowMode = false;
+            };
+
+            floatingWindowRadio.Checked += (s, e) =>
+            {
+                _viewModel.IsFloatingWindowMode = true;
+            };
+
+            panel.Children.Add(fullScreenRadio);
+            panel.Children.Add(floatingWindowRadio);
+
+            // Add floating window specific options
+            var floatingOptions = new StackPanel { Margin = new Thickness(24, 5, 0, 0) };
+
+            // Add always on top checkbox
+            var alwaysOnTopCheck = new CheckBox
+            {
+                Content = "Always on Top",
+                IsChecked = _viewModel.AlwaysOnTop,
+                Margin = new Thickness(0, 5, 0, 5)
+            };
+
+            alwaysOnTopCheck.Checked += (s, e) => _viewModel.AlwaysOnTop = true;
+            alwaysOnTopCheck.Unchecked += (s, e) => _viewModel.AlwaysOnTop = false;
+
+            floatingOptions.Children.Add(alwaysOnTopCheck);
+
+            // Create a binding for IsEnabled
+            var enabledBinding = new Binding("IsFloatingWindowMode")
+            {
+                Source = _viewModel
+            };
+
+            floatingOptions.SetBinding(IsEnabledProperty, enabledBinding);
+
+            panel.Children.Add(floatingOptions);
+        }
+
         private void PositionWindowOnScreen(AppSettings settings)
         {
             var mainWindowHandle = new System.Windows.Interop.WindowInteropHelper(Application.Current.MainWindow).Handle;
@@ -143,6 +225,7 @@ namespace EliteInfoPanel.Dialogs
             this.Left = targetScreen.WpfBounds.Left + (targetScreen.WpfBounds.Width - this.Width) / 2;
             this.Top = targetScreen.WpfBounds.Top + (targetScreen.WpfBounds.Height - this.Height) / 2;
         }
+
         private void SaveSettings()
         {
             var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;

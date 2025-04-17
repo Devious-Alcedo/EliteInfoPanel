@@ -3,26 +3,54 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         xmlns:local="clr-namespace:EliteInfoPanel"
+        xmlns:util="clr-namespace:EliteInfoPanel.Util"
+        xmlns:controls="clr-namespace:EliteInfoPanel.Controls"
         Background="{DynamicResource MaterialDesignPaper}"
         WindowStyle="None"
         ResizeMode="NoResize"
         WindowStartupLocation="Manual"
-        Title="Elite Info Panel" Height="480" Width="1920">
+        Opacity="{Binding WindowOpacity}"
+        Title="Elite Info Panel">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <Style x:Key="NonAnimatedProgressBarStyle" TargetType="ProgressBar">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ProgressBar">
+                        <Grid x:Name="TemplateRoot" SnapsToDevicePixels="true">
+                            <Rectangle x:Name="PART_Track"
+                               Fill="{TemplateBinding Background}"
+                               Height="{TemplateBinding Height}" />
+                            <Rectangle x:Name="PART_Indicator"
+                               Fill="{TemplateBinding Foreground}"
+                               Height="{TemplateBinding Height}"
+                               HorizontalAlignment="Left">
+                                <Rectangle.Width>
+                                    <MultiBinding Converter="{StaticResource ProgressToWidthMultiConverter}">
+                                        <Binding Path="Value" RelativeSource="{RelativeSource TemplatedParent}" />
+                                        <Binding Path="ActualWidth" RelativeSource="{RelativeSource TemplatedParent}" />
+                                    </MultiBinding>
+                                </Rectangle.Width>
+                            </Rectangle>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
 
     <Grid x:Name="RootGrid">
-       
-
-        
-        <Grid x:Name="HyperspaceOverlay"
-      Background="#DD000020"
-      Visibility="Collapsed"
-      HorizontalAlignment="Stretch"
-      VerticalAlignment="Stretch"
-      Panel.ZIndex="9998">
+        <!-- Hyperspace Jump Overlay -->
+        <Grid Background="#DD000020"
+              Visibility="{Binding IsHyperspaceJumping, Converter={StaticResource BoolToVis}}"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Stretch"
+              Panel.ZIndex="9998">
             <StackPanel HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                Orientation="Vertical"
-                Margin="20">
+                        VerticalAlignment="Center"
+                        Orientation="Vertical"
+                        Margin="20">
                 <TextBlock x:Name="JumpDestinationText"
                    Text="Hyperspace Jump in Progress..."
                    Foreground="#80FFFFFF"
@@ -44,57 +72,113 @@
                      Background="Transparent"/>
             </StackPanel>
         </Grid>
-        <Grid x:Name="MainGrid" HorizontalAlignment="Stretch" Background="{DynamicResource MaterialDesignPaper}"
-             
-            VerticalAlignment="Stretch">
+
+        <!-- Loading Overlay -->
+        <Grid Background="#DD000020"
+              Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Stretch"
+              Panel.ZIndex="9997">
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Orientation="Vertical"
+                        Margin="20">
+                <TextBlock Text="Waiting for Elite to Load..."
+                           Foreground="#80FFFFFF"
+                           FontSize="64"
+                           FontWeight="SemiBold"
+                           TextAlignment="Center"
+                           Margin="0,0,0,20"/>
+                <ProgressBar Width="160"
+                             Height="16"
+                             IsIndeterminate="True"
+                             Foreground="DeepSkyBlue"
+                             Background="Transparent"/>
+            </StackPanel>
         </Grid>
 
-        <materialDesign:Snackbar
-            x:Name="ToastHost"
-            MessageQueue="{Binding ToastQueue}"
-            VerticalAlignment="Bottom"
-            HorizontalAlignment="Center"
-            Margin="20"
-            FontSize="20"/>
+        <Grid Visibility="{Binding IsCarrierJumping, Converter={StaticResource BoolToVis}}"
+              Background="#CC000000"
+              Panel.ZIndex="9997">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Vertical">
+                <TextBlock Text="Carrier Jump In Progress..."
+                           FontSize="48"
+                           FontWeight="Bold"
+                           Foreground="Orange"
+                           TextAlignment="Center" />
+                <ProgressBar Width="300"
+                             Height="10"
+                             IsIndeterminate="True"
+                             Foreground="Orange"
+                             Background="Transparent"
+                             Margin="0,20,0,0" />
+            </StackPanel>
+        </Grid>
 
+        <!-- Main Content Grid - Cards will be added to this dynamically -->
+        <Grid x:Name="MainGrid" 
+              HorizontalAlignment="Stretch" 
+              Background="{DynamicResource MaterialDesignPaper}"
+              VerticalAlignment="Stretch">
+        </Grid>
 
+        <!-- Toast Notifications -->
+        <materialDesign:Snackbar x:Name="ToastHost"
+                                 MessageQueue="{Binding ToastQueue}"
+                                 VerticalAlignment="Bottom"
+                                 HorizontalAlignment="Center"
+                                 Margin="20"
+                                 FontSize="20"/>
 
+        <!-- Custom Titlebar for Floating Mode -->
+        <Grid x:Name="FloatingTitleBar"
+              Height="32"
+              VerticalAlignment="Top"
+              Background="Transparent"
+              MouseLeftButtonDown="FloatingTitleBar_MouseLeftButtonDown">
 
+            <TextBlock Text="Elite Info Panel"
+                       Margin="10,0,0,0"
+                       VerticalAlignment="Center"
+                       Foreground="Orange"
+                       FontWeight="SemiBold" />
 
-        <!-- Close Button -->
-        <Button x:Name="CloseButton"
-        Width="40" Height="40"
-        Style="{DynamicResource MaterialDesignFlatButton}"
-        HorizontalAlignment="Right"
-        VerticalAlignment="Top"
-        Margin="0,10,10,0"
-        Padding="0"
-        ToolTip="Close"
-        Click="CloseButton_Click"
-        Background="Transparent"
-        BorderBrush="Transparent">
-            <materialDesign:PackIcon Kind="Close"
-                             Width="20" Height="20"
-                             Foreground="{DynamicResource MaterialDesignBody}" />
-        </Button>
-
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <Button Width="32" Height="32"
+                        Style="{DynamicResource MaterialDesignFlatButton}"
+                        Padding="0"
+                        ToolTip="Minimize"
+                        Click="MinimizeButton_Click">
+                    <materialDesign:PackIcon Kind="WindowMinimize"
+                                             Width="16" Height="16"
+                                             Foreground="{DynamicResource MaterialDesignBody}" />
+                </Button>
+                <Button Width="32" Height="32"
+                        Style="{DynamicResource MaterialDesignFlatButton}"
+                        Padding="0"
+                        ToolTip="Close"
+                        Click="CloseButton_Click">
+                    <materialDesign:PackIcon Kind="Close"
+                                             Width="16" Height="16"
+                                             Foreground="{DynamicResource MaterialDesignBody}" />
+                </Button>
+            </StackPanel>
+        </Grid>
 
         <!-- Floating Options Button -->
-        <Button x:Name="OptionsButton"
-        Width="56" Height="56"
-        Background="Transparent"
-        BorderBrush="Transparent"
-        HorizontalAlignment="Right"
-        VerticalAlignment="Bottom"
-        Margin="16"
-        ToolTip="Options"
-        Click="OptionsButton_Click">
+        <Button Width="56" Height="56"
+                Background="Transparent"
+                BorderBrush="Transparent"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Margin="16"
+                ToolTip="Options"
+                Command="{Binding OpenOptionsCommand}">
             <materialDesign:PackIcon Kind="Cog"
-                             Width="24"
-                             Height="24"
-                             Foreground="Orange" />
+                                     Width="24"
+                                     Height="24"
+                                     Foreground="Orange" />
         </Button>
-
-
     </Grid>
 </Window>

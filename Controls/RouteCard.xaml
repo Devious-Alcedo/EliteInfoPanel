@@ -1,0 +1,85 @@
+﻿<UserControl x:Class="EliteInfoPanel.Controls.RouteCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:EliteInfoPanel.Controls"
+             xmlns:viewModels="clr-namespace:EliteInfoPanel.ViewModels"
+             mc:Ignorable="d" 
+             d:DesignHeight="450" d:DesignWidth="300">
+
+    <StackPanel>
+        <TextBlock Text="{Binding Title}" 
+                   Style="{StaticResource CardTitleStyle}"/>
+
+        <ItemsControl ItemsSource="{Binding Items}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <!-- Using different template based on item type -->
+                    <ContentControl>
+                        <ContentControl.Style>
+                            <Style TargetType="ContentControl">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ItemType}" Value="Info">
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate>
+                                                    <TextBlock Text="{Binding Text}" 
+                                                               FontSize="{Binding FontSize}" 
+                                                                                               TextWrapping="Wrap"
+                                TextTrimming="None"
+                                                               Margin="0,0,0,6"
+                                                               Foreground="{DynamicResource MaterialDesignBody}"/>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ItemType}" Value="Destination">
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate>
+                                                    <TextBlock Text="{Binding Text}" 
+                                                               FontSize="{Binding FontSize}" 
+                                                                                               TextWrapping="Wrap"
+                                TextTrimming="None"
+                                                               Margin="0,0,0,6"
+                                                               Foreground="{DynamicResource MaterialDesignBody}"/>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ItemType}" Value="System">
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate>
+                                                    <TextBlock FontSize="{Binding FontSize}" 
+                           Margin="8,0,0,2"
+                           Foreground="{DynamicResource MaterialDesignBody}"
+                           Cursor="Hand"
+                           ToolTip="Click to copy system name">
+                                                        <TextBlock.Text>
+                                                            <MultiBinding StringFormat="{}{0}">
+                                                                <Binding Path="Text" />
+                                                            </MultiBinding>
+                                                        </TextBlock.Text>
+                                                        <TextBlock.InputBindings>
+                                                            <MouseBinding Gesture="LeftClick" 
+                                      Command="{Binding DataContext.CopySystemNameCommand, 
+                                                RelativeSource={RelativeSource FindAncestor, 
+                                                AncestorType={x:Type UserControl}}}"
+                                      CommandParameter="{Binding}"/>
+                                                        </TextBlock.InputBindings>
+                                                    </TextBlock>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ContentControl.Style>
+                    </ContentControl>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</UserControl>

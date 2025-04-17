@@ -13,6 +13,9 @@ namespace EliteInfoPanel.Core
         public int Level { get; set; }
         public List<Modifier> Modifiers { get; set; }
         public float Quality { get; set; }
+        public string ExperimentalEffect { get; set; }
+        public string ExperimentalEffect_Localised { get; set; }
+
 
         #endregion Public Properties
     }
