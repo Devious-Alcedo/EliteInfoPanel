@@ -19,7 +19,8 @@ namespace EliteInfoPanel.Dialogs
 
         private SettingsViewModel _viewModel;
         private Dictionary<Flag, CheckBox> flagCheckBoxes = new();
-
+        public event Action? RestartRequested;
+        private bool _originalUseFloating;
         #endregion Private Fields
 
         #region Public Constructors
@@ -36,6 +37,8 @@ namespace EliteInfoPanel.Dialogs
 
             // Load settings
             var settings = SettingsManager.Load();
+            _originalUseFloating = settings.UseFloatingWindow;
+
             settings.DisplayOptions ??= new DisplayOptions();
             settings.DisplayOptions.VisibleFlags ??= new List<Flag>();
 
@@ -56,24 +59,26 @@ namespace EliteInfoPanel.Dialogs
             // Connect commands
             _viewModel.SaveCommand = new RelayCommand(_ =>
             {
-                bool windowModeChanged = _viewModel.IsFloatingWindowMode != settings.UseFloatingWindow;
+                var settings = _viewModel.AppSettings;
+                bool windowModeChanged = _viewModel.IsFloatingWindowMode != _originalUseFloating;
 
-                // Save the settings
                 _viewModel.SaveSettings();
 
-                // Notify about window mode change if it changed
                 if (windowModeChanged)
                 {
-                    WindowModeChanged?.Invoke(_viewModel.IsFloatingWindowMode);
+                    Log.Information("Window mode changed — triggering restart.");
+                    RestartRequested?.Invoke(); // Tells MainWindow to restart
+                    Dispatcher.Invoke(Close);  // Close the Options dialog
                 }
-
-                // Notify about font size change
-                FontSizeChanged?.Invoke();
-
-                // Close the dialog
-                DialogResult = true;
-                Close();
+                else
+                {
+                    Log.Information("Settings saved — no restart needed.");
+                    FontSizeChanged?.Invoke();
+                    DialogResult = true;
+                    Close(); // Just close the dialog
+                }
             });
+
 
             _viewModel.CancelCommand = new RelayCommand(_ =>
             {

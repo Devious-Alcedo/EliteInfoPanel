@@ -291,6 +291,7 @@ namespace EliteInfoPanel
         private void OpenOptions()
         {
             var options = new OptionsWindow();
+
             options.ScreenChanged += screen =>
             {
                 _currentScreen = screen;
@@ -310,20 +311,21 @@ namespace EliteInfoPanel
                 App.RefreshResources();
                 InvalidateVisual();
                 _viewModel.RefreshLayout();
-                this.UpdateLayout();
+                UpdateLayout();
             };
 
-            bool? result = options.ShowDialog();
-
-            if (result == true)
+            // 🔁 Restart MainWindow if window mode changed
+            options.RestartRequested += () =>
             {
-                _appSettings.UseFloatingWindow = options.Settings.UseFloatingWindow;
-                _appSettings.FloatingFontScale = options.Settings.FloatingFontScale;
-                _appSettings.FullscreenFontScale = options.Settings.FullscreenFontScale;
-                // Add any others you care about persisting
+                Log.Information("Restarting MainWindow due to window mode change.");
+                var newWindow = new MainWindow();
+                newWindow.Show();
+                this.Close();
+            };
 
-            }
+            options.ShowDialog();
         }
+
 
     }
 }
