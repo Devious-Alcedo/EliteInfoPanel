@@ -68,17 +68,23 @@ namespace EliteInfoPanel.ViewModels
 
         private void UpdateRoute()
         {
+            if (_gameState.CurrentRoute?.Route?.Count == 0)
+                return;
             Application.Current.Dispatcher.Invoke(() =>
             {
                 Items.Clear();
 
             var jumps = _gameState.CurrentRoute?.Route?.Where(j => j.StarPos?.Length == 3).ToList();
-            if (jumps?.Count > 0)
-                _gameState.CurrentSystemCoordinates = (jumps[0].StarPos[0], jumps[0].StarPos[1], jumps[0].StarPos[2]);
-            else
-                _gameState.CurrentSystemCoordinates = null;
+                if (_gameState.CurrentRoute?.Route?.FirstOrDefault(j => j.StarPos?.Length == 3) is { } firstJump)
+                {
+                    _gameState.CurrentSystemCoordinates = (firstJump.StarPos[0], firstJump.StarPos[1], firstJump.StarPos[2]);
+                }
+                else
+                {
+                    _gameState.CurrentSystemCoordinates = null;
+                }
 
-            if (_gameState.RouteWasActive && _gameState.RouteCompleted && !_gameState.IsInHyperspace)
+                if (_gameState.RouteWasActive && _gameState.RouteCompleted && !_gameState.IsInHyperspace)
             {
                 ShowToast("Route complete! You've arrived at your destination.");
                 _gameState.ResetRouteActivity();
@@ -122,14 +128,16 @@ namespace EliteInfoPanel.ViewModels
             double maxFuelCapacity = loadout?.FuelCapacity?.Main ?? 0;
 
             bool canEstimate = fsd != null && loadout != null && cargo != null && currentFuel > 0;
-
-            if (canEstimate)
-            {
-                Items.Add(new RouteItemViewModel($"Current Fuel: {currentFuel:0.00}/{maxFuelCapacity:0.00} T", null, null, RouteItemType.Info)
+                if (!canEstimate)
                 {
-                    FontSize = (int)this.FontSize
-                });
-            }
+                    Log.Debug("Skipping route estimation — missing FSD, loadout or cargo info");
+                }else
+                {
+                    Items.Add(new RouteItemViewModel($"Current Fuel: {currentFuel:0.00}/{maxFuelCapacity:0.00} T", null, null, RouteItemType.Info)
+                    {
+                        FontSize = (int)this.FontSize
+                    });
+                }
 
             if (_gameState.CurrentRoute?.Route == null) return;
 
