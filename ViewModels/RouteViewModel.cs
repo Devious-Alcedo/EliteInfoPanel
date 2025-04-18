@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using EliteInfoPanel.Core;
@@ -19,6 +20,19 @@ namespace EliteInfoPanel.ViewModels
 
         // Fuel-related properties
         private int _jumpsUntilRefuel;
+        private double _availableHeight;
+        public double AvailableHeight
+        {
+            get => _availableHeight;
+            set
+            {
+                if (SetProperty(ref _availableHeight, value))
+                {
+                    UpdateRoute(); // Recalculate when resized
+                }
+            }
+        }
+
         public int JumpsUntilRefuel
         {
             get => _jumpsUntilRefuel;
@@ -168,9 +182,12 @@ namespace EliteInfoPanel.ViewModels
                     bool refuelNeeded = false;
 
                     // Get systems from route
+                    var maxSystemsToDisplay = CalculateVisibleSystemCount(); // We'll create this method
                     var nextJumps = _gameState.CurrentRoute.Route
                         .SkipWhile(j => string.Equals(j.StarSystem, _gameState.CurrentSystem, StringComparison.OrdinalIgnoreCase))
-                        .Take(8); // Show more jumps to better visualize fuel situation
+                       .Take(CalculateVisibleSystemCount());
+
+
 
                     foreach (var jump in nextJumps)
                     {
@@ -235,7 +252,7 @@ namespace EliteInfoPanel.ViewModels
                             }
                             else
                             {
-                                // We've run out of fuel
+                                // Add the system but mark it as unreachable
                                 label += $"\n  [Distance: {jumpDistance:0.00} LY]";
                                 label += $"\n  ⚠️ INSUFFICIENT FUEL ({remainingFuel:0.00}T)";
 
@@ -245,9 +262,23 @@ namespace EliteInfoPanel.ViewModels
                                     jumpsUntilRefuel = Items.Count(i => i.ItemType == RouteItemType.System) + 1;
                                 }
 
-                                // Exit the loop as we can't go further
-                                break;
+                                Items.Add(new RouteItemViewModel(
+                                    label,
+                                    jump.StarClass,
+                                    jump.SystemAddress,
+                                    RouteItemType.System)
+                                {
+                                    FontSize = (int)this.FontSize,
+                                    IsScoopable = isScoopable,
+                                    JumpRequiresFuel = true,
+                                    IsReachable = false // 👈 new flag we'll use to style it
+                                });
+
+                                // Don't break — let more jumps be shown visually
+                                currentPos = targetSystem;
+                                continue;
                             }
+
                         }
 
                         // Add the jump to the list
@@ -289,131 +320,142 @@ namespace EliteInfoPanel.ViewModels
                 }
             });
         }
-        private int CalculateJumpsUntilRefuel(double currentFuel, (double X, double Y, double Z)? startPos,
-                                               List<NavRouteJson.NavRouteSystem> route, LoadoutModule fsd,
-                                               LoadoutJson loadout, CargoJson cargo, double minimumFuel)
+        private int CalculateVisibleSystemCount()
         {
-            if (startPos == null || route == null || !route.Any() || currentFuel <= minimumFuel)
-                return 0;
+            const double approxSystemHeight = 60; // Average height in pixels
+            const double reservedHeaderSpace = 130; // Space taken by jumps/fuel/warnings
+            double usableHeight = Math.Max(0, AvailableHeight - reservedHeaderSpace);
 
-            var currentPos = startPos.Value;
-            double remainingFuel = currentFuel;
-            int jumpCount = 0;
-
-            // Skip systems we've already visited
-            var remainingJumps = route
-                .SkipWhile(j => string.Equals(j.StarSystem, _gameState.CurrentSystem, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            foreach (var jump in remainingJumps)
-            {
-                // Skip jumps without valid position data
-                if (jump.StarPos == null || jump.StarPos.Length != 3)
-                    continue;
-
-                var targetSystem = (jump.StarPos[0], jump.StarPos[1], jump.StarPos[2]);
-                double jumpDistance = VectorUtil.CalculateDistance(currentPos, targetSystem);
-
-                // Calculate fuel usage
-                double fuelUsed = FsdJumpRangeCalculator.EstimateFuelUsage(fsd, loadout, jumpDistance, cargo);
-
-                // Check if there's enough fuel for this jump (include the safety margin)
-                if (remainingFuel < fuelUsed + minimumFuel)
-                    return jumpCount;
-
-                // Update values for next jump
-                remainingFuel -= fuelUsed;
-                currentPos = targetSystem;
-                jumpCount++;
-
-                // Debug jumps
-                Log.Debug("Jump {0}: {1} → Fuel used: {2:F2}T, Remaining: {3:F2}T",
-                    jumpCount, jump.StarSystem, fuelUsed, remainingFuel);
-
-                // Check if a scoopable star (can refuel)
-                bool isScoopable = false;
-                if (!string.IsNullOrWhiteSpace(jump.StarClass))
-                {
-                    char primaryClass = char.ToUpper(jump.StarClass[0]);
-                    if ("OBAFGKM".Contains(primaryClass))
-                    {
-                        isScoopable = true;
-                        // We assume refueling at scoopable stars - flight path would include fuel scooping
-                        double maxFuel = loadout?.FuelCapacity?.Main ?? 32; // Default to 32T if unknown
-                        remainingFuel = maxFuel;
-                        Log.Debug("  ↳ Scoopable star - Refueled to {0:F2}T", remainingFuel);
-                    }
-                }
-
-                // Check if fuel too low for next jump
-                if (remainingFuel <= 2.0 && !isScoopable)
-                {
-                    Log.Debug("  ↳ Fuel critically low and next star not scoopable");
-                }
-            }
-
-            // If we made it through all jumps, return the total count
-            return jumpCount;
+            int count = (int)(usableHeight / approxSystemHeight);
+            return Math.Max(1, count);
         }
 
-        // Additional method to count jumps until low fuel (for warning display)
-        private int CountJumpsUntilLowFuel(double currentFuel, (double X, double Y, double Z)? startPos,
-                                      List<NavRouteJson.NavRouteSystem> route, LoadoutModule fsd,
-                                      LoadoutJson loadout, CargoJson cargo, double warningThreshold)
-        {
-            if (startPos == null || route == null || !route.Any() || currentFuel <= warningThreshold)
-                return 0;
 
-            var currentPos = startPos.Value;
-            double remainingFuel = currentFuel;
-            int jumpCount = 0;
+        //private int CalculateJumpsUntilRefuel(double currentFuel, (double X, double Y, double Z)? startPos,
+        //                                       List<NavRouteJson.NavRouteSystem> route, LoadoutModule fsd,
+        //                                       LoadoutJson loadout, CargoJson cargo, double minimumFuel)
+        //{
+        //    if (startPos == null || route == null || !route.Any() || currentFuel <= minimumFuel)
+        //        return 0;
 
-            // Process each jump in route
-            foreach (var jump in route)
-            {
-                // Skip jumps without valid position data
-                if (jump.StarPos == null || jump.StarPos.Length != 3)
-                    continue;
+        //    var currentPos = startPos.Value;
+        //    double remainingFuel = currentFuel;
+        //    int jumpCount = 0;
 
-                var targetSystem = (jump.StarPos[0], jump.StarPos[1], jump.StarPos[2]);
-                double jumpDistance = VectorUtil.CalculateDistance(currentPos, targetSystem);
+        //    // Skip systems we've already visited
+        //    var remainingJumps = route
+        //        .SkipWhile(j => string.Equals(j.StarSystem, _gameState.CurrentSystem, StringComparison.OrdinalIgnoreCase))
+        //        .ToList();
 
-                // Calculate fuel usage
-                double fuelUsed = FsdJumpRangeCalculator.EstimateFuelUsage(fsd, loadout, jumpDistance, cargo);
+        //    foreach (var jump in remainingJumps)
+        //    {
+        //        // Skip jumps without valid position data
+        //        if (jump.StarPos == null || jump.StarPos.Length != 3)
+        //            continue;
 
-                // Don't count jumps we can't make
-                if (remainingFuel < fuelUsed)
-                    break;
+        //        var targetSystem = (jump.StarPos[0], jump.StarPos[1], jump.StarPos[2]);
+        //        double jumpDistance = VectorUtil.CalculateDistance(currentPos, targetSystem);
 
-                // Update values for next jump
-                remainingFuel -= fuelUsed;
-                currentPos = targetSystem;
-                jumpCount++;
+        //        // Calculate fuel usage
+        //        double fuelUsed = FsdJumpRangeCalculator.EstimateFuelUsage(fsd, loadout, jumpDistance, cargo);
 
-                // Check if we've reached warning threshold
-                if (remainingFuel <= warningThreshold)
-                {
-                    Log.Debug("Visual fuel warning at jump {0}: {1} → Remaining fuel: {2:F2}T",
-                        jumpCount, jump.StarSystem, remainingFuel);
-                    return jumpCount;
-                }
+        //        // Check if there's enough fuel for this jump (include the safety margin)
+        //        if (remainingFuel < fuelUsed + minimumFuel)
+        //            return jumpCount;
 
-                // Check if a scoopable star (can refuel)
-                if (!string.IsNullOrWhiteSpace(jump.StarClass))
-                {
-                    char primaryClass = char.ToUpper(jump.StarClass[0]);
-                    if ("OBAFGKM".Contains(primaryClass))
-                    {
-                        // We assume refueling at scoopable stars - flight path would include fuel scooping
-                        double maxFuel = loadout?.FuelCapacity?.Main ?? 32; // Default to 32T if unknown
-                        remainingFuel = maxFuel;
-                    }
-                }
-            }
+        //        // Update values for next jump
+        //        remainingFuel -= fuelUsed;
+        //        currentPos = targetSystem;
+        //        jumpCount++;
 
-            // If we didn't hit the warning threshold in our route, return the total count
-            return jumpCount;
-        }
+        //        // Debug jumps
+        //        Log.Debug("Jump {0}: {1} → Fuel used: {2:F2}T, Remaining: {3:F2}T",
+        //            jumpCount, jump.StarSystem, fuelUsed, remainingFuel);
+
+        //        // Check if a scoopable star (can refuel)
+        //        bool isScoopable = false;
+        //        if (!string.IsNullOrWhiteSpace(jump.StarClass))
+        //        {
+        //            char primaryClass = char.ToUpper(jump.StarClass[0]);
+        //            if ("OBAFGKM".Contains(primaryClass))
+        //            {
+        //                isScoopable = true;
+        //                // We assume refueling at scoopable stars - flight path would include fuel scooping
+        //                double maxFuel = loadout?.FuelCapacity?.Main ?? 32; // Default to 32T if unknown
+        //                remainingFuel = maxFuel;
+        //                Log.Debug("  ↳ Scoopable star - Refueled to {0:F2}T", remainingFuel);
+        //            }
+        //        }
+
+        //        // Check if fuel too low for next jump
+        //        if (remainingFuel <= 2.0 && !isScoopable)
+        //        {
+        //            Log.Debug("  ↳ Fuel critically low and next star not scoopable");
+        //        }
+        //    }
+
+        //    // If we made it through all jumps, return the total count
+        //    return jumpCount;
+        //}
+
+        //// Additional method to count jumps until low fuel (for warning display)
+        //private int CountJumpsUntilLowFuel(double currentFuel, (double X, double Y, double Z)? startPos,
+        //                              List<NavRouteJson.NavRouteSystem> route, LoadoutModule fsd,
+        //                              LoadoutJson loadout, CargoJson cargo, double warningThreshold)
+        //{
+        //    if (startPos == null || route == null || !route.Any() || currentFuel <= warningThreshold)
+        //        return 0;
+
+        //    var currentPos = startPos.Value;
+        //    double remainingFuel = currentFuel;
+        //    int jumpCount = 0;
+
+        //    // Process each jump in route
+        //    foreach (var jump in route)
+        //    {
+        //        // Skip jumps without valid position data
+        //        if (jump.StarPos == null || jump.StarPos.Length != 3)
+        //            continue;
+
+        //        var targetSystem = (jump.StarPos[0], jump.StarPos[1], jump.StarPos[2]);
+        //        double jumpDistance = VectorUtil.CalculateDistance(currentPos, targetSystem);
+
+        //        // Calculate fuel usage
+        //        double fuelUsed = FsdJumpRangeCalculator.EstimateFuelUsage(fsd, loadout, jumpDistance, cargo);
+
+        //        // Don't count jumps we can't make
+        //        if (remainingFuel < fuelUsed)
+        //            break;
+
+        //        // Update values for next jump
+        //        remainingFuel -= fuelUsed;
+        //        currentPos = targetSystem;
+        //        jumpCount++;
+
+        //        // Check if we've reached warning threshold
+        //        if (remainingFuel <= warningThreshold)
+        //        {
+        //            Log.Debug("Visual fuel warning at jump {0}: {1} → Remaining fuel: {2:F2}T",
+        //                jumpCount, jump.StarSystem, remainingFuel);
+        //            return jumpCount;
+        //        }
+
+        //        // Check if a scoopable star (can refuel)
+        //        if (!string.IsNullOrWhiteSpace(jump.StarClass))
+        //        {
+        //            char primaryClass = char.ToUpper(jump.StarClass[0]);
+        //            if ("OBAFGKM".Contains(primaryClass))
+        //            {
+        //                // We assume refueling at scoopable stars - flight path would include fuel scooping
+        //                double maxFuel = loadout?.FuelCapacity?.Main ?? 32; // Default to 32T if unknown
+        //                remainingFuel = maxFuel;
+        //            }
+        //        }
+        //    }
+
+        //    // If we didn't hit the warning threshold in our route, return the total count
+        //    return jumpCount;
+        //}
 
         private string FormatDestinationName(DestinationInfo destination)
         {
@@ -549,13 +591,25 @@ namespace EliteInfoPanel.ViewModels
             get => _fontSize;
             set => SetProperty(ref _fontSize, value);
         }
+        public bool IsReachable { get; set; } = true;
+
+     
 
         public string Text
         {
             get => _text;
             set => SetProperty(ref _text, value);
         }
-
+        public string SystemText
+        {
+            get
+            {
+                if (ItemType != RouteItemType.System) return Text;
+                // Remove icon from original Text if present
+                var firstSpace = Text.IndexOf(' ');
+                return firstSpace >= 0 ? Text.Substring(firstSpace + 1) : Text;
+            }
+        }
         public string StarClass
         {
             get => _starClass;
@@ -598,22 +652,29 @@ namespace EliteInfoPanel.ViewModels
             set => SetProperty(ref _isNextJump, value);
         }
 
-        public Brush TextColor
+        public Brush TextColor =>
+      !IsReachable ? Brushes.Gray :
+      IsFuelWarning ? Brushes.Red :
+      JumpRequiresFuel ? Brushes.Red :
+      IsNextJump ? Brushes.LightGreen :
+      IsScoopable ? Brushes.Gold :
+      Brushes.White;
+        public string Icon
         {
             get
             {
-                if (IsFuelWarning)
-                    return Brushes.Red;
-
+                if (ItemType != RouteItemType.System) return string.Empty;
+                return IsScoopable ? "🟡" : "🔴";
+            }
+        }
+        public Brush IconColor
+        {
+            get
+            {
                 if (JumpRequiresFuel)
                     return Brushes.Red;
-
-                if (IsNextJump)
-                    return Brushes.LightGreen;
-
                 if (IsScoopable)
                     return Brushes.Gold;
-
                 return Brushes.White;
             }
         }
