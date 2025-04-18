@@ -1,0 +1,187 @@
+﻿<UserControl x:Class="EliteInfoPanel.Controls.OrderableCheckBoxList"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:local="clr-namespace:EliteInfoPanel.Controls"
+             mc:Ignorable="d" 
+             d:DesignHeight="450" d:DesignWidth="300">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+
+        <!-- Animation for the drag handle -->
+        <Storyboard x:Key="DragHandleHover">
+            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                             To="1.0" Duration="0:0:0.2"/>
+            <ColorAnimation Storyboard.TargetProperty="(TextElement.Foreground).(SolidColorBrush.Color)"
+                            To="#2196F3" Duration="0:0:0.2"/>
+        </Storyboard>
+
+        <Storyboard x:Key="DragHandleNormal">
+            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                             To="0.6" Duration="0:0:0.2"/>
+            <ColorAnimation Storyboard.TargetProperty="(TextElement.Foreground).(SolidColorBrush.Color)"
+                            To="#FFFFFF" Duration="0:0:0.2"/>
+        </Storyboard>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <materialDesign:Card Grid.Row="0" Margin="0,0,0,12" Background="#22FFFFFF">
+            <StackPanel Margin="8,8,8,8">
+                <TextBlock Text="Flag Display and Order" FontSize="14" FontWeight="Bold" Margin="0,0,0,8"/>
+                <TextBlock TextWrapping="Wrap" Margin="0,0,0,4">
+                    <Run Text="• Check the flags you want to display"/>
+                </TextBlock>
+                <TextBlock TextWrapping="Wrap" Margin="0,0,0,4">
+                    <Run Text="• Drag the "/>
+                    <materialDesign:PackIcon Kind="DragVertical" Width="16" Height="16" VerticalAlignment="Center"/>
+                    <Run Text=" grip handles to change the order"/>
+                </TextBlock>
+                <TextBlock Text="Flags will be displayed in exactly this order" 
+                       TextWrapping="Wrap"
+                       Opacity="0.7"
+                       FontStyle="Italic"
+                       FontSize="12"
+                       Margin="0,4,0,0"/>
+            </StackPanel>
+        </materialDesign:Card>
+
+        <!-- Flags List -->
+        <Border Grid.Row="1" 
+                Background="#11FFFFFF" 
+                CornerRadius="4" 
+                BorderBrush="#33FFFFFF" 
+                BorderThickness="1">
+            <Grid>
+                <!-- ListBox for the items -->
+                <ListBox x:Name="ItemsListBox" 
+                     Background="Transparent"
+                     BorderThickness="0"
+                     AllowDrop="True"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     Margin="4">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                            <Setter Property="Padding" Value="0"/>
+                            <Setter Property="Margin" Value="0,4"/>
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Style.Triggers>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="Background" Value="#33007ACC"/>
+                                    <Setter Property="BorderBrush" Value="#44007ACC"/>
+                                    <Setter Property="BorderThickness" Value="1"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border x:Name="ItemBorder" 
+                                CornerRadius="4" 
+                                Padding="4" 
+                                Background="Transparent">
+                                <Grid Height="36">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Drag Handle with improved visual appearance -->
+                                    <Border x:Name="DragHandleContainer" 
+                                        Grid.Column="0" 
+                                        Cursor="Hand"
+                                        Background="Transparent"
+                                        Width="28"
+                                        Height="28"
+                                        BorderThickness="1"
+                                        BorderBrush="#22FFFFFF"
+                                        CornerRadius="4"
+                                        Margin="0,0,8,0"
+                                        ToolTip="Drag to reorder">
+                                        <materialDesign:PackIcon x:Name="DragHandle"
+                                                         Kind="DragVertical"
+                                                         Width="16"
+                                                         Height="16"
+                                                         Opacity="0.6"
+                                                         VerticalAlignment="Center"
+                                                         HorizontalAlignment="Center"
+                                                         Foreground="{DynamicResource MaterialDesignBody}"/>
+                                    </Border>
+
+                                    <!-- Checkbox -->
+                                    <CheckBox Grid.Column="1"
+                                          Content="{Binding DisplayText}"
+                                          IsChecked="{Binding IsChecked, Mode=TwoWay}"
+                                          Checked="CheckBox_Changed"
+                                          Unchecked="CheckBox_Changed"
+                                          VerticalAlignment="Center"/>
+
+                                    <!-- Indicator for selected items -->
+                                    <Border Grid.Column="2" 
+                                        Width="4" 
+                                        Height="24"
+                                        Margin="4,0" 
+                                        Background="{DynamicResource MaterialDesignPrimaryMid}"
+                                        CornerRadius="2"
+                                        VerticalAlignment="Center"
+                                        Visibility="{Binding IsChecked, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                </Grid>
+                            </Border>
+                            <DataTemplate.Triggers>
+                                <!-- Hover effect for the drag handle -->
+                                <EventTrigger SourceName="DragHandleContainer" RoutedEvent="MouseEnter">
+                                    <BeginStoryboard Storyboard="{StaticResource DragHandleHover}"/>
+                                </EventTrigger>
+                                <EventTrigger SourceName="DragHandleContainer" RoutedEvent="MouseLeave">
+                                    <BeginStoryboard Storyboard="{StaticResource DragHandleNormal}"/>
+                                </EventTrigger>
+
+                                <!-- Visual feedback for dragged items -->
+                                <DataTrigger Binding="{Binding RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type ListBoxItem}}, Path=IsSelected}" Value="True">
+                                    <Setter TargetName="ItemBorder" Property="Background" Value="#33007ACC"/>
+                                    <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#44007ACC"/>
+                                    <Setter TargetName="ItemBorder" Property="BorderThickness" Value="1"/>
+                                    <Setter TargetName="DragHandleContainer" Property="BorderBrush" Value="#66007ACC"/>
+                                    <Setter TargetName="DragHandleContainer" Property="Background" Value="#22007ACC"/>
+                                    <Setter TargetName="DragHandle" Property="Opacity" Value="1.0"/>
+                                    <Setter TargetName="DragHandle" Property="Foreground" Value="#007ACC"/>
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- Insert indicator line that shows where item will be placed -->
+                <Canvas x:Name="DropIndicatorCanvas" 
+                        IsHitTestVisible="False" 
+                        Panel.ZIndex="100"
+                        Width="{Binding ActualWidth, ElementName=ItemsListBox}"
+                        Height="{Binding ActualHeight, ElementName=ItemsListBox}">
+                    <Border x:Name="DropIndicator" 
+                            Height="4" 
+                            Background="#2196F3" 
+                            BorderThickness="0" 
+                            CornerRadius="2"
+                            HorizontalAlignment="Stretch"
+                            Visibility="Collapsed"
+                            Canvas.Left="0"
+                            Width="{Binding ActualWidth, ElementName=ItemsListBox}">
+                        <Border.Effect>
+                            <DropShadowEffect ShadowDepth="1" BlurRadius="3" Opacity="0.5"/>
+                        </Border.Effect>
+                    </Border>
+                </Canvas>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

@@ -382,7 +382,7 @@ namespace EliteInfoPanel.Core
                         continue;
 
                     string eventType = eventProp.GetString();
-
+                    Log.Debug("Processing journal event: {Event}", eventType);
                     switch (eventType)
                     {
                         case "Commander":
@@ -500,6 +500,13 @@ namespace EliteInfoPanel.Core
 
                             break;
 
+                        case "DockingGranted":
+                            Log.Information("Docking granted by station — setting IsDocking = true");
+                            SetDockingStatus(); // ✅ this should set _isDocking = true
+                            break;
+                        case "DockingRequested":
+                            Log.Information("Docking requested — player is attempting to dock");
+                            break; // nothing to do yet, but useful to log
 
 
 
@@ -577,7 +584,7 @@ namespace EliteInfoPanel.Core
                                 }
                                 else if (jumpTypeString == "Supercruise")
                                 {
-                                    Log.Information("Supercruise initiated");
+                                    Log.Debug("Supercruise initiated");
                                 }
                             }
                             break;
@@ -658,7 +665,7 @@ namespace EliteInfoPanel.Core
 
 
                         case "SupercruiseEntry":
-                            Log.Information("Entered supercruise");
+                            Log.Debug("Entered supercruise");
                             // Ensure we're not in hyperspace jump mode when entering supercruise
                             IsHyperspaceJumping = false;
                             break;
