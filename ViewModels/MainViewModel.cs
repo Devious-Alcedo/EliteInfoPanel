@@ -23,7 +23,20 @@ namespace EliteInfoPanel.ViewModels
         private CardLayoutManager _layoutManager;
         private Grid _mainGrid;
         private SnackbarMessageQueue _toastQueue = new SnackbarMessageQueue(TimeSpan.FromSeconds(3));
-        public bool IsFullScreenMode => !_useFloatingWindow;
+        private bool _isFullScreenMode;
+        public bool IsFullScreenMode
+        {
+            get => _isFullScreenMode;
+            set
+            {
+                if (SetProperty(ref _isFullScreenMode, value))
+                {
+                    Log.Information("→ IsFullScreenMode changed: {Value}", value);
+                }
+            }
+        }
+
+
         #endregion Private Fields
 
         #region Public Constructors
@@ -83,6 +96,11 @@ namespace EliteInfoPanel.ViewModels
         public BackpackViewModel BackpackCard { get; }
 
         public ObservableCollection<CardViewModel> Cards { get; } = new ObservableCollection<CardViewModel>();
+        public void ApplyWindowModeFromSettings()
+        {
+            var isFullscreen = !SettingsManager.Load().UseFloatingWindow;
+            IsFullScreenMode = isFullscreen;
+        }
 
         public CargoViewModel CargoCard { get; }
 

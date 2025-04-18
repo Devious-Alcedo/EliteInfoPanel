@@ -53,6 +53,7 @@ namespace EliteInfoPanel
             Loaded += Window_Loaded;
             PreviewKeyDown += MainWindow_PreviewKeyDown;
             Closing += MainWindow_Closing;
+            _viewModel.ApplyWindowModeFromSettings();
         }
 
         private void MainWindow_Closing(object sender, CancelEventArgs e)
@@ -99,7 +100,7 @@ namespace EliteInfoPanel
 
                 // Ensure window is within visible screen bounds
                 EnsureWindowIsVisible();
-
+                _viewModel.IsFullScreenMode = !_appSettings.UseFloatingWindow;
                 Log.Information("Applied floating window settings: {Left}x{Top} {Width}x{Height}",
                     Left, Top, Width, Height);
 
@@ -405,6 +406,8 @@ namespace EliteInfoPanel
                 {
                     Log.Information("Window mode changed - reapplying window settings");
                     ApplyWindowSettings();
+                    _viewModel.ApplyWindowModeFromSettings(); // 🔥 Ensure IsFullScreenMode gets updated
+
                 }
                 else
                 {
