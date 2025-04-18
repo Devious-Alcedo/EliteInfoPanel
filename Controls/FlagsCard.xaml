@@ -17,22 +17,40 @@
             <ItemsControl ItemsSource="{Binding Items}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <WrapPanel Orientation="Horizontal"/>
+                        <WrapPanel IsItemsHost="True" />
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
+
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <materialDesign:Chip Content="{Binding DisplayText}"
-                                             Margin="6"
-                                             FontSize="{Binding FontSize}"
-                                             Background="#FF2196F3"
-                                             Foreground="White">
-                            <materialDesign:Chip.Icon>
-                                <materialDesign:PackIcon Kind="CheckCircleOutline"
-                                                         Width="24"
-                                                         Height="24" />
-                            </materialDesign:Chip.Icon>
-                        </materialDesign:Chip>
+                        <Border Background="#33FFFFFF"
+        BorderBrush="{DynamicResource PrimaryHueMidBrush}"
+        BorderThickness="1"
+        Margin="4"
+        CornerRadius="6"
+        Padding="8"
+        MinWidth="120"
+        MinHeight="40"
+        HorizontalAlignment="Left"
+        VerticalAlignment="Top">
+
+
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <materialDesign:PackIcon Kind="{Binding Icon}" 
+                                Width="24" Height="24"
+                                Foreground="{Binding IconColor}" 
+                                Margin="0,0,8,0"/>
+
+                                <TextBlock Text="{Binding DisplayText}" 
+           VerticalAlignment="Center" 
+           Foreground="White" 
+           FontSize="{Binding FontSize}"
+           FontWeight="Medium"
+           TextTrimming="CharacterEllipsis"
+           TextWrapping="Wrap"/>
+
+                            </StackPanel>
+                        </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>

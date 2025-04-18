@@ -231,7 +231,12 @@ namespace EliteInfoPanel.Dialogs
 
             // Initialize with all flags and the selected ones
             var visibleFlags = appSettings.DisplayOptions.VisibleFlags ?? new List<Flag>();
-            var allFlags = Enum.GetValues(typeof(Flag)).Cast<Flag>().Where(f => f != Flag.None);
+            var allFlags = Enum.GetValues(typeof(Flag)).Cast<Flag>()
+                 .Where(f => f != Flag.None)
+                 .Concat(new[] { Flag.HudInCombatMode, Flag.Docking }) // Add synthetic flags manually
+                 .Distinct(); // Ensure no duplicates
+
+            Log.Information("Populating FlagOptions with {Count} flags", allFlags.Count());
 
             _flagsControl.InitializeFlags(allFlags, visibleFlags);
 

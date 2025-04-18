@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
+using System.Windows.Media;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
 using Serilog;
@@ -63,24 +64,60 @@ namespace EliteInfoPanel.ViewModels
                     .Cast<Flag>()
                     .Where(flag => status.Flags.HasFlag(flag) && flag != Flag.None)
                     .ToHashSet();
+                Log.Information("HudInAnalysisMode? {Value}", status.Flags.HasFlag(Flag.HudInAnalysisMode));
 
                 // Add synthetic flags if active
-                if (!status.Flags.HasFlag(Flag.HudInAnalysisMode))
-                    activeFlags.Add(SyntheticFlags.HudInCombatMode);
+                foreach (var synthetic in SyntheticFlags.All)
+                {
+                    if (synthetic == SyntheticFlags.HudInCombatMode && !status.Flags.HasFlag(Flag.HudInAnalysisMode))
+                    {
+                        activeFlags.Add(synthetic);
+                    }
 
-                if (status.Flags.HasFlag(Flag.Docked) && _gameState.IsDocking)
-                    activeFlags.Add(SyntheticFlags.Docking);
+                    if (synthetic == SyntheticFlags.Docking && status.Flags.HasFlag(Flag.Docked) && _gameState.IsDocking)
+                    {
+                        activeFlags.Add(synthetic);
+                    }
+                }
+
+
+                Log.Information("Active flags after synthetic injection: {Flags}",
+                    string.Join(", ", activeFlags.Select(f => f.ToString())));
 
                 // Get the user's ordered visible flags
-                var visibleFlags = _appSettings.DisplayOptions.VisibleFlags;
+                // Reload latest settings in case they changed
+                var latestSettings = SettingsManager.Load();
+                var visibleFlags = latestSettings.DisplayOptions.VisibleFlags;
+
+                Log.Information("Loaded VisibleFlags from settings: {Flags}", string.Join(", ", visibleFlags));
+                Log.Information("ActiveFlags this frame: {Flags}", string.Join(", ", activeFlags));
 
                 // If no visible flags are defined, use default order of active flags
                 if (visibleFlags == null || visibleFlags.Count == 0)
                 {
-                    foreach (var flag in activeFlags)
+                    foreach (var flag in visibleFlags)
                     {
-                        AddFlagToItems(flag);
+                        if (flag == Flag.HudInCombatMode && !status.Flags.HasFlag(Flag.HudInAnalysisMode))
+                        {
+                            Log.Information("Adding synthetic flag: HudInCombatMode");
+                            AddFlagToItems(flag);
+                        }
+                        else if (flag == Flag.Docking && status.Flags.HasFlag(Flag.Docked) && _gameState.IsDocking)
+                        {
+                            Log.Information("Adding synthetic flag: Docking");
+                            AddFlagToItems(flag);
+                        }
+                        else if (activeFlags.Contains(flag))
+                        {
+                            Log.Information("Adding standard flag: \"{Flag}\"", flag);
+                            AddFlagToItems(flag);
+                        }
+                        else
+                        {
+                            Log.Information("Skipping flag \"{Flag}\" ... not active", flag);
+                        }
                     }
+
                 }
                 else
                 {
@@ -91,54 +128,70 @@ namespace EliteInfoPanel.ViewModels
                     // Respect the exact order set by the user in the options dialog
                     foreach (var flag in visibleFlags)
                     {
-                        // Only add the flag if it's currently active
-                        if (activeFlags.Contains(flag))
+                        // ✅ Handle synthetic HudInCombatMode
+                        if (flag == Flag.HudInCombatMode && !status.Flags.HasFlag(Flag.HudInAnalysisMode))
                         {
                             AddFlagToItems(flag);
+                            Log.Information("Adding synthetic flag: HudInCombatMode");
+                        }
+                        // ✅ Handle synthetic Docking
+                        else if (flag == Flag.Docking && status.Flags.HasFlag(Flag.Docked) && _gameState.IsDocking)
+                        {
+                            AddFlagToItems(flag);
+                            Log.Information("Adding synthetic flag: Docking");
+                        }
+                        // ✅ Handle all real flags
+                        else if (activeFlags.Contains(flag))
+                        {
+                            AddFlagToItems(flag);
+                            Log.Information("Adding standard flag: {Flag}", flag);
+                        }
+                        else
+                        {
+                            Log.Information("Skipping flag {Flag} — not active", flag);
                         }
                     }
+
                 }
 
                 // Hide the card if no flags are being displayed
                 IsVisible = Items.Count > 0;
 
-                Log.Debug("Updated Flags Display: {Count} flags shown", Items.Count);
+                Log.Information("Updated Flags Display: {Count} flags shown", Items.Count);
             });
         }
 
         private void AddFlagToItems(Flag flag)
         {
-            string displayText = flag switch
+            if (!FlagVisualHelper.TryGetMetadata(flag, out var meta))
             {
-                var f when f == SyntheticFlags.HudInCombatMode => "HUD Combat Mode",
-                var f when f == SyntheticFlags.Docking => "Docking",
-                var f when f == Flag.FsdMassLocked => "Mass Locked",
-                var f when f == Flag.LandingGearDown => "Landing Gear Down",
-                _ => flag.ToString().Replace("_", " ")
-            };
+                meta = ("Flag", flag.ToString().Replace("_", " "), Brushes.Gray);
+            }
 
-            Items.Add(new FlagItemViewModel(flag, displayText)
+            Items.Add(new FlagItemViewModel(flag, meta.Tooltip, meta.Icon, flag.ToString(), meta.Color)
             {
                 FontSize = (int)this.FontSize
             });
         }
+
+
+
+
     }
 
     public class FlagItemViewModel : ViewModelBase
     {
         private Flag _flag;
         private string _displayText;
+        private string _icon;
+        private string _tooltip;
+        private Brush _iconColor = Brushes.White;
+        private int _fontSize = 14;
 
         public Flag Flag
         {
             get => _flag;
             set => SetProperty(ref _flag, value);
-        }
-        private int _fontSize = 14;
-        public int FontSize
-        {
-            get => _fontSize;
-            set => SetProperty(ref _fontSize, value);
         }
 
         public string DisplayText
@@ -147,10 +200,38 @@ namespace EliteInfoPanel.ViewModels
             set => SetProperty(ref _displayText, value);
         }
 
-        public FlagItemViewModel(Flag flag, string displayText)
+        public string Icon
+        {
+            get => _icon;
+            set => SetProperty(ref _icon, value);
+        }
+
+        public string Tooltip
+        {
+            get => _tooltip;
+            set => SetProperty(ref _tooltip, value);
+        }
+
+        public Brush IconColor
+        {
+            get => _iconColor;
+            set => SetProperty(ref _iconColor, value);
+        }
+
+        public int FontSize
+        {
+            get => _fontSize;
+            set => SetProperty(ref _fontSize, value);
+        }
+
+        public FlagItemViewModel(Flag flag, string displayText, string icon, string tooltip, Brush iconColor = null)
         {
             _flag = flag;
             _displayText = displayText;
+            _icon = icon;
+            _tooltip = tooltip;
+            _iconColor = iconColor ?? Brushes.White;
         }
     }
+
 }
