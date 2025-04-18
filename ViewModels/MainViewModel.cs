@@ -23,14 +23,17 @@ namespace EliteInfoPanel.ViewModels
         private CardLayoutManager _layoutManager;
         private Grid _mainGrid;
         private SnackbarMessageQueue _toastQueue = new SnackbarMessageQueue(TimeSpan.FromSeconds(3));
-
+        public bool IsFullScreenMode => !_useFloatingWindow;
         #endregion Private Fields
 
         #region Public Constructors
 
-        public MainViewModel(GameStateService gameState)
+        private readonly bool _useFloatingWindow;
+
+        public MainViewModel(GameStateService gameState, bool useFloatingWindow)
         {
             _gameState = gameState;
+            _useFloatingWindow = useFloatingWindow;
 
             // Initialize commands
             OpenOptionsCommand = new RelayCommand(_ => OpenOptions());
