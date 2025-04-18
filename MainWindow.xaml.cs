@@ -330,14 +330,30 @@ namespace EliteInfoPanel
             // 🔁 Restart MainWindow if window mode changed
             options.RestartRequested += () =>
             {
-                Log.Information("Restarting MainWindow due to window mode change.");
+                // Fetch the new setting from the OptionsWindow
+                var updatedSettings = options.Settings;
+
+                // Update our local _appSettings reference
+                _appSettings.UseFloatingWindow = updatedSettings.UseFloatingWindow;
+                _appSettings.AlwaysOnTop = updatedSettings.AlwaysOnTop;
+                _appSettings.FullscreenFontScale = updatedSettings.FullscreenFontScale;
+                _appSettings.FloatingFontScale = updatedSettings.FloatingFontScale;
+                _appSettings.SelectedScreenId = updatedSettings.SelectedScreenId;
+
+                // Apply and persist
+                ApplyWindowSettings();
+                SettingsManager.Save(_appSettings);
+                Log.Information("✅ Saved updated window mode: UseFloatingWindow={Value}", _appSettings.UseFloatingWindow);
+
+                // Restart window
                 var newWindow = new MainWindow();
                 newWindow.Show();
                 this.Close();
             };
 
 
-                options.FontSizeChanged += () =>
+
+            options.FontSizeChanged += () =>
             {
                 UpdateFontResources();             // 🟢 Rebuild font size resources
                 App.RefreshResources();            // 🟢 Apply to app

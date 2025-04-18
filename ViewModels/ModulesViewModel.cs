@@ -154,7 +154,7 @@ namespace EliteInfoPanel.ViewModels
 
         public void LoadCurrentPage()
         {
-            Log.Information("📥 Loading page {PageIndex}", CurrentPage);
+            Log.Debug("📥 Loading page {PageIndex}", CurrentPage);
             if (_pagedLeft == null || _pagedRight == null ||
                 _pagedLeft.Count == 0 || _pagedRight.Count == 0 ||
                 CurrentPage >= _pagedLeft.Count || CurrentPage >= _pagedRight.Count)
@@ -172,7 +172,7 @@ namespace EliteInfoPanel.ViewModels
                 if (item != null)
                     // log the item
                     //   Log.Debug("Adding LeftItem: {name} ({slot} on page {page})", item.Name, item.Slot, CurrentPage     );
-                    Log.Information("⬅️ Left: {Name} ({Health:P0})", item.Name, item.Health);
+                    Log.Debug("⬅️ Left: {Name} ({Health:P0})", item.Name, item.Health);
                 LeftItems.Add(item);
             }
 
@@ -186,7 +186,7 @@ namespace EliteInfoPanel.ViewModels
                 {
                     //  Log.Debug("Adding RightItem: {name} ({slot}) - Health: {health}", item.Name, item.Slot, item.Health);
                     // log the item
-                    Log.Information("➡️ Right: {Name} ({Health:P0})", item.Name, item.Health);
+                    Log.Debug("➡️ Right: {Name} ({Health:P0})", item.Name, item.Health);
                     RightItems.Add(item);
                 }
             }
@@ -200,7 +200,7 @@ namespace EliteInfoPanel.ViewModels
                 return 10;
 
             int rows = (int)(AvailableHeight / estimatedRowHeight);
-            Log.Information("🧮 Rows per column based on {Height}px available: {Rows}", AvailableHeight, rows);
+            Log.Debug("🧮 Rows per column based on {Height}px available: {Rows}", AvailableHeight, rows);
             return Math.Max(rows, 2); // minimum of 2
         }
         public double MeasureModuleHeight(ModuleItemViewModel module, double columnWidth)
@@ -279,7 +279,7 @@ namespace EliteInfoPanel.ViewModels
                         })
                         .ToList();
 
-                    Log.Information("🔧 Found {Count} valid modules", modules.Count);
+                    Log.Debug("🔧 Found {Count} valid modules", modules.Count);
 
                     // === NEW PAGING LOGIC BASED ON MEASURED HEIGHTS ===
                     double maxHeight = AvailableHeight;
@@ -336,11 +336,11 @@ namespace EliteInfoPanel.ViewModels
 
                     for (int i = 0; i < _pagedLeft.Count; i++)
                     {
-                        Log.Information("📄 Page {PageIndex}: {LeftCount} left, {RightCount} right",
+                        Log.Debug("📄 Page {PageIndex}: {LeftCount} left, {RightCount} right",
                             i, _pagedLeft[i].Count, _pagedRight[i].Count);
                     }
 
-                    Log.Information("✅ Generated {PageCount} pages", _pagedLeft.Count);
+                    Log.Debug("✅ Generated {PageCount} pages", _pagedLeft.Count);
 
                     // Restore or clamp current page
                     if (_currentPage >= _pagedLeft.Count)
@@ -374,7 +374,7 @@ namespace EliteInfoPanel.ViewModels
                 _pagedRight.Add(pageItems.Skip(half).ToList());
             }
 
-            Log.Information("🌀 Rebuilt pagination: {PageCount} pages", totalPages);
+            Log.Debug("🌀 Rebuilt pagination: {PageCount} pages", totalPages);
 
             if (_currentPage >= _pagedLeft.Count)
                 _currentPage = Math.Max(0, _pagedLeft.Count - 1);

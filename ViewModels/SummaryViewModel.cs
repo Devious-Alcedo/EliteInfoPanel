@@ -425,13 +425,13 @@ namespace EliteInfoPanel.ViewModels
                         var fsdKey = FsdJumpRangeCalculator.GetFsdSpecKeyFromItem(fsd.Item);
                         double cargoMass = cargo?.Inventory?.Sum(i => i.Count) ?? 0;
 
-                        Log.Information("🚀 Jump Range Debug - Parameters:");
-                        Log.Information("  - FSD Module: {0}, Key: {1}", fsd.Item, fsdKey);
-                        Log.Information("  - Loadout: UnladenMass={0}, Game MaxJumpRange={1}",
+                        Log.Debug("🚀 Jump Range Debug - Parameters:");
+                        Log.Debug("  - FSD Module: {0}, Key: {1}", fsd.Item, fsdKey);
+                        Log.Debug("  - Loadout: UnladenMass={0}, Game MaxJumpRange={1}",
                             loadout.UnladenMass, loadout.MaxJumpRange);
-                        Log.Information("  - Fuel: Main={0}, Reserve={1}",
+                        Log.Debug("  - Fuel: Main={0}, Reserve={1}",
                             status.Fuel.FuelMain, status.Fuel.FuelReservoir);
-                        Log.Information("  - Cargo Mass: {0}", cargoMass);
+                        Log.Debug("  - Cargo Mass: {0}", cargoMass);
 
                         // Log FSD engineering if present
                         if (fsd.Engineering != null && fsd.Engineering.Modifiers != null)
@@ -440,7 +440,7 @@ namespace EliteInfoPanel.ViewModels
                                 .FirstOrDefault(m => m.Label.Equals("FSDOptimalMass", StringComparison.OrdinalIgnoreCase));
                             if (optMassModifier != null)
                             {
-                                Log.Information("  - FSD Engineering: OptimalMass={0}", optMassModifier.Value);
+                                Log.Debug("  - FSD Engineering: OptimalMass={0}", optMassModifier.Value);
                             }
                         }
 
@@ -469,7 +469,7 @@ namespace EliteInfoPanel.ViewModels
                                 classConstants.TryGetValue(size, out classConstant);
                                 ratingConstants.TryGetValue(rating, out ratingConstant);
 
-                                Log.Information("  - Constants: Class={0}, Rating={1}", classConstant, ratingConstant);
+                                Log.Debug("  - Constants: Class={0}, Rating={1}", classConstant, ratingConstant);
                             }
                         }
 
@@ -480,11 +480,11 @@ namespace EliteInfoPanel.ViewModels
                         // Compare with game provided value if available
                         if (loadout.MaxJumpRange > 0)
                         {
-                            Log.Information("  - COMPARISON - Calculated Max: {0:0.00} LY, Game Max: {1:0.00} LY, Ratio: {2:0.00}",
+                            Log.Debug("  - COMPARISON - Calculated Max: {0:0.00} LY, Game Max: {1:0.00} LY, Ratio: {2:0.00}",
                                 maxRange, loadout.MaxJumpRange, loadout.MaxJumpRange / maxRange);
                         }
 
-                        Log.Information("  - Final calculated values - Current: {0:0.00} LY, Max: {1:0.00} LY",
+                        Log.Debug("  - Final calculated values - Current: {0:0.00} LY, Max: {1:0.00} LY",
                             currentRange, maxRange);
 
                         FuelPanelTitle = $"Fuel - Current: {currentRange:0.00} LY | Max: {maxRange:0.00} LY";

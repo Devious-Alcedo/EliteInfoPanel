@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
+using Serilog;
 using WpfScreenHelper;
 
 namespace EliteInfoPanel.ViewModels
@@ -269,8 +270,14 @@ namespace EliteInfoPanel.ViewModels
         public void SaveSettings()
         {
             SettingsManager.Save(_appSettings);
+            Log.Information("💾 Saving: FloatingWindow = {Mode}, FullscreenScale = {F}, FloatingScale = {S}",
+                _appSettings.UseFloatingWindow,
+                _appSettings.FullscreenFontScale,
+                _appSettings.FloatingFontScale);
+
+
             // Notify that font size might have changed
-           // FontSizeChanged?.Invoke();
+            // FontSizeChanged?.Invoke();
         }
 
         // Method to handle screen selection

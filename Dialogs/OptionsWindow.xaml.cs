@@ -64,22 +64,26 @@ namespace EliteInfoPanel.Dialogs
                 var settings = _viewModel.AppSettings;
                 bool windowModeChanged = _viewModel.IsFloatingWindowMode != _originalUseFloating;
 
+                // ✅ Update the actual setting before saving
+                settings.UseFloatingWindow = _viewModel.IsFloatingWindowMode;
+
                 _viewModel.SaveSettings();
 
                 if (windowModeChanged)
                 {
                     Log.Information("Window mode changed — triggering restart.");
-                    RestartRequested?.Invoke(); // Tells MainWindow to restart
-                    Dispatcher.Invoke(Close);  // Close the Options dialog
+                    RestartRequested?.Invoke();
+                    Dispatcher.Invoke(Close);
                 }
                 else
                 {
                     Log.Information("Settings saved — no restart needed.");
                     FontSizeChanged?.Invoke();
                     DialogResult = true;
-                    Close(); // Just close the dialog
+                    Close();
                 }
             });
+
 
 
             _viewModel.CancelCommand = new RelayCommand(_ =>
@@ -125,26 +129,26 @@ namespace EliteInfoPanel.Dialogs
 
         #region Private Methods
 
-        private void Button_Click(object sender, RoutedEventArgs e)
-        {
-            // Don't call SaveSettings() here, just execute the command
-            _viewModel.SaveCommand.Execute(null);
-        }
+        //private void Button_Click(object sender, RoutedEventArgs e)
+        //{
+        //    // Don't call SaveSettings() here, just execute the command
+        //    _viewModel.SaveCommand.Execute(null);
+        //}
 
-        private void Button_Click_1(object sender, RoutedEventArgs e)
-        {
-            Close();
-        }
+        //private void Button_Click_1(object sender, RoutedEventArgs e)
+        //{
+        //    Close();
+        //}
 
         private void CancelButton_Click(object sender, RoutedEventArgs e)
         {
             _viewModel.CancelCommand.Execute(null);
         }
 
-        private void OkButton_Click(object sender, RoutedEventArgs e)
-        {
-            SaveSettings();
-        }
+        //private void OkButton_Click(object sender, RoutedEventArgs e)
+        //{
+        //    SaveSettings();
+        //}
 
         private void OnDisplayChangeRequested()
         {
@@ -316,7 +320,7 @@ namespace EliteInfoPanel.Dialogs
 
         private void PopulateFlagOptions()
         {
-            var appSettings = SettingsManager.Load();
+            var appSettings = _viewModel.AppSettings;
 
             FlagCheckBoxes.Clear(); // clear old
 
@@ -358,7 +362,7 @@ namespace EliteInfoPanel.Dialogs
             else if (!isChecked && visibleFlags.Contains(flag))
                 visibleFlags.Remove(flag);
 
-            Log.Information("Flag {Flag} set to {Checked}", flag, isChecked);
+            Log.Debug("Flag {Flag} set to {Checked}", flag, isChecked);
         }
         #endregion Private Methods
     }
