@@ -123,7 +123,14 @@ namespace EliteInfoPanel.Dialogs
         public event Action<Screen> ScreenChanged;
         public event Action<bool> WindowModeChanged;
         public event Action FontSizeChanged;
-
+        private void FontSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (scalePercentageText != null && sender is Slider slider)
+            {
+                // Format as percentage
+                scalePercentageText.Text = $"Scale: {slider.Value:P0}";
+            }
+        }
         #endregion Public Events
 
         #region Public Properties

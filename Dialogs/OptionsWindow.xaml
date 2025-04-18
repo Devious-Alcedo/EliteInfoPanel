@@ -51,11 +51,12 @@
 
                         <!-- Font Size -->
                         <GroupBox Header="Font Size" Margin="0,0,0,12">
+                            <!-- In the Font Size GroupBox -->
                             <StackPanel Margin="0,8,0,0">
-                                <TextBlock Text="Sample Text"
-                                       FontSize="{Binding FontSizePreview}"
-                                       HorizontalAlignment="Center"
-                                       Margin="0,0,0,10"/>
+                                <TextBlock Text="Sample Text" 
+               FontSize="{Binding FontSizePreview}"
+               HorizontalAlignment="Center" 
+               Margin="0,0,0,10"/>
 
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -65,23 +66,28 @@
                                     </Grid.ColumnDefinitions>
 
                                     <TextBlock Text="A" FontSize="12" Grid.Column="0" Margin="0,0,8,0"
-                                           VerticalAlignment="Center"/>
+                   VerticalAlignment="Center"/>
 
-                                    <Slider Grid.Column="1"
-                                        Minimum="{Binding MinFontScale}"
-                                        Maximum="{Binding MaxFontScale}"
-                                        Value="{Binding CurrentFontScale}"
-                                        TickFrequency="{Binding FontScaleStep}"
-                                        IsSnapToTickEnabled="True"
-                                        VerticalAlignment="Center"/>
+                                    <!-- Give the slider a name so we can find it later -->
+                                    <Slider x:Name="fontSizeSlider" 
+                Grid.Column="1"
+                Minimum="{Binding MinFontScale}"
+                Maximum="{Binding MaxFontScale}"
+                Value="{Binding CurrentFontScale}"
+                TickFrequency="{Binding FontScaleStep}"
+                IsSnapToTickEnabled="True"
+                ValueChanged="FontSizeSlider_ValueChanged"
+                VerticalAlignment="Center"/>
 
                                     <TextBlock Text="A" FontSize="20" Grid.Column="2" Margin="8,0,0,0"
-                                           VerticalAlignment="Center"/>
+                   VerticalAlignment="Center"/>
                                 </Grid>
 
-                                <TextBlock Text="{Binding CurrentFontScale, StringFormat={}Scale: {0:P0}}"
-                                       HorizontalAlignment="Center"
-                                       Margin="0,4,0,0"/>
+                                <!-- Give the text block a name so we can find it later -->
+                                <TextBlock x:Name="scalePercentageText"
+               Text="Scale: 100%"
+               HorizontalAlignment="Center"
+               Margin="0,4,0,0"/>
                             </StackPanel>
                         </GroupBox>
 

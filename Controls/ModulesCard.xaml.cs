@@ -55,7 +55,7 @@ namespace EliteInfoPanel.Controls
                 if (Math.Abs(adjustedHeight - vm.AvailableHeight) > 1)
                 {
                     vm.AvailableHeight = adjustedHeight;
-                    System.Diagnostics.Debug.WriteLine($"✅ AvailableHeight set to {vm.AvailableHeight} (adjusted from {newHeight})");
+                  
 
                     vm.UpdateModules(); // Trigger pagination refresh
                 }

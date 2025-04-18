@@ -51,6 +51,11 @@ namespace EliteInfoPanel.ViewModels
                 }
             }
         }
+        public string ScalePercentage
+        {
+            get => $"Scale: {CurrentFontScale:P0}";
+        }
+
 
         public double FullscreenFontScale
         {
@@ -96,7 +101,8 @@ namespace EliteInfoPanel.ViewModels
                     FullscreenFontScale = value;
                 }
 
-                // This will trigger UpdateFontSizePreview and FontSizeChanged from the individual setters
+                // Also notify that the scale percentage text has changed
+                OnPropertyChanged(nameof(ScalePercentage));
             }
         }
 
