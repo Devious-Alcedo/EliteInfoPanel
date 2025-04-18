@@ -100,6 +100,9 @@ namespace EliteInfoPanel
 
                 Log.Information("Applied floating window settings: {Left}x{Top} {Width}x{Height}",
                     Left, Top, Width, Height);
+
+                // Show the floating title bar
+                FloatingTitleBar.Visibility = Visibility.Visible;
             }
             else
             {
@@ -134,14 +137,21 @@ namespace EliteInfoPanel
                     SettingsManager.Save(_appSettings); // ✅ ensure saved
                 }
 
-
                 ApplyScreenBounds(_currentScreen);
+
+                // Hide the floating title bar in fullscreen mode
+                FloatingTitleBar.Visibility = Visibility.Collapsed;
 
                 Log.Information("Applied full-screen settings on screen: {Screen}",
                     _currentScreen?.DeviceName ?? "Unknown");
             }
 
             // ✅ Update font scaling for all cards
+            UpdateFontSizes();
+        }
+
+        public void UpdateFontSizes()
+        {
             double fontScale = _appSettings.UseFloatingWindow
                 ? _appSettings.FloatingFontScale
                 : _appSettings.FullscreenFontScale;
@@ -150,6 +160,9 @@ namespace EliteInfoPanel
                 ? AppSettings.DEFAULT_FLOATING_BASE * fontScale
                 : AppSettings.DEFAULT_FULLSCREEN_BASE * fontScale;
 
+            Log.Debug("Updating font sizes with scale {Scale}, resulting in base size {BaseSize}",
+                fontScale, baseFontSize);
+
             foreach (var card in _viewModel.Cards)
             {
                 card.FontSize = baseFontSize;
@@ -157,6 +170,9 @@ namespace EliteInfoPanel
 
             // Update font resources for dynamic styles
             UpdateFontResources();
+
+            // Force layout update
+            _viewModel.RefreshLayout();
         }
 
         private void EnsureWindowIsVisible()
@@ -256,6 +272,8 @@ namespace EliteInfoPanel
             // Close the application
             this.Close();
         }
+        // Make sure this method exists in MainWindow.xaml.cs:
+
         private void UpdateFontResources()
         {
             // Get the current font scale based on window mode
@@ -281,6 +299,15 @@ namespace EliteInfoPanel
             Application.Current.Resources["HeaderFontSize"] = headerFontSize;
             Application.Current.Resources["SmallFontSize"] = smallFontSize;
 
+            // Update each card's font size directly
+            if (_viewModel != null)
+            {
+                foreach (var card in _viewModel.Cards)
+                {
+                    card.FontSize = baseFontSize;
+                }
+            }
+
             Log.Debug("Updated font resources for {Mode} mode with scale {Scale}: Base={Base}, Header={Header}, Small={Small}",
                 _appSettings.UseFloatingWindow ? "floating window" : "full screen",
                 fontScale, baseFontSize, headerFontSize, smallFontSize);
@@ -301,70 +328,81 @@ namespace EliteInfoPanel
             WindowState = WindowState.Maximized;
         }
 
+        // Replace only the OpenOptions() method in MainWindow.xaml.cs with this:
+
+        // Replace only the OpenOptions() method in MainWindow.xaml.cs with this:
+
+        // Use this version of the OpenOptions() method in MainWindow.xaml.cs
+
         private void OpenOptions()
         {
             var options = new OptionsWindow();
 
+            // Important: Set initial settings reference
+            options.Settings.FloatingFontScale = _appSettings.FloatingFontScale;
+            options.Settings.FullscreenFontScale = _appSettings.FullscreenFontScale;
+
             options.ScreenChanged += screen =>
             {
                 _currentScreen = screen;
-                _appSettings.UseFloatingWindow = false;
-                ApplyScreenBounds(screen);
+
+                if (!_appSettings.UseFloatingWindow)
+                {
+                    ApplyScreenBounds(screen);
+                }
             };
 
-            options.WindowModeChanged += useFloatingWindow =>
-            {
-                _appSettings.UseFloatingWindow = useFloatingWindow;
-                ApplyWindowSettings();
-            };
-
+            // This is the key handler for real-time updates
             options.FontSizeChanged += () =>
             {
+                // Directly update our app settings from the dialog's settings to get real-time values
+                _appSettings.FloatingFontScale = options.Settings.FloatingFontScale;
+                _appSettings.FullscreenFontScale = options.Settings.FullscreenFontScale;
+
+                // Now apply the changes immediately
                 UpdateFontResources();
                 App.RefreshResources();
                 InvalidateVisual();
                 _viewModel.RefreshLayout();
                 UpdateLayout();
+
+                Log.Debug("Live font update - Current scale: {0}, Floating: {1}, Fullscreen: {2}",
+                    _appSettings.UseFloatingWindow ? _appSettings.FloatingFontScale : _appSettings.FullscreenFontScale,
+                    _appSettings.FloatingFontScale,
+                    _appSettings.FullscreenFontScale);
             };
 
-            // 🔁 Restart MainWindow if window mode changed
-            options.RestartRequested += () =>
+            // If dialog is closed with OK
+            if (options.ShowDialog() == true)
             {
-                // Fetch the new setting from the OptionsWindow
-                var updatedSettings = options.Settings;
+                // Since we can't reassign _appSettings, we'll manually update the important properties
+                var updatedSettings = SettingsManager.Load();
 
-                // Update our local _appSettings reference
+                // Check if window mode changed
+                bool modeChanged = updatedSettings.UseFloatingWindow != _appSettings.UseFloatingWindow;
+
+                // Update individual properties instead of the whole object
                 _appSettings.UseFloatingWindow = updatedSettings.UseFloatingWindow;
-                _appSettings.AlwaysOnTop = updatedSettings.AlwaysOnTop;
-                _appSettings.FullscreenFontScale = updatedSettings.FullscreenFontScale;
                 _appSettings.FloatingFontScale = updatedSettings.FloatingFontScale;
-                _appSettings.SelectedScreenId = updatedSettings.SelectedScreenId;
+                _appSettings.FullscreenFontScale = updatedSettings.FullscreenFontScale;
+                _appSettings.AlwaysOnTop = updatedSettings.AlwaysOnTop;
 
-                // Apply and persist
-                ApplyWindowSettings();
-                SettingsManager.Save(_appSettings);
-                Log.Information("✅ Saved updated window mode: UseFloatingWindow={Value}", _appSettings.UseFloatingWindow);
-
-                // Restart window
-                var newWindow = new MainWindow();
-                newWindow.Show();
-                this.Close();
-            };
-
-
-
-            options.FontSizeChanged += () =>
-            {
-                UpdateFontResources();             // 🟢 Rebuild font size resources
-                App.RefreshResources();            // 🟢 Apply to app
-                InvalidateVisual();                // 🟢 Force redraw
-                _viewModel.RefreshLayout();        // 🟢 Notify all cards
-                UpdateLayout();
-            };
-
-            options.ShowDialog();
+                // Update window settings if mode changed
+                if (modeChanged)
+                {
+                    Log.Information("Window mode changed - reapplying window settings");
+                    ApplyWindowSettings();
+                }
+                else
+                {
+                    // Always update font resources to ensure consistency
+                    UpdateFontResources();
+                    App.RefreshResources();
+                    InvalidateVisual();
+                    _viewModel.RefreshLayout();
+                    UpdateLayout();
+                }
+            }
         }
-
-
     }
 }

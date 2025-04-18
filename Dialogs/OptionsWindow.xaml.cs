@@ -20,8 +20,9 @@ namespace EliteInfoPanel.Dialogs
 
         private SettingsViewModel _viewModel;
         private Dictionary<Flag, CheckBox> flagCheckBoxes = new();
-        public event Action? RestartRequested;
         private bool _originalUseFloating;
+        private double _originalFloatingScale;
+        private double _originalFullscreenScale;
         public ObservableCollection<CheckBox> FlagCheckBoxes { get; } = new();
         #endregion Private Fields
 
@@ -40,6 +41,8 @@ namespace EliteInfoPanel.Dialogs
             // Load settings
             var settings = SettingsManager.Load();
             _originalUseFloating = settings.UseFloatingWindow;
+            _originalFloatingScale = settings.FloatingFontScale;
+            _originalFullscreenScale = settings.FullscreenFontScale;
 
             settings.DisplayOptions ??= new DisplayOptions();
             settings.DisplayOptions.VisibleFlags ??= new List<Flag>();
@@ -63,6 +66,8 @@ namespace EliteInfoPanel.Dialogs
             {
                 var settings = _viewModel.AppSettings;
                 bool windowModeChanged = _viewModel.IsFloatingWindowMode != _originalUseFloating;
+                bool fontScaleChanged = (settings.FloatingFontScale != _originalFloatingScale) ||
+                                        (settings.FullscreenFontScale != _originalFullscreenScale);
 
                 // ✅ Update the actual setting before saving
                 settings.UseFloatingWindow = _viewModel.IsFloatingWindowMode;
@@ -71,20 +76,21 @@ namespace EliteInfoPanel.Dialogs
 
                 if (windowModeChanged)
                 {
-                    Log.Information("Window mode changed — triggering restart.");
-                    RestartRequested?.Invoke();
-                    Dispatcher.Invoke(Close);
+                    // Notify about window mode change
+                    Log.Information("Window mode changed - notifying main window");
+                    WindowModeChanged?.Invoke(_viewModel.IsFloatingWindowMode);
                 }
-                else
+
+                if (fontScaleChanged)
                 {
-                    Log.Information("Settings saved — no restart needed.");
+                    // Notify about font size change
+                    Log.Information("Font scale changed - notifying main window");
                     FontSizeChanged?.Invoke();
-                    DialogResult = true;
-                    Close();
                 }
+
+                DialogResult = true;
+                Close();
             });
-
-
 
             _viewModel.CancelCommand = new RelayCommand(_ =>
             {
@@ -129,26 +135,10 @@ namespace EliteInfoPanel.Dialogs
 
         #region Private Methods
 
-        //private void Button_Click(object sender, RoutedEventArgs e)
-        //{
-        //    // Don't call SaveSettings() here, just execute the command
-        //    _viewModel.SaveCommand.Execute(null);
-        //}
-
-        //private void Button_Click_1(object sender, RoutedEventArgs e)
-        //{
-        //    Close();
-        //}
-
         private void CancelButton_Click(object sender, RoutedEventArgs e)
         {
             _viewModel.CancelCommand.Execute(null);
         }
-
-        //private void OkButton_Click(object sender, RoutedEventArgs e)
-        //{
-        //    SaveSettings();
-        //}
 
         private void OnDisplayChangeRequested()
         {
@@ -178,15 +168,20 @@ namespace EliteInfoPanel.Dialogs
                 GroupName = "WindowMode"
             };
 
-            // Add event handlers
+            // Update the radio button event handlers in PopulateWindowModeOptions() in OptionsWindow.xaml.cs
+
             fullScreenRadio.Checked += (s, e) =>
             {
                 _viewModel.IsFloatingWindowMode = false;
+                // Update font preview for the current mode
+                _viewModel.NotifyFontSizeChanged();
             };
 
             floatingWindowRadio.Checked += (s, e) =>
             {
                 _viewModel.IsFloatingWindowMode = true;
+                // Update font preview for the current mode
+                _viewModel.NotifyFontSizeChanged();
             };
 
             panel.Children.Add(fullScreenRadio);
