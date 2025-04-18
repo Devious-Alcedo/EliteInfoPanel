@@ -4,13 +4,13 @@
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         xmlns:local="clr-namespace:EliteInfoPanel"
         xmlns:util="clr-namespace:EliteInfoPanel.Util"
-
         xmlns:controls="clr-namespace:EliteInfoPanel.Controls"
         Background="{DynamicResource MaterialDesignPaper}"
         WindowStyle="None"
         ResizeMode="NoResize"
         WindowStartupLocation="Manual"
-        Title="Elite Info Panel" Height="480" Width="1920">
+        Title="Elite Info Panel"
+        Loaded="Window_Loaded">
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
@@ -20,12 +20,12 @@
                     <ControlTemplate TargetType="ProgressBar">
                         <Grid x:Name="TemplateRoot" SnapsToDevicePixels="true">
                             <Rectangle x:Name="PART_Track"
-                               Fill="{TemplateBinding Background}"
-                               Height="{TemplateBinding Height}" />
+                                       Fill="{TemplateBinding Background}"
+                                       Height="{TemplateBinding Height}" />
                             <Rectangle x:Name="PART_Indicator"
-                               Fill="{TemplateBinding Foreground}"
-                               Height="{TemplateBinding Height}"
-                               HorizontalAlignment="Left">
+                                       Fill="{TemplateBinding Foreground}"
+                                       Height="{TemplateBinding Height}"
+                                       HorizontalAlignment="Left">
                                 <Rectangle.Width>
                                     <MultiBinding Converter="{StaticResource ProgressToWidthMultiConverter}">
                                         <Binding Path="Value" RelativeSource="{RelativeSource TemplatedParent}" />
@@ -38,10 +38,6 @@
                 </Setter.Value>
             </Setter>
         </Style>
-
-
-        <!-- Converter used to calculate width -->
-   
     </Window.Resources>
 
     <Grid x:Name="RootGrid">
@@ -56,24 +52,24 @@
                         Orientation="Vertical"
                         Margin="20">
                 <TextBlock x:Name="JumpDestinationText"
-                   Text="Hyperspace Jump in Progress..."
-                   Foreground="#80FFFFFF"
-                   FontSize="48"
-                   FontWeight="Light"
-                   TextAlignment="Center"
-                   Margin="0,0,0,20"/>
+                           Text="Hyperspace Jump in Progress..."
+                           Foreground="#80FFFFFF"
+                           FontSize="48"
+                           FontWeight="Light"
+                           TextAlignment="Center"
+                           Margin="0,0,0,20" />
                 <TextBlock x:Name="StarClassText"
-                   Text="Star Class: Unknown"
-                   Foreground="#40FFFFFF"
-                   FontSize="28"
-                   FontWeight="Light"
-                   TextAlignment="Center"
-                   Margin="0,0,0,40"/>
+                           Text="Star Class: Unknown"
+                           Foreground="#40FFFFFF"
+                           FontSize="28"
+                           FontWeight="Light"
+                           TextAlignment="Center"
+                           Margin="0,0,0,40" />
                 <ProgressBar Width="400"
-                     Height="8"
-                     IsIndeterminate="True"
-                     Foreground="#60FFFFFF"
-                     Background="Transparent"/>
+                             Height="8"
+                             IsIndeterminate="True"
+                             Foreground="#60FFFFFF"
+                             Background="Transparent" />
             </StackPanel>
         </Grid>
 
@@ -92,39 +88,39 @@
                            FontSize="64"
                            FontWeight="SemiBold"
                            TextAlignment="Center"
-                           Margin="0,0,0,20"/>
+                           Margin="0,0,0,20" />
                 <ProgressBar Width="160"
                              Height="16"
                              IsIndeterminate="True"
                              Foreground="DeepSkyBlue"
-                             Background="Transparent"/>
+                             Background="Transparent" />
             </StackPanel>
         </Grid>
+
+        <!-- Carrier Jump Overlay -->
         <Grid Visibility="{Binding IsCarrierJumping, Converter={StaticResource BoolToVis}}"
-      Background="#CC000000"
-      Panel.ZIndex="9997">
+              Background="#CC000000"
+              Panel.ZIndex="9997">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Vertical">
                 <TextBlock Text="Carrier Jump In Progress..."
-                   FontSize="48"
-                   FontWeight="Bold"
-                   Foreground="Orange"
-                   TextAlignment="Center" />
+                           FontSize="48"
+                           FontWeight="Bold"
+                           Foreground="Orange"
+                           TextAlignment="Center" />
                 <ProgressBar Width="300"
-                     Height="10"
-                     IsIndeterminate="True"
-                     Foreground="Orange"
-                     Background="Transparent"
-                     Margin="0,20,0,0" />
+                             Height="10"
+                             IsIndeterminate="True"
+                             Foreground="Orange"
+                             Background="Transparent"
+                             Margin="0,20,0,0" />
             </StackPanel>
         </Grid>
 
-
-        <!-- Main Content Grid - We'll add cards to this dynamically -->
-        <Grid x:Name="MainGrid" 
-              HorizontalAlignment="Stretch" 
+        <!-- Main Content Grid - Cards will be added to this dynamically -->
+        <Grid x:Name="MainGrid"
+              HorizontalAlignment="Stretch"
               Background="{DynamicResource MaterialDesignPaper}"
-              VerticalAlignment="Stretch">
-        </Grid>
+              VerticalAlignment="Stretch" />
 
         <!-- Toast Notifications -->
         <materialDesign:Snackbar x:Name="ToastHost"
@@ -132,23 +128,7 @@
                                  VerticalAlignment="Bottom"
                                  HorizontalAlignment="Center"
                                  Margin="20"
-                                 FontSize="20"/>
-
-        <!-- Close Button -->
-        <Button Width="40" Height="40"
-                Style="{DynamicResource MaterialDesignFlatButton}"
-                HorizontalAlignment="Right"
-                VerticalAlignment="Top"
-                Margin="0,10,10,0"
-                Padding="0"
-                ToolTip="Close"
-                Command="{Binding CloseCommand}"
-                Background="Transparent"
-                BorderBrush="Transparent">
-            <materialDesign:PackIcon Kind="Close"
-                                     Width="20" Height="20"
-                                     Foreground="{DynamicResource MaterialDesignBody}" />
-        </Button>
+                                 FontSize="20" />
 
         <!-- Floating Options Button -->
         <Button Width="56" Height="56"
@@ -160,6 +140,24 @@
                 ToolTip="Options"
                 Command="{Binding OpenOptionsCommand}">
             <materialDesign:PackIcon Kind="Cog"
+                                     Width="24"
+                                     Height="24"
+                                     Foreground="Orange" />
+        </Button>
+
+        <!-- Close Button (fullscreen only) -->
+        <Button Width="56"
+                Height="56"
+                Background="Transparent"
+                BorderBrush="Transparent"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Margin="16,8,16,0"
+
+                ToolTip="Close"
+                Click="CloseButton_Click"
+                Visibility="{Binding IsFullScreenMode, Converter={StaticResource BoolToVis}}">
+            <materialDesign:PackIcon Kind="Close"
                                      Width="24"
                                      Height="24"
                                      Foreground="Orange" />

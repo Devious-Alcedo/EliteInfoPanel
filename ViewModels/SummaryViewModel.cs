@@ -15,10 +15,29 @@ namespace EliteInfoPanel.ViewModels
         private DispatcherTimer _carrierCountdownTimer;
         private SummaryItemViewModel _carrierCountdownItem;
         public ObservableCollection<SummaryItemViewModel> Items { get; } = new();
+
         private SummaryItemViewModel FindItemByTag(string tag)
         {
             return Items.FirstOrDefault(x => x.Tag == tag);
         }
+        public override double FontSize
+        {
+            get => base.FontSize;
+            set
+            {
+                if (base.FontSize != value)
+                {
+                    base.FontSize = value;
+
+                    foreach (var item in Items)
+                    {
+                        item.FontSize = (int)value;
+                    }
+                }
+            }
+        }
+
+
         private string _fuelPanelTitle;
         public string FuelPanelTitle
         {
@@ -91,16 +110,23 @@ namespace EliteInfoPanel.ViewModels
 
         private void UpdateSummary()
         {
-            if (!System.Windows.Application.Current.Dispatcher.CheckAccess())
+            // null check
+            if (_gameState == null)
             {
-                System.Windows.Application.Current.Dispatcher.Invoke(UpdateSummary);
+                Log.Error("GameStateService is null in UpdateSummary");
                 return;
             }
+            if (System.Windows.Application.Current == null || !System.Windows.Application.Current.Dispatcher.CheckAccess())
+            {
+                System.Windows.Application.Current?.Dispatcher.Invoke(UpdateSummary);
+                return;
+            }
+
 
             try
             {
                 RemoveNonCustomItems();
-
+                int fontSize = (int)this.FontSize;
                 if (_gameState.CurrentStatus == null)
                     return;
 
@@ -111,7 +137,10 @@ namespace EliteInfoPanel.ViewModels
                         "Commander",
                         $"CMDR {_gameState.CommanderName}",
                         Brushes.WhiteSmoke,
-                        PackIconKind.AccountCircle));
+                        PackIconKind.AccountCircle)
+                    {
+                        FontSize = fontSize
+                    });
                 }
 
                 // Squadron
@@ -121,7 +150,10 @@ namespace EliteInfoPanel.ViewModels
                         "Squadron",
                         _gameState.SquadronName,
                         Brushes.LightGoldenrodYellow,
-                        PackIconKind.AccountGroup));
+                        PackIconKind.AccountGroup)
+                    {
+                        FontSize = fontSize
+                    });
                 }
 
                 // Ship
@@ -148,7 +180,11 @@ namespace EliteInfoPanel.ViewModels
                         "Ship",
                         shipText,
                         Brushes.LightBlue,
-                        PackIconKind.SpaceStation));
+                        PackIconKind.SpaceStation)
+                    {
+                        FontSize = fontSize
+                                                     
+                    });
                 }
 
                 // Balance
@@ -159,7 +195,10 @@ namespace EliteInfoPanel.ViewModels
                         "Balance",
                         balanceText,
                         Brushes.LightGreen,
-                        PackIconKind.CurrencyUsd));
+                        PackIconKind.CurrencyUsd)
+                    {
+                        FontSize = fontSize
+                    });
                 }
 
                 // Current System
@@ -169,7 +208,10 @@ namespace EliteInfoPanel.ViewModels
                         "System",
                         _gameState.CurrentSystem,
                         Brushes.Orange,
-                        PackIconKind.Earth));
+                        PackIconKind.Earth)
+                    {
+                        FontSize = fontSize
+                    });
                 }
 
                 // Heat
@@ -235,7 +277,8 @@ namespace EliteInfoPanel.ViewModels
                     Brushes.Gold,
                     PackIconKind.RocketLaunch)
                 {
-                    FontSize = 24
+                    FontSize = (int)this.FontSize
+
                 };
 
                 Items.Add(_carrierCountdownItem);
@@ -310,7 +353,7 @@ namespace EliteInfoPanel.ViewModels
                 }
 
                 _carrierCountdownItem.Content = FormatCountdownText(remaining, destination);
-                _carrierCountdownItem.FontSize = 24;
+            
 
                 // ✅ Style logic
                 if (remaining.TotalMinutes <= 2.75 && _carrierCountdownItem.Foreground != Brushes.Red)
@@ -382,13 +425,13 @@ namespace EliteInfoPanel.ViewModels
                         var fsdKey = FsdJumpRangeCalculator.GetFsdSpecKeyFromItem(fsd.Item);
                         double cargoMass = cargo?.Inventory?.Sum(i => i.Count) ?? 0;
 
-                        Log.Information("🚀 Jump Range Debug - Parameters:");
-                        Log.Information("  - FSD Module: {0}, Key: {1}", fsd.Item, fsdKey);
-                        Log.Information("  - Loadout: UnladenMass={0}, Game MaxJumpRange={1}",
+                        Log.Debug("🚀 Jump Range Debug - Parameters:");
+                        Log.Debug("  - FSD Module: {0}, Key: {1}", fsd.Item, fsdKey);
+                        Log.Debug("  - Loadout: UnladenMass={0}, Game MaxJumpRange={1}",
                             loadout.UnladenMass, loadout.MaxJumpRange);
-                        Log.Information("  - Fuel: Main={0}, Reserve={1}",
+                        Log.Debug("  - Fuel: Main={0}, Reserve={1}",
                             status.Fuel.FuelMain, status.Fuel.FuelReservoir);
-                        Log.Information("  - Cargo Mass: {0}", cargoMass);
+                        Log.Debug("  - Cargo Mass: {0}", cargoMass);
 
                         // Log FSD engineering if present
                         if (fsd.Engineering != null && fsd.Engineering.Modifiers != null)
@@ -397,7 +440,7 @@ namespace EliteInfoPanel.ViewModels
                                 .FirstOrDefault(m => m.Label.Equals("FSDOptimalMass", StringComparison.OrdinalIgnoreCase));
                             if (optMassModifier != null)
                             {
-                                Log.Information("  - FSD Engineering: OptimalMass={0}", optMassModifier.Value);
+                                Log.Debug("  - FSD Engineering: OptimalMass={0}", optMassModifier.Value);
                             }
                         }
 
@@ -426,7 +469,7 @@ namespace EliteInfoPanel.ViewModels
                                 classConstants.TryGetValue(size, out classConstant);
                                 ratingConstants.TryGetValue(rating, out ratingConstant);
 
-                                Log.Information("  - Constants: Class={0}, Rating={1}", classConstant, ratingConstant);
+                                Log.Debug("  - Constants: Class={0}, Rating={1}", classConstant, ratingConstant);
                             }
                         }
 
@@ -437,11 +480,11 @@ namespace EliteInfoPanel.ViewModels
                         // Compare with game provided value if available
                         if (loadout.MaxJumpRange > 0)
                         {
-                            Log.Information("  - COMPARISON - Calculated Max: {0:0.00} LY, Game Max: {1:0.00} LY, Ratio: {2:0.00}",
+                            Log.Debug("  - COMPARISON - Calculated Max: {0:0.00} LY, Game Max: {1:0.00} LY, Ratio: {2:0.00}",
                                 maxRange, loadout.MaxJumpRange, loadout.MaxJumpRange / maxRange);
                         }
 
-                        Log.Information("  - Final calculated values - Current: {0:0.00} LY, Max: {1:0.00} LY",
+                        Log.Debug("  - Final calculated values - Current: {0:0.00} LY, Max: {1:0.00} LY",
                             currentRange, maxRange);
 
                         FuelPanelTitle = $"Fuel - Current: {currentRange:0.00} LY | Max: {maxRange:0.00} LY";

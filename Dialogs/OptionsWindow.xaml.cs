@@ -7,7 +7,10 @@ using Serilog;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
 using EliteInfoPanel.ViewModels;
+using EliteInfoPanel.Converters;
 using WpfScreenHelper;
+using System.Windows.Data;
+using System.Collections.ObjectModel;
 
 namespace EliteInfoPanel.Dialogs
 {
@@ -17,7 +20,10 @@ namespace EliteInfoPanel.Dialogs
 
         private SettingsViewModel _viewModel;
         private Dictionary<Flag, CheckBox> flagCheckBoxes = new();
-
+        private bool _originalUseFloating;
+        private double _originalFloatingScale;
+        private double _originalFullscreenScale;
+        public ObservableCollection<CheckBox> FlagCheckBoxes { get; } = new();
         #endregion Private Fields
 
         #region Public Constructors
@@ -34,26 +40,54 @@ namespace EliteInfoPanel.Dialogs
 
             // Load settings
             var settings = SettingsManager.Load();
+            _originalUseFloating = settings.UseFloatingWindow;
+            _originalFloatingScale = settings.FloatingFontScale;
+            _originalFullscreenScale = settings.FullscreenFontScale;
+
             settings.DisplayOptions ??= new DisplayOptions();
             settings.DisplayOptions.VisibleFlags ??= new List<Flag>();
+
+            // Initialize font scales if they're 0
+            if (settings.FullscreenFontScale <= 0)
+                settings.FullscreenFontScale = 1.0;
+
+            if (settings.FloatingFontScale <= 0)
+                settings.FloatingFontScale = 1.0;
 
             Log.Information("Loaded settings: {@Settings}", settings);
 
             // Create view model
             _viewModel = new SettingsViewModel(settings);
+            _viewModel.IsFloatingWindowMode = settings.UseFloatingWindow;
             DataContext = _viewModel;
+
             // Connect commands
             _viewModel.SaveCommand = new RelayCommand(_ =>
             {
-                // Don't call SaveSettings() again from here
-                var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-                var currentScreen = Screen.FromHandle(handle);
-                Settings.SelectedScreenId = currentScreen.DeviceName;
+                var settings = _viewModel.AppSettings;
+                bool windowModeChanged = _viewModel.IsFloatingWindowMode != _originalUseFloating;
+                bool fontScaleChanged = (settings.FloatingFontScale != _originalFloatingScale) ||
+                                        (settings.FullscreenFontScale != _originalFullscreenScale);
 
-                // Save the settings
-                _viewModel.SaveSettings(); // Call the ViewModel's save method
+                // ✅ Update the actual setting before saving
+                settings.UseFloatingWindow = _viewModel.IsFloatingWindowMode;
 
-                // Close the dialog
+                _viewModel.SaveSettings();
+
+                if (windowModeChanged)
+                {
+                    // Notify about window mode change
+                    Log.Information("Window mode changed - notifying main window");
+                    WindowModeChanged?.Invoke(_viewModel.IsFloatingWindowMode);
+                }
+
+                if (fontScaleChanged)
+                {
+                    // Notify about font size change
+                    Log.Information("Font scale changed - notifying main window");
+                    FontSizeChanged?.Invoke();
+                }
+
                 DialogResult = true;
                 Close();
             });
@@ -68,18 +102,17 @@ namespace EliteInfoPanel.Dialogs
 
             // Subscribe to events
             _viewModel.ScreenChanged += screen => ScreenChanged?.Invoke(screen);
+            _viewModel.FontSizeChanged += () => FontSizeChanged?.Invoke();
 
             // Position the window
             PositionWindowOnScreen(settings);
-
-            // Set the data context
-          
 
             // Load UI when window is shown
             Loaded += (s, e) =>
             {
                 PopulateDisplayOptions();
                 PopulateFlagOptions();
+                PopulateWindowModeOptions();
             };
         }
 
@@ -88,7 +121,16 @@ namespace EliteInfoPanel.Dialogs
         #region Public Events
 
         public event Action<Screen> ScreenChanged;
-
+        public event Action<bool> WindowModeChanged;
+        public event Action FontSizeChanged;
+        private void FontSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (scalePercentageText != null && sender is Slider slider)
+            {
+                // Format as percentage
+                scalePercentageText.Text = $"Scale: {slider.Value:P0}";
+            }
+        }
         #endregion Public Events
 
         #region Public Properties
@@ -100,25 +142,9 @@ namespace EliteInfoPanel.Dialogs
 
         #region Private Methods
 
-        private void Button_Click(object sender, RoutedEventArgs e)
-        {
-            // Don't call SaveSettings() here, just execute the command
-            _viewModel.SaveCommand.Execute(null);
-        }
-
-        private void Button_Click_1(object sender, RoutedEventArgs e)
-        {
-            Close();
-        }
-
         private void CancelButton_Click(object sender, RoutedEventArgs e)
         {
             _viewModel.CancelCommand.Execute(null);
-        }
-
-        private void OkButton_Click(object sender, RoutedEventArgs e)
-        {
-            SaveSettings();
         }
 
         private void OnDisplayChangeRequested()
@@ -126,6 +152,75 @@ namespace EliteInfoPanel.Dialogs
             // This calls your existing method for changing displays
             ChangeDisplayButton_Click(null, null);
         }
+
+        private void PopulateWindowModeOptions()
+        {
+            // Find the container for window mode options
+            if (FindName("WindowModePanel") is not StackPanel panel) return;
+
+            // Create radio buttons for window mode
+            var fullScreenRadio = new RadioButton
+            {
+                Content = "Full Screen Mode (on selected display)",
+                IsChecked = !_viewModel.AppSettings.UseFloatingWindow,
+                Margin = new Thickness(5),
+                GroupName = "WindowMode"
+            };
+
+            var floatingWindowRadio = new RadioButton
+            {
+                Content = "Floating Window Mode (movable and resizable)",
+                IsChecked = _viewModel.AppSettings.UseFloatingWindow,
+                Margin = new Thickness(5),
+                GroupName = "WindowMode"
+            };
+
+            // Update the radio button event handlers in PopulateWindowModeOptions() in OptionsWindow.xaml.cs
+
+            fullScreenRadio.Checked += (s, e) =>
+            {
+                _viewModel.IsFloatingWindowMode = false;
+                // Update font preview for the current mode
+                _viewModel.NotifyFontSizeChanged();
+            };
+
+            floatingWindowRadio.Checked += (s, e) =>
+            {
+                _viewModel.IsFloatingWindowMode = true;
+                // Update font preview for the current mode
+                _viewModel.NotifyFontSizeChanged();
+            };
+
+            panel.Children.Add(fullScreenRadio);
+            panel.Children.Add(floatingWindowRadio);
+
+            // Add floating window specific options
+            var floatingOptions = new StackPanel { Margin = new Thickness(24, 5, 0, 0) };
+
+            // Add always on top checkbox
+            var alwaysOnTopCheck = new CheckBox
+            {
+                Content = "Always on Top",
+                IsChecked = _viewModel.AlwaysOnTop,
+                Margin = new Thickness(0, 5, 0, 5)
+            };
+
+            alwaysOnTopCheck.Checked += (s, e) => _viewModel.AlwaysOnTop = true;
+            alwaysOnTopCheck.Unchecked += (s, e) => _viewModel.AlwaysOnTop = false;
+
+            floatingOptions.Children.Add(alwaysOnTopCheck);
+
+            // Create a binding for IsEnabled
+            var enabledBinding = new Binding("IsFloatingWindowMode")
+            {
+                Source = _viewModel
+            };
+
+            floatingOptions.SetBinding(IsEnabledProperty, enabledBinding);
+
+            panel.Children.Add(floatingOptions);
+        }
+
         private void PositionWindowOnScreen(AppSettings settings)
         {
             var mainWindowHandle = new System.Windows.Interop.WindowInteropHelper(Application.Current.MainWindow).Handle;
@@ -143,6 +238,7 @@ namespace EliteInfoPanel.Dialogs
             this.Left = targetScreen.WpfBounds.Left + (targetScreen.WpfBounds.Width - this.Width) / 2;
             this.Top = targetScreen.WpfBounds.Top + (targetScreen.WpfBounds.Height - this.Height) / 2;
         }
+
         private void SaveSettings()
         {
             var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
@@ -226,12 +322,9 @@ namespace EliteInfoPanel.Dialogs
 
         private void PopulateFlagOptions()
         {
-            var appSettings = SettingsManager.Load();
+            var appSettings = _viewModel.AppSettings;
 
-            if (FindName("FlagOptionsPanel") is not StackPanel flagPanel) return;
-
-            flagPanel.Children.Clear();
-            flagCheckBoxes.Clear();
+            FlagCheckBoxes.Clear(); // clear old
 
             var visibleFlags = appSettings.DisplayOptions.VisibleFlags ?? new List<Flag>();
 
@@ -247,16 +340,20 @@ namespace EliteInfoPanel.Dialogs
                     Content = flag.ToString().Replace("_", " "),
                     IsChecked = isChecked,
                     Margin = new Thickness(5),
-                    Tag = flag
+                    Tag = flag,
+                    Style = (Style)FindResource("ThemedCheckBoxStyle")
                 };
 
                 checkBox.Checked += (s, e) => UpdateFlagSetting(flag, true);
                 checkBox.Unchecked += (s, e) => UpdateFlagSetting(flag, false);
 
-                flagPanel.Children.Add(checkBox);
                 flagCheckBoxes[flag] = checkBox;
+                FlagCheckBoxes.Add(checkBox);
             }
+
+            FlagOptionsPanel.ItemsSource = FlagCheckBoxes;
         }
+
 
         private void UpdateFlagSetting(Flag flag, bool isChecked)
         {
@@ -267,7 +364,7 @@ namespace EliteInfoPanel.Dialogs
             else if (!isChecked && visibleFlags.Contains(flag))
                 visibleFlags.Remove(flag);
 
-            Log.Information("Flag {Flag} set to {Checked}", flag, isChecked);
+            Log.Debug("Flag {Flag} set to {Checked}", flag, isChecked);
         }
         #endregion Private Methods
     }

@@ -11,6 +11,13 @@ namespace EliteInfoPanel.ViewModels
             get => _title;
             set => SetProperty(ref _title, value);
         }
+        private double _fontSize = 14;
+        public virtual double FontSize
+        {
+            get => _fontSize;
+            set => SetProperty(ref _fontSize, value);
+        }
+
 
         public bool IsVisible
         {

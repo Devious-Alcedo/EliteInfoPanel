@@ -12,83 +12,44 @@ namespace EliteInfoPanel.ViewModels
 {
     public class MainViewModel : ViewModelBase
     {
+        #region Private Fields
+
         private readonly GameStateService _gameState;
-        private bool _isLoading = true;
-        private bool _isHyperspaceJumping;
         private string _hyperspaceDestination;
         private string _hyperspaceStarClass;
-        public SnackbarMessageQueue _toastQueue = new SnackbarMessageQueue(System.TimeSpan.FromSeconds(3));
         private bool _isCarrierJumping;
-        public bool IsCarrierJumping
-        {
-            get => _isCarrierJumping;
-            set => SetProperty(ref _isCarrierJumping, value);
-        }
-        public ObservableCollection<CardViewModel> Cards { get; } = new ObservableCollection<CardViewModel>();
-
-        // Individual card ViewModels
-        public SummaryViewModel SummaryCard { get; }
-        public CargoViewModel CargoCard { get; }
-        public BackpackViewModel BackpackCard { get; }
-        public RouteViewModel RouteCard { get; }
-        public ModulesViewModel ModulesCard { get; }
-        public FlagsViewModel FlagsCard { get; }
+        private bool _isHyperspaceJumping;
+        private bool _isLoading = true;
+        private CardLayoutManager _layoutManager;
         private Grid _mainGrid;
-
-public void SetMainGrid(Grid mainGrid)
-{
-    _mainGrid = mainGrid;
-    
-    // Do initial layout
-    UpdateCardLayout();
-}
-        public bool IsLoading
+        private SnackbarMessageQueue _toastQueue = new SnackbarMessageQueue(TimeSpan.FromSeconds(3));
+        private bool _isFullScreenMode;
+        public bool IsFullScreenMode
         {
-            get => _isLoading;
-            set => SetProperty(ref _isLoading, value);
-        }
-
-        public bool IsHyperspaceJumping
-        {
-            get => _isHyperspaceJumping;
+            get => _isFullScreenMode;
             set
             {
-                if (_isHyperspaceJumping != value)
+                if (SetProperty(ref _isFullScreenMode, value))
                 {
-                    _isHyperspaceJumping = value;
-                    OnPropertyChanged(nameof(IsHyperspaceJumping));
+                    Log.Information("→ IsFullScreenMode changed: {Value}", value);
                 }
             }
         }
 
-        public string HyperspaceDestination
-        {
-            get => _hyperspaceDestination;
-            set => SetProperty(ref _hyperspaceDestination, value);
-        }
 
-        public string HyperspaceStarClass
-        {
-            get => _hyperspaceStarClass;
-            set => SetProperty(ref _hyperspaceStarClass, value);
-        }
+        #endregion Private Fields
 
-        public SnackbarMessageQueue ToastQueue
-        {
-            get => _toastQueue;
-            set => SetProperty(ref _toastQueue, value);
-        }
+        #region Public Constructors
 
-        public RelayCommand OpenOptionsCommand { get; set; }
-        public RelayCommand CloseCommand { get; }
+        private readonly bool _useFloatingWindow;
 
-        public MainViewModel(GameStateService gameState)
+        public MainViewModel(GameStateService gameState, bool useFloatingWindow)
         {
             _gameState = gameState;
+            _useFloatingWindow = useFloatingWindow;
 
             // Initialize commands
             OpenOptionsCommand = new RelayCommand(_ => OpenOptions());
-            CloseCommand = new RelayCommand(_ => System.Windows.Application.Current.Shutdown());
 
             // Initialize card ViewModels
             SummaryCard = new SummaryViewModel(gameState) { Title = "Summary" };
@@ -113,20 +74,121 @@ public void SetMainGrid(Grid mainGrid)
             _gameState.HyperspaceJumping += OnHyperspaceJumping;
 
             // Initial update
+          
+            double scale = SettingsManager.Load().UseFloatingWindow
+                ? SettingsManager.Load().FloatingFontScale
+                : SettingsManager.Load().FullscreenFontScale;
+
+            double baseFontSize = AppSettings.DEFAULT_FULLSCREEN_BASE * scale;
+
+            foreach (var card in Cards)
+            {
+                card.FontSize = baseFontSize;
+            }
             RefreshCardVisibility();
+
         }
 
-        // Add to MainViewModel
-        private bool IsEliteRunning()
+        #endregion Public Constructors
+
+        #region Public Properties
+
+        public BackpackViewModel BackpackCard { get; }
+
+        public ObservableCollection<CardViewModel> Cards { get; } = new ObservableCollection<CardViewModel>();
+        public void ApplyWindowModeFromSettings()
         {
-            var status = _gameState?.CurrentStatus;
-            return status != null && (
-                status.Flags.HasFlag(Flag.Docked) ||
-                status.Flags.HasFlag(Flag.Supercruise) ||
-                status.Flags.HasFlag(Flag.InSRV) ||
-                status.OnFoot ||
-                status.Flags.HasFlag(Flag.InFighter) ||
-                status.Flags.HasFlag(Flag.InMainShip));
+            var isFullscreen = !SettingsManager.Load().UseFloatingWindow;
+            IsFullScreenMode = isFullscreen;
+        }
+
+        public CargoViewModel CargoCard { get; }
+
+        public RelayCommand CloseCommand { get; } = new RelayCommand(_ => Application.Current.Shutdown());
+
+        public FlagsViewModel FlagsCard { get; }
+
+        public string HyperspaceDestination
+        {
+            get => _hyperspaceDestination;
+            set => SetProperty(ref _hyperspaceDestination, value);
+        }
+
+        public string HyperspaceStarClass
+        {
+            get => _hyperspaceStarClass;
+            set => SetProperty(ref _hyperspaceStarClass, value);
+        }
+
+        public bool IsCarrierJumping
+        {
+            get => _isCarrierJumping;
+            set => SetProperty(ref _isCarrierJumping, value);
+        }
+        public bool IsHyperspaceJumping
+        {
+            get => _isHyperspaceJumping;
+            set
+            {
+                if (_isHyperspaceJumping != value)
+                {
+                    _isHyperspaceJumping = value;
+                    OnPropertyChanged(nameof(IsHyperspaceJumping));
+                }
+            }
+        }
+
+        public bool IsLoading
+        {
+            get => _isLoading;
+            set => SetProperty(ref _isLoading, value);
+        }
+
+        public ModulesViewModel ModulesCard { get; }
+
+        public RelayCommand OpenOptionsCommand { get; set; }
+
+        public RouteViewModel RouteCard { get; }
+
+        // Individual card ViewModels
+        public SummaryViewModel SummaryCard { get; }
+        public SnackbarMessageQueue ToastQueue
+        {
+            get => _toastQueue;
+            set => SetProperty(ref _toastQueue, value);
+        }
+
+        #endregion Public Properties
+
+        #region Public Methods
+
+        // Public method to refresh layout when font size changes
+        public void RefreshLayout()
+        {
+            // First refresh visibility to ensure the right cards are shown
+            RefreshCardVisibility();
+
+            // Force recreate all cards to apply new font sizes
+            RecreateAllCards();
+
+            // Then update the layout to apply new spacing/fonts
+            UpdateCardLayout();
+        }
+
+        public void SetMainGrid(Grid mainGrid)
+        {
+            _mainGrid = mainGrid;
+
+            // Initialize layout manager
+            var appSettings = SettingsManager.Load();
+            _layoutManager = new CardLayoutManager(_mainGrid, appSettings, this);
+
+            // Do initial layout
+            UpdateCardLayout();
+        }
+        public void ShowToast(string message)
+        {
+            ToastQueue.Enqueue(message);
         }
 
         public void UpdateLoadingState()
@@ -134,38 +196,9 @@ public void SetMainGrid(Grid mainGrid)
             IsLoading = !IsEliteRunning();
         }
 
-        private void OnGameStateUpdated()
-        {
-            Log.Debug("GameState update received.");
+        #endregion Public Methods
 
-            var status = _gameState?.CurrentStatus;
-            if (!string.IsNullOrEmpty(_gameState.CarrierJumpDestinationSystem) &&
-                _gameState.FleetCarrierJumpInProgress == false)
-            {
-                IsCarrierJumping = false;
-            }
-            if (status == null || status.Flags == Flag.None)
-            {
-                Log.Debug("Game data not ready. Still waiting...");
-                return; // don’t flip loading off yet
-            }
-
-            UpdateLoadingState(); // will flip IsLoading based on flags
-
-            if (!IsLoading)
-              //  Log.Information("Game state confirmed. Hiding loading overlay.");
-
-            RefreshCardVisibility();
-        }
-
-
-        private void OnHyperspaceJumping(bool jumping, string systemName)
-        {
-            IsHyperspaceJumping = jumping;
-            HyperspaceDestination = systemName;
-            HyperspaceStarClass = _gameState.HyperspaceStarClass;
-            RefreshCardVisibility();
-        }
+        #region Protected Methods
 
         protected void RunOnUiThread(Action action)
         {
@@ -179,6 +212,85 @@ public void SetMainGrid(Grid mainGrid)
                 // We need to invoke the action on the UI thread
                 System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(action);
             }
+        }
+
+        #endregion Protected Methods
+
+        #region Private Methods
+
+        // Add to MainViewModel
+        private bool IsEliteRunning()
+        {
+            var status = _gameState?.CurrentStatus;
+            return status != null && (
+                status.Flags.HasFlag(Flag.Docked) ||
+                status.Flags.HasFlag(Flag.Supercruise) ||
+                status.Flags.HasFlag(Flag.InSRV) ||
+                status.OnFoot ||
+                status.Flags.HasFlag(Flag.InFighter) ||
+                status.Flags.HasFlag(Flag.InMainShip));
+        }
+        private void OnGameStateUpdated()
+        {
+            Log.Debug("GameState update received.");
+
+            var status = _gameState?.CurrentStatus;
+            if (!string.IsNullOrEmpty(_gameState.CarrierJumpDestinationSystem) &&
+                _gameState.FleetCarrierJumpInProgress == false)
+            {
+                IsCarrierJumping = false;
+            }
+            if (status == null || status.Flags == Flag.None)
+            {
+                Log.Debug("Game data not ready. Still waiting...");
+                return; // don't flip loading off yet
+            }
+
+            UpdateLoadingState(); // will flip IsLoading based on flags
+
+            if (!IsLoading)
+                //  Log.Information("Game state confirmed. Hiding loading overlay.");
+
+                RefreshCardVisibility();
+        }
+
+
+        private void OnHyperspaceJumping(bool jumping, string systemName)
+        {
+            IsHyperspaceJumping = jumping;
+            HyperspaceDestination = systemName;
+            HyperspaceStarClass = _gameState.HyperspaceStarClass;
+            RefreshCardVisibility();
+        }
+        private void OpenOptions()
+        {
+            // This will be handled in the view
+            System.Diagnostics.Debug.WriteLine("Open Options requested");
+        }
+
+        // Forces recreation of all cards to apply new font settings
+        private void RecreateAllCards()
+        {
+            // Make sure we're on the UI thread
+            if (!System.Windows.Application.Current.Dispatcher.CheckAccess())
+            {
+                System.Windows.Application.Current.Dispatcher.Invoke(RecreateAllCards);
+                return;
+            }
+
+            if (_mainGrid == null) return;
+
+            // Clear all card elements from the grid
+            for (int i = _mainGrid.Children.Count - 1; i >= 0; i--)
+            {
+                if (_mainGrid.Children[i] is Card)
+                {
+                    _mainGrid.Children.RemoveAt(i);
+                }
+            }
+
+            // Force layout update
+            _mainGrid.UpdateLayout();
         }
 
         private void RefreshCardVisibility()
@@ -244,18 +356,32 @@ public void SetMainGrid(Grid mainGrid)
             // Now that visibility is set, update the layout
             UpdateCardLayout();
         }
+
         private void UpdateCardLayout()
+        {
+            // Use the layout manager if it's been initialized
+            if (_layoutManager != null)
+            {
+                _layoutManager.UpdateLayout();
+            }
+            else
+            {
+                // Otherwise, use the original layout method
+                UpdateCardLayoutOriginal();
+            }
+        }
+
+        private void UpdateCardLayoutOriginal()
         {
             // First, clear all columns to ensure fresh layout
             if (_mainGrid != null)
             {
                 _mainGrid.ColumnDefinitions.Clear();
 
-
                 // Remove all cards from the grid (but not other elements like buttons)
                 for (int i = _mainGrid.Children.Count - 1; i >= 0; i--)
                 {
-                    if (_mainGrid.Children[i] is MaterialDesignThemes.Wpf.Card)
+                    if (_mainGrid.Children[i] is Card)
                     {
                         _mainGrid.Children.RemoveAt(i);
                     }
@@ -302,7 +428,7 @@ public void SetMainGrid(Grid mainGrid)
                     var card = visibleCards[i];
 
                     // Create the materialDesign Card
-                    var cardElement = new MaterialDesignThemes.Wpf.Card
+                    var cardElement = new Card
                     {
                         Margin = new Thickness(5),
                         Padding = new Thickness(5),
@@ -329,16 +455,7 @@ public void SetMainGrid(Grid mainGrid)
                 }
             }
         }
-        private bool _isUpdatingVisibility = false; private void OpenOptions()
-        {
-            // This will be handled in the view
-            System.Diagnostics.Debug.WriteLine("Open Options requested");
-        }
 
-        public void ShowToast(string message)
-        {
-            ToastQueue.Enqueue(message);
-        }
+        #endregion Private Methods
     }
- 
 }

@@ -478,20 +478,28 @@ namespace EliteInfoPanel.Core
                             CarrierJumpScheduledTime = null;
                             CarrierJumpDestinationSystem = null;
                             CarrierJumpDestinationBody = null;
-                       
+
                             FleetCarrierJumpArrived = true;
                             FleetCarrierJumpInProgress = false;
-                            if (!suppressUIUpdates)
-                                RaiseDataUpdated();
-                            // force re-check system after jump
-                            if (root.TryGetProperty("StarSystem", out var carrierSystem))
+
+                            bool isOnCarrier = root.TryGetProperty("StationType", out var stationTypeProp) &&
+                                               stationTypeProp.GetString() == "FleetCarrier";
+
+                            if (isOnCarrier && root.TryGetProperty("StarSystem", out var carrierSystem))
                             {
                                 CurrentSystem = carrierSystem.GetString();
-                                Log.Debug("Updated CurrentSystem from CarrierLocation: {System}", CurrentSystem);
+                                Log.Debug("✅ Updated CurrentSystem from CarrierLocation: {System}", CurrentSystem);
+
                                 if (!suppressUIUpdates)
                                     RaiseDataUpdated();
                             }
+                            else
+                            {
+                                Log.Debug("🚫 Skipped updating CurrentSystem — player not onboard the carrier");
+                            }
+
                             break;
+
 
 
 

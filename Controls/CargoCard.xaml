@@ -9,17 +9,16 @@
 
     <StackPanel>
         <TextBlock Text="{Binding Title}" 
-                   FontSize="24" 
-                   FontWeight="Bold" 
-                   Foreground="Orange" 
-                   Margin="0,0,0,5"/>
+                   Style="{StaticResource CardTitleStyle}"/>
 
         <ItemsControl ItemsSource="{Binding Items}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <TextBlock FontSize="20"
-                               Margin="0,2,0,2"
-                               Foreground="{DynamicResource MaterialDesignBody}">
+                    <TextBlock Style="{StaticResource CardContentStyle}"
+                               FontSize="{Binding FontSize}"
+                                TextWrapping="Wrap"
+                                TextTrimming="None"
+                               Margin="0,2,0,2">
                         <TextBlock.Text>
                             <MultiBinding StringFormat="{}{0}: {1}">
                                 <Binding Path="Name" />
