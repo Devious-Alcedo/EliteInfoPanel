@@ -68,18 +68,29 @@ namespace EliteInfoPanel.ViewModels
 
         private void UpdateRoute()
         {
-            if (_gameState.CurrentRoute?.Route?.Count == 0)
-                return;
+       
             Application.Current.Dispatcher.Invoke(() =>
             {
                 Items.Clear();
                 Log.Information("UpdateRoute: Clearing route items and preparing new update.");
-                var route = _gameState.CurrentRoute?.Route;
-                if (route == null)
+
+                var route = _gameState.CurrentRoute?.Route ?? new List<NavRouteJson.NavRouteSystem>();
+
+                bool hasRoute = route.Any();
+                bool hasDestination = !string.IsNullOrWhiteSpace(_gameState.CurrentStatus?.Destination?.Name);
+
+                // decide if card should be visible
+                IsVisible = hasRoute || hasDestination;
+                if (!IsVisible)
                 {
-                    Log.Information("UpdateRoute: No route found in GameState.");
+                    Log.Information("UpdateRoute: No route and no destination — card hidden.");
                     return;
                 }
+
+
+                // fallback so jump loop can still run
+                route ??= new List<NavRouteJson.NavRouteSystem>();
+
 
                 var firstJump = route.FirstOrDefault(j => j.StarPos?.Length == 3);
                 if (firstJump != null)
@@ -100,8 +111,8 @@ namespace EliteInfoPanel.ViewModels
                 _gameState.ResetRouteActivity();
             }
 
-            bool hasRoute = _gameState.CurrentRoute?.Route?.Any() == true;
-            bool hasDestination = !string.IsNullOrWhiteSpace(_gameState.CurrentStatus?.Destination?.Name);
+        //    bool hasRoute = _gameState.CurrentRoute?.Route?.Any() == true;
+       //     bool hasDestination = !string.IsNullOrWhiteSpace(_gameState.CurrentStatus?.Destination?.Name);
             IsVisible = hasRoute || hasDestination;
             if (!IsVisible) return;
 
@@ -115,21 +126,36 @@ namespace EliteInfoPanel.ViewModels
                 });
             }
 
-            if (hasDestination)
-            {
-                string destination = _gameState.CurrentStatus.Destination?.Name;
-                string lastRouteSystem = _gameState.CurrentRoute?.Route?.LastOrDefault()?.StarSystem;
-
-                if (!string.Equals(destination, lastRouteSystem, StringComparison.OrdinalIgnoreCase))
+                if (_gameState.CurrentStatus?.Destination != null &&
+                         !string.IsNullOrWhiteSpace(_gameState.CurrentStatus.Destination.Name))
                 {
-                    Items.Add(new RouteItemViewModel($"Target: {FormatDestinationName(_gameState.CurrentStatus.Destination)}", null, null, RouteItemType.Destination)
+                    var dest = _gameState.CurrentStatus.Destination;
+                    string currentSystem = _gameState.CurrentSystem ?? "(unknown)";
+                    string lastRouteSystem = _gameState.CurrentRoute?.Route?.LastOrDefault()?.StarSystem;
+
+                    string label = $"Target: {FormatDestinationName(dest)}";
+
+                    if (string.Equals(currentSystem, lastRouteSystem, StringComparison.OrdinalIgnoreCase))
+                    {
+                        label += " (Route Destination)";
+                    }
+
+                    Log.Information("RouteCard: Adding target label: {Label}", label);
+
+                    Items.Add(new RouteItemViewModel(label, null, null, RouteItemType.Destination)
                     {
                         FontSize = (int)this.FontSize
                     });
                 }
-            }
+                else
+                {
+                    Log.Information("RouteCard: No current destination to display.");
+                }
 
-            var fuelStatus = _gameState.CurrentStatus?.Fuel;
+
+
+
+                var fuelStatus = _gameState.CurrentStatus?.Fuel;
             var fsd = _gameState.CurrentLoadout?.Modules?.FirstOrDefault(m => m.Slot == "FrameShiftDrive");
             var loadout = _gameState.CurrentLoadout;
             var cargo = _gameState.CurrentCargo;
