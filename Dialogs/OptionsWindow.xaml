@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         xmlns:converters="clr-namespace:EliteInfoPanel.Converters"
+        xmlns:controls="clr-namespace:EliteInfoPanel.Controls"
         Title="Options" Height="600" Width="520"
         WindowStartupLocation="Manual"
         Background="{DynamicResource MaterialDesignPaper}"
@@ -17,7 +18,7 @@
         <Style x:Key="ThemedCheckBoxStyle" TargetType="CheckBox">
             <Setter Property="Foreground" Value="{DynamicResource MaterialDesign.Brush.Foreground}" />
         </Style>
-
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
     </Window.Resources>
 
     <DockPanel Margin="10">
@@ -54,9 +55,9 @@
                             <!-- In the Font Size GroupBox -->
                             <StackPanel Margin="0,8,0,0">
                                 <TextBlock Text="Sample Text" 
-               FontSize="{Binding FontSizePreview}"
-               HorizontalAlignment="Center" 
-               Margin="0,0,0,10"/>
+                                   FontSize="{Binding FontSizePreview}"
+                                   HorizontalAlignment="Center" 
+                                   Margin="0,0,0,10"/>
 
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -66,28 +67,28 @@
                                     </Grid.ColumnDefinitions>
 
                                     <TextBlock Text="A" FontSize="12" Grid.Column="0" Margin="0,0,8,0"
-                   VerticalAlignment="Center"/>
+                                       VerticalAlignment="Center"/>
 
                                     <!-- Give the slider a name so we can find it later -->
                                     <Slider x:Name="fontSizeSlider" 
-                Grid.Column="1"
-                Minimum="{Binding MinFontScale}"
-                Maximum="{Binding MaxFontScale}"
-                Value="{Binding CurrentFontScale}"
-                TickFrequency="{Binding FontScaleStep}"
-                IsSnapToTickEnabled="True"
-                ValueChanged="FontSizeSlider_ValueChanged"
-                VerticalAlignment="Center"/>
+                                    Grid.Column="1"
+                                    Minimum="{Binding MinFontScale}"
+                                    Maximum="{Binding MaxFontScale}"
+                                    Value="{Binding CurrentFontScale}"
+                                    TickFrequency="{Binding FontScaleStep}"
+                                    IsSnapToTickEnabled="True"
+                                    ValueChanged="FontSizeSlider_ValueChanged"
+                                    VerticalAlignment="Center"/>
 
                                     <TextBlock Text="A" FontSize="20" Grid.Column="2" Margin="8,0,0,0"
-                   VerticalAlignment="Center"/>
+                                       VerticalAlignment="Center"/>
                                 </Grid>
 
                                 <!-- Give the text block a name so we can find it later -->
                                 <TextBlock x:Name="scalePercentageText"
-               Text="Scale: 100%"
-               HorizontalAlignment="Center"
-               Margin="0,4,0,0"/>
+                                   Text="Scale: 100%"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,4,0,0"/>
                             </StackPanel>
                         </GroupBox>
 
@@ -109,13 +110,10 @@
             <TabItem Header="Status Flags">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="10">
-                        <ItemsControl x:Name="FlagOptionsPanel">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <UniformGrid Columns="3"/>
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                        </ItemsControl>
+                        <!-- Replace the ItemsControl with a panel that will hold our OrderableCheckBoxList -->
+                        <StackPanel x:Name="FlagOptionsPanel">
+                            <!-- The OrderableCheckBoxList will be added here programmatically -->
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
