@@ -1,9 +1,11 @@
 ﻿// FlagsViewModel.cs
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
+using Serilog;
 
 namespace EliteInfoPanel.ViewModels
 {
@@ -30,15 +32,12 @@ namespace EliteInfoPanel.ViewModels
             }
         }
 
-
-
         public ObservableCollection<FlagItemViewModel> Items { get; } = new();
 
         public FlagsViewModel(GameStateService gameState) : base("Status Flags")
         {
             _gameState = gameState;
             _appSettings = SettingsManager.Load();
-           
 
             // Subscribe to game state updates
             _gameState.DataUpdated += UpdateFlags;
@@ -49,13 +48,9 @@ namespace EliteInfoPanel.ViewModels
 
         private void UpdateFlags()
         {
-
             RunOnUIThread(() =>
             {
                 Items.Clear();
-                // Add items here  
-
-
 
                 var status = _gameState.CurrentStatus;
                 if (status == null)
@@ -64,40 +59,67 @@ namespace EliteInfoPanel.ViewModels
                 IsVisible = true;
 
                 // Get all active flags
-                var flags = System.Enum.GetValues(typeof(Flag))
+                var activeFlags = System.Enum.GetValues(typeof(Flag))
                     .Cast<Flag>()
                     .Where(flag => status.Flags.HasFlag(flag) && flag != Flag.None)
-                    .ToList();
+                    .ToHashSet();
 
-                // Add synthetic flags
+                // Add synthetic flags if active
                 if (!status.Flags.HasFlag(Flag.HudInAnalysisMode))
-                    flags.Add(SyntheticFlags.HudInCombatMode);
+                    activeFlags.Add(SyntheticFlags.HudInCombatMode);
 
                 if (status.Flags.HasFlag(Flag.Docked) && _gameState.IsDocking)
-                    flags.Add(SyntheticFlags.Docking);
+                    activeFlags.Add(SyntheticFlags.Docking);
 
-                // Only include flags the user wants to see
+                // Get the user's ordered visible flags
                 var visibleFlags = _appSettings.DisplayOptions.VisibleFlags;
-                if (visibleFlags != null && visibleFlags.Count > 0)
+
+                // If no visible flags are defined, use default order of active flags
+                if (visibleFlags == null || visibleFlags.Count == 0)
                 {
-                    flags = flags.Where(f => visibleFlags.Contains(f)).ToList();
+                    foreach (var flag in activeFlags)
+                    {
+                        AddFlagToItems(flag);
+                    }
+                }
+                else
+                {
+                    // Only display flags that are both:
+                    // 1. Selected by the user in the options (in visibleFlags)
+                    // 2. Actually active in the current game state (in activeFlags)
+
+                    // Respect the exact order set by the user in the options dialog
+                    foreach (var flag in visibleFlags)
+                    {
+                        // Only add the flag if it's currently active
+                        if (activeFlags.Contains(flag))
+                        {
+                            AddFlagToItems(flag);
+                        }
+                    }
                 }
 
-                // Add flags to the collection
-                foreach (var flag in flags)
-                {
-                    string displayText = flag switch
-                    {
-                        var f when f == SyntheticFlags.HudInCombatMode => "HUD Combat Mode",
-                        var f when f == SyntheticFlags.Docking => "Docking",
-                        _ => flag.ToString().Replace("_", " ")
-                    };
+                // Hide the card if no flags are being displayed
+                IsVisible = Items.Count > 0;
 
-                    Items.Add(new FlagItemViewModel(flag, displayText)
-                    {
-                        FontSize = (int)this.FontSize
-                    });
-                }
+                Log.Debug("Updated Flags Display: {Count} flags shown", Items.Count);
+            });
+        }
+
+        private void AddFlagToItems(Flag flag)
+        {
+            string displayText = flag switch
+            {
+                var f when f == SyntheticFlags.HudInCombatMode => "HUD Combat Mode",
+                var f when f == SyntheticFlags.Docking => "Docking",
+                var f when f == Flag.FsdMassLocked => "Mass Locked",
+                var f when f == Flag.LandingGearDown => "Landing Gear Down",
+                _ => flag.ToString().Replace("_", " ")
+            };
+
+            Items.Add(new FlagItemViewModel(flag, displayText)
+            {
+                FontSize = (int)this.FontSize
             });
         }
     }
