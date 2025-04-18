@@ -11,6 +11,7 @@ using EliteInfoPanel.Converters;
 using WpfScreenHelper;
 using System.Windows.Data;
 using System.Collections.ObjectModel;
+using EliteInfoPanel.Controls;
 
 namespace EliteInfoPanel.Dialogs
 {
@@ -19,11 +20,11 @@ namespace EliteInfoPanel.Dialogs
         #region Private Fields
 
         private SettingsViewModel _viewModel;
-        private Dictionary<Flag, CheckBox> flagCheckBoxes = new();
         private bool _originalUseFloating;
         private double _originalFloatingScale;
         private double _originalFullscreenScale;
-        public ObservableCollection<CheckBox> FlagCheckBoxes { get; } = new();
+        private OrderableCheckBoxList _flagsControl;
+
         #endregion Private Fields
 
         #region Public Constructors
@@ -69,8 +70,15 @@ namespace EliteInfoPanel.Dialogs
                 bool fontScaleChanged = (settings.FloatingFontScale != _originalFloatingScale) ||
                                         (settings.FullscreenFontScale != _originalFullscreenScale);
 
-                // ✅ Update the actual setting before saving
+                // Update the actual setting before saving
                 settings.UseFloatingWindow = _viewModel.IsFloatingWindowMode;
+
+                // Update the flags from our orderable control
+                if (_flagsControl != null)
+                {
+                    settings.DisplayOptions.VisibleFlags = _flagsControl.GetSelectedFlags();
+                    Log.Debug("Saving ordered flags: {FlagCount} flags", settings.DisplayOptions.VisibleFlags.Count);
+                }
 
                 _viewModel.SaveSettings();
 
@@ -123,14 +131,7 @@ namespace EliteInfoPanel.Dialogs
         public event Action<Screen> ScreenChanged;
         public event Action<bool> WindowModeChanged;
         public event Action FontSizeChanged;
-        private void FontSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (scalePercentageText != null && sender is Slider slider)
-            {
-                // Format as percentage
-                scalePercentageText.Text = $"Scale: {slider.Value:P0}";
-            }
-        }
+
         #endregion Public Events
 
         #region Public Properties
@@ -147,10 +148,104 @@ namespace EliteInfoPanel.Dialogs
             _viewModel.CancelCommand.Execute(null);
         }
 
+        private void ChangeDisplayButton_Click(object sender, RoutedEventArgs e)
+        {
+            var screens = Screen.AllScreens.ToList();
+            var dialog = new SelectScreenDialog(screens, this);
+
+            if (dialog.ShowDialog() == true && dialog.SelectedScreen != null)
+            {
+                _viewModel.SelectScreen(dialog.SelectedScreen);
+                Log.Information("User changed display to: {DeviceName}", dialog.SelectedScreen.DeviceName);
+            }
+        }
+
+        private void FontSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (scalePercentageText != null && sender is Slider slider)
+            {
+                // Format as percentage
+                scalePercentageText.Text = $"Scale: {slider.Value:P0}";
+            }
+        }
+
         private void OnDisplayChangeRequested()
         {
             // This calls your existing method for changing displays
             ChangeDisplayButton_Click(null, null);
+        }
+
+        private void PopulateDisplayOptions()
+        {
+            if (FindName("DisplayOptionsPanel") is not StackPanel displayPanel) return;
+
+            displayPanel.Children.Clear();
+
+            var displayOptions = Settings.DisplayOptions;
+            var panelOptions = new Dictionary<string, string>
+            {
+                { nameof(displayOptions.ShowCommanderName), "Commander Name" },
+                { nameof(displayOptions.ShowFuelLevel), "Fuel Level" },
+                { nameof(displayOptions.ShowCargo), "Cargo" },
+                { nameof(displayOptions.ShowBackpack), "Backpack" },
+                { nameof(displayOptions.ShowFCMaterials), "Fleet Carrier Materials" },
+                { nameof(displayOptions.ShowRoute), "Navigation Route" }
+            };
+            var dynamicVisibilityOptions = new Dictionary<string, string>
+            {
+                { nameof(displayOptions.ShowWhenSupercruise), "Show Only in Supercruise" },
+                { nameof(displayOptions.ShowWhenDocked), "Show Only When Docked" },
+                { nameof(displayOptions.ShowWhenInSRV), "Show Only in SRV" },
+                { nameof(displayOptions.ShowWhenOnFoot), "Show Only On Foot" },
+                { nameof(displayOptions.ShowWhenInFighter), "Show Only In Fighter" }
+            };
+
+            foreach (var option in panelOptions)
+            {
+                var prop = typeof(DisplayOptions).GetProperty(option.Key);
+                bool value = (bool)(prop?.GetValue(displayOptions) ?? false);
+
+                Log.Debug("Loading DisplayOption {Option}: {Value}", option.Key, value);
+
+                var checkbox = new CheckBox
+                {
+                    Content = option.Value,
+                    IsChecked = value,
+                    Margin = new Thickness(5),
+                    Tag = option.Key
+                };
+
+                checkbox.Checked += (s, e) => prop?.SetValue(displayOptions, true);
+                checkbox.Unchecked += (s, e) => prop?.SetValue(displayOptions, false);
+
+                displayPanel.Children.Add(checkbox);
+            }
+        }
+
+        private void PopulateFlagOptions()
+        {
+            var appSettings = _viewModel.AppSettings;
+
+            // Create and configure the OrderableCheckBoxList control
+            _flagsControl = new OrderableCheckBoxList();
+
+            // Initialize with all flags and the selected ones
+            var visibleFlags = appSettings.DisplayOptions.VisibleFlags ?? new List<Flag>();
+            var allFlags = Enum.GetValues(typeof(Flag)).Cast<Flag>()
+                 .Where(f => f != Flag.None)
+                 .Concat(new[] { Flag.HudInCombatMode, Flag.Docking }) // Add synthetic flags manually
+                 .Distinct(); // Ensure no duplicates
+
+            Log.Information("Populating FlagOptions with {Count} flags", allFlags.Count());
+
+            _flagsControl.InitializeFlags(allFlags, visibleFlags);
+
+            // Add the control to the FlagOptionsPanel
+            if (FlagOptionsPanel is Panel panel)
+            {
+                panel.Children.Clear();
+                panel.Children.Add(_flagsControl);
+            }
         }
 
         private void PopulateWindowModeOptions()
@@ -174,8 +269,6 @@ namespace EliteInfoPanel.Dialogs
                 Margin = new Thickness(5),
                 GroupName = "WindowMode"
             };
-
-            // Update the radio button event handlers in PopulateWindowModeOptions() in OptionsWindow.xaml.cs
 
             fullScreenRadio.Checked += (s, e) =>
             {
@@ -245,127 +338,16 @@ namespace EliteInfoPanel.Dialogs
             var currentScreen = Screen.FromHandle(handle);
             Settings.SelectedScreenId = currentScreen.DeviceName;
 
-            foreach (var kvp in flagCheckBoxes)
+            // Update flag settings from the orderable control
+            if (_flagsControl != null)
             {
-                var flag = kvp.Key;
-                var isChecked = kvp.Value.IsChecked == true;
-                UpdateFlagSetting(flag, isChecked);
+                Settings.DisplayOptions.VisibleFlags = _flagsControl.GetSelectedFlags();
             }
 
             Log.Information("Saving settings: {@Settings}", Settings);
             _viewModel.SaveCommand.Execute(null);
         }
 
-        #endregion Private Methods
-
-        #region Private Methods
-        private void ChangeDisplayButton_Click(object sender, RoutedEventArgs e)
-        {
-            var screens = Screen.AllScreens.ToList();
-            var dialog = new SelectScreenDialog(screens, this);
-
-            if (dialog.ShowDialog() == true && dialog.SelectedScreen != null)
-            {
-                _viewModel.SelectScreen(dialog.SelectedScreen);
-                Log.Information("User changed display to: {DeviceName}", dialog.SelectedScreen.DeviceName);
-            }
-        }
-
-        private void PopulateDisplayOptions()
-        {
-            if (FindName("DisplayOptionsPanel") is not StackPanel displayPanel) return;
-
-            displayPanel.Children.Clear();
-
-            var displayOptions = Settings.DisplayOptions;
-            var panelOptions = new Dictionary<string, string>
-            {
-                { nameof(displayOptions.ShowCommanderName), "Commander Name" },
-                { nameof(displayOptions.ShowFuelLevel), "Fuel Level" },
-                { nameof(displayOptions.ShowCargo), "Cargo" },
-                { nameof(displayOptions.ShowBackpack), "Backpack" },
-                { nameof(displayOptions.ShowFCMaterials), "Fleet Carrier Materials" },
-                { nameof(displayOptions.ShowRoute), "Navigation Route" }
-            };
-            var dynamicVisibilityOptions = new Dictionary<string, string>
-            {
-                { nameof(displayOptions.ShowWhenSupercruise), "Show Only in Supercruise" },
-                { nameof(displayOptions.ShowWhenDocked), "Show Only When Docked" },
-                { nameof(displayOptions.ShowWhenInSRV), "Show Only in SRV" },
-                { nameof(displayOptions.ShowWhenOnFoot), "Show Only On Foot" },
-                { nameof(displayOptions.ShowWhenInFighter), "Show Only In Fighter" }
-            };
-
-            // then create checkboxes similarly to existing code
-
-            foreach (var option in panelOptions)
-            {
-                var prop = typeof(DisplayOptions).GetProperty(option.Key);
-                bool value = (bool)(prop?.GetValue(displayOptions) ?? false);
-
-                Log.Debug("Loading DisplayOption {Option}: {Value}", option.Key, value);
-
-                var checkbox = new CheckBox
-                {
-                    Content = option.Value,
-                    IsChecked = value,
-                    Margin = new Thickness(5),
-                    Tag = option.Key
-                };
-
-                checkbox.Checked += (s, e) => prop?.SetValue(displayOptions, true);
-                checkbox.Unchecked += (s, e) => prop?.SetValue(displayOptions, false);
-
-                displayPanel.Children.Add(checkbox);
-            }
-        }
-
-        private void PopulateFlagOptions()
-        {
-            var appSettings = _viewModel.AppSettings;
-
-            FlagCheckBoxes.Clear(); // clear old
-
-            var visibleFlags = appSettings.DisplayOptions.VisibleFlags ?? new List<Flag>();
-
-            foreach (Flag flag in Enum.GetValues(typeof(Flag)))
-            {
-                if (flag == Flag.None) continue;
-
-                var isChecked = visibleFlags.Contains(flag);
-                Log.Debug("Loading FlagOption {Flag}: {Checked}", flag, isChecked);
-
-                var checkBox = new CheckBox
-                {
-                    Content = flag.ToString().Replace("_", " "),
-                    IsChecked = isChecked,
-                    Margin = new Thickness(5),
-                    Tag = flag,
-                    Style = (Style)FindResource("ThemedCheckBoxStyle")
-                };
-
-                checkBox.Checked += (s, e) => UpdateFlagSetting(flag, true);
-                checkBox.Unchecked += (s, e) => UpdateFlagSetting(flag, false);
-
-                flagCheckBoxes[flag] = checkBox;
-                FlagCheckBoxes.Add(checkBox);
-            }
-
-            FlagOptionsPanel.ItemsSource = FlagCheckBoxes;
-        }
-
-
-        private void UpdateFlagSetting(Flag flag, bool isChecked)
-        {
-            var visibleFlags = Settings.DisplayOptions.VisibleFlags;
-
-            if (isChecked && !visibleFlags.Contains(flag))
-                visibleFlags.Add(flag);
-            else if (!isChecked && visibleFlags.Contains(flag))
-                visibleFlags.Remove(flag);
-
-            Log.Debug("Flag {Flag} set to {Checked}", flag, isChecked);
-        }
         #endregion Private Methods
     }
 }
