@@ -72,7 +72,7 @@ namespace EliteInfoPanel.ViewModels
             Application.Current.Dispatcher.Invoke(() =>
             {
                 Items.Clear();
-                Log.Information("UpdateRoute: Clearing route items and preparing new update.");
+                Log.Debug("UpdateRoute: Clearing route items and preparing new update.");
 
                 var route = _gameState.CurrentRoute?.Route ?? new List<NavRouteJson.NavRouteSystem>();
 
@@ -83,7 +83,7 @@ namespace EliteInfoPanel.ViewModels
                 IsVisible = hasRoute || hasDestination;
                 if (!IsVisible)
                 {
-                    Log.Information("UpdateRoute: No route and no destination — card hidden.");
+                    Log.Debug("UpdateRoute: No route and no destination — card hidden.");
                     return;
                 }
 
@@ -96,12 +96,12 @@ namespace EliteInfoPanel.ViewModels
                 if (firstJump != null)
                 {
                     _gameState.CurrentSystemCoordinates = (firstJump.StarPos[0], firstJump.StarPos[1], firstJump.StarPos[2]);
-                    Log.Information("UpdateRoute: Set system coordinates to {X}, {Y}, {Z}", firstJump.StarPos[0], firstJump.StarPos[1], firstJump.StarPos[2]);
+                    Log.Debug("UpdateRoute: Set system coordinates to {X}, {Y}, {Z}", firstJump.StarPos[0], firstJump.StarPos[1], firstJump.StarPos[2]);
                 }
                 else
                 {
                     _gameState.CurrentSystemCoordinates = null;
-                    Log.Information("UpdateRoute: No valid jump with position data found. System coordinates set to null.");
+                    Log.Debug("UpdateRoute: No valid jump with position data found. System coordinates set to null.");
                 }
 
 
@@ -140,7 +140,7 @@ namespace EliteInfoPanel.ViewModels
                         label += " (Route Destination)";
                     }
 
-                    Log.Information("RouteCard: Adding target label: {Label}", label);
+                    Log.Debug("RouteCard: Adding target label: {Label}", label);
 
                     Items.Add(new RouteItemViewModel(label, null, null, RouteItemType.Destination)
                     {
@@ -149,7 +149,7 @@ namespace EliteInfoPanel.ViewModels
                 }
                 else
                 {
-                    Log.Information("RouteCard: No current destination to display.");
+                    Log.Debug("RouteCard: No current destination to display.");
                 }
 
 
@@ -174,7 +174,7 @@ namespace EliteInfoPanel.ViewModels
                         FontSize = (int)this.FontSize
                     });
                 }
-                Log.Information("UpdateRoute: CurrentFuel={Fuel}, MaxFuel={MaxFuel}, CanEstimate={CanEstimate}", currentFuel, maxFuelCapacity, canEstimate);
+                Log.Debug("UpdateRoute: CurrentFuel={Fuel}, MaxFuel={MaxFuel}, CanEstimate={CanEstimate}", currentFuel, maxFuelCapacity, canEstimate);
 
                 if (_gameState.CurrentRoute?.Route == null) return;
 
@@ -194,7 +194,7 @@ namespace EliteInfoPanel.ViewModels
                 bool isScoopable = !string.IsNullOrWhiteSpace(jump.StarClass) && "OBAFGKM".Contains(char.ToUpper(jump.StarClass[0]));
                 string scoopIcon = isScoopable ? "🟡" : "🔴";
                 string label = $"{scoopIcon} {jump.StarSystem}";
-                    Log.Information("UpdateRoute: Processing jump to {System}", jump.StarSystem);
+                    Log.Debug("UpdateRoute: Processing jump to {System}", jump.StarSystem);
 
                     double jumpDistance = 0, fuelUsed = 0;
                 bool willRunOutOfFuel = false;
@@ -236,7 +236,7 @@ namespace EliteInfoPanel.ViewModels
                         {
                             refuelNeeded = true;
                             jumpsUntilRefuel = Items.Count(i => i.ItemType == RouteItemType.System) + 1;
-                                Log.Information("UpdateRoute: Inserted fuel warning after {JumpCount} jumps.", jumpsUntilRefuel);
+                                Log.Debug("UpdateRoute: Inserted fuel warning after {JumpCount} jumps.", jumpsUntilRefuel);
 
                             }
 

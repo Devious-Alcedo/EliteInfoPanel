@@ -40,7 +40,9 @@ namespace EliteInfoPanel
             var gameState = new GameStateService(gamePath);
 
             // Create and set ViewModel
-            _viewModel = new MainViewModel(gameState);
+            var settings = SettingsManager.Load();
+            _viewModel = new MainViewModel(gameState, settings.UseFloatingWindow);
+
             _viewModel.SetMainGrid(MainGrid);
             DataContext = _viewModel;
 
@@ -51,6 +53,7 @@ namespace EliteInfoPanel
             Loaded += Window_Loaded;
             PreviewKeyDown += MainWindow_PreviewKeyDown;
             Closing += MainWindow_Closing;
+            _viewModel.ApplyWindowModeFromSettings();
         }
 
         private void MainWindow_Closing(object sender, CancelEventArgs e)
@@ -97,12 +100,12 @@ namespace EliteInfoPanel
 
                 // Ensure window is within visible screen bounds
                 EnsureWindowIsVisible();
-
+                _viewModel.IsFullScreenMode = !_appSettings.UseFloatingWindow;
                 Log.Information("Applied floating window settings: {Left}x{Top} {Width}x{Height}",
                     Left, Top, Width, Height);
 
                 // Show the floating title bar
-                FloatingTitleBar.Visibility = Visibility.Visible;
+                //FloatingTitleBar.Visibility = Visibility.Visible;
             }
             else
             {
@@ -140,7 +143,7 @@ namespace EliteInfoPanel
                 ApplyScreenBounds(_currentScreen);
 
                 // Hide the floating title bar in fullscreen mode
-                FloatingTitleBar.Visibility = Visibility.Collapsed;
+               // FloatingTitleBar.Visibility = Visibility.Collapsed;
 
                 Log.Information("Applied full-screen settings on screen: {Screen}",
                     _currentScreen?.DeviceName ?? "Unknown");
@@ -266,6 +269,17 @@ namespace EliteInfoPanel
             // Minimize the window
             this.WindowState = WindowState.Minimized;
         }
+        private void CloseButton_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainViewModel vm)
+            {
+                Serilog.Log.Information("CloseButton_Loaded → IsFullScreenMode = {Fullscreen}", vm.IsFullScreenMode);
+            }
+            else
+            {
+                Serilog.Log.Warning("CloseButton_Loaded: DataContext not set or incorrect type.");
+            }
+        }
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
@@ -295,9 +309,12 @@ namespace EliteInfoPanel
                 : AppSettings.DEFAULT_FULLSCREEN_SMALL * fontScale;
 
             // Update application resources
-            Application.Current.Resources["BaseFontSize"] = baseFontSize;
-            Application.Current.Resources["HeaderFontSize"] = headerFontSize;
-            Application.Current.Resources["SmallFontSize"] = smallFontSize;
+            if (Application.Current != null && Application.Current.Resources != null)
+            {
+                Application.Current.Resources["BaseFontSize"] = baseFontSize;
+                Application.Current.Resources["HeaderFontSize"] = headerFontSize;
+                Application.Current.Resources["SmallFontSize"] = smallFontSize;
+            }
 
             // Update each card's font size directly
             if (_viewModel != null)
@@ -392,6 +409,8 @@ namespace EliteInfoPanel
                 {
                     Log.Information("Window mode changed - reapplying window settings");
                     ApplyWindowSettings();
+                    _viewModel.ApplyWindowModeFromSettings(); // 🔥 Ensure IsFullScreenMode gets updated
+
                 }
                 else
                 {
