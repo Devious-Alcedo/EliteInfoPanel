@@ -68,7 +68,9 @@ namespace EliteInfoPanel.ViewModels
 
         private void UpdateRoute()
         {
-            Items.Clear();
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                Items.Clear();
 
             var jumps = _gameState.CurrentRoute?.Route?.Where(j => j.StarPos?.Length == 3).ToList();
             if (jumps?.Count > 0)
@@ -223,6 +225,7 @@ namespace EliteInfoPanel.ViewModels
                     IsFuelWarning = true
                 });
             }
+            });
         }
 
         private int CalculateVisibleSystemCount()
