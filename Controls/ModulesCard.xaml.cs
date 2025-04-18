@@ -1,5 +1,6 @@
 ﻿using EliteInfoPanel.Core;
 using EliteInfoPanel.ViewModels;
+using Serilog;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Animation;
@@ -24,11 +25,43 @@ namespace EliteInfoPanel.Controls
                 {
                     await FadeAndSwap(() =>
                     {
-                        vm.CurrentPage = nextPage; // update AFTER fade-out
+                        if (vm.CurrentPage != nextPage)
+                            vm.CurrentPage = nextPage;
                     });
                 };
+
             }
         }
+        private void UserControl_Loaded(object sender, RoutedEventArgs e)
+        {
+            UpdateAvailableHeight();
+        }
+        private void UserControl_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            UpdateAvailableHeight();
+        }
+
+        private void UpdateAvailableHeight()
+        {
+            if (DataContext is ModulesViewModel vm && modulesScroll != null)
+            {
+                double newHeight = modulesScroll.ActualHeight;
+
+                // Account for padding/margins (e.g., TextBlock title, spacing, etc.)
+                const double verticalMarginBuffer = 16; // Adjust based on your layout
+
+                double adjustedHeight = Math.Max(0, newHeight - verticalMarginBuffer);
+
+                if (Math.Abs(adjustedHeight - vm.AvailableHeight) > 1)
+                {
+                    vm.AvailableHeight = adjustedHeight;
+                  
+
+                    vm.UpdateModules(); // Trigger pagination refresh
+                }
+            }
+        }
+
 
         private async Task FadeAndSwap(Action updateAction)
         {

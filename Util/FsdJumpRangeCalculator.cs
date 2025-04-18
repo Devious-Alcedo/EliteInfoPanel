@@ -68,7 +68,7 @@ namespace EliteInfoPanel.Util
                 double scaledMax = unscaledMax * scalingFactor;
                 double scaledCurrent = unscaledCurrent * scalingFactor;
 
-                Log.Information("🚀 Jump Range: Unscaled (Max={0:0.00}, Current={1:0.00}), " +
+                Log.Debug("🚀 Jump Range: Unscaled (Max={0:0.00}, Current={1:0.00}), " +
                                "Scaling Factor={2:0.000}, " +
                                "Final (Max={3:0.00}, Current={4:0.00}), " +
                                "Game Max={5:0.00}",
@@ -151,7 +151,7 @@ namespace EliteInfoPanel.Util
                         Math.Pow(fuelUsed / ratingConstant, 1 / classConstant)) / shipMass) + jumpBoost;
 
 
-            Log.Information("⚙ {0} Jump Range → Size: {1}, Rating: {2}, ClassConst: {3}, RatingConst: {4}, " +
+            Log.Debug("⚙ {0} Jump Range → Size: {1}, Rating: {2}, ClassConst: {3}, RatingConst: {4}, " +
                           "OptMass: {5}, FuelUsed: {6}, ShipMass: {7} = {8:0.00} LY (unscaled)",
                           maxFuel ? "MAX" : "CURRENT", size, rating, classConstant, ratingConstant,
                           optimalMass, fuelUsed, shipMass, jumpRange);
@@ -165,43 +165,7 @@ namespace EliteInfoPanel.Util
             var (_, max) = CalculateJumpRanges(fsd, loadout, status, cargo);
             return max;
         }
-        //public static double EstimateFuelUsage(LoadoutModule fsd, LoadoutJson loadout, double distance, CargoJson? cargo = null)
-        //{
-        //    var fsdKey = GetFsdSpecKeyFromItem(fsd.Item);
-        //    if (string.IsNullOrEmpty(fsdKey) || !FsdSpecs.TryGetValue(fsdKey, out var specs))
-        //        return 0;
-
-        //    double optimalMass = specs.OptimalMass;
-        //    double maxFuelPerJump = specs.MaxFuelPerJump;
-
-        //    var optMassModifier = fsd.Engineering?.Modifiers?
-        //        .FirstOrDefault(m => m.Label.Equals("FSDOptimalMass", StringComparison.OrdinalIgnoreCase));
-        //    if (optMassModifier != null)
-        //        optimalMass = optMassModifier.Value;
-
-        //    double ratingConstant = GetRatingConstant(fsdKey[1]);
-        //    double exponent = GetClassExponent(fsdKey[0] - '0'); // '6' → 6
-
-        //    if (ratingConstant == 0 || exponent == 0 || optimalMass == 0)
-        //        return 0;
-
-        //    // Estimate ship mass including cargo
-        //    double cargoMass = cargo?.Inventory?.Sum(i => i.Count) ?? 0;
-        //    double shipMass = loadout.UnladenMass + cargoMass;
-
-        //    // Rearranged from the jump range formula: D = (fuel / R)^1/E * M / mass
-        //    // Solve for fuel:
-        //    double ratio = (distance * shipMass / optimalMass);
-        //    double fuel = Math.Pow(ratio, exponent) * ratingConstant;
-
-        //    fuel = Math.Max(0.01, fuel); // minimum usage
-        //    fuel = Math.Min(fuel, maxFuelPerJump); // clamp max
-
-        //    // Optionally apply a fudge factor to match in-game performance
-        //    fuel *= 0.85;
-        //    return fuel;
-
-        //}
+       
         public static double EstimateFuelUsage(LoadoutModule fsd, LoadoutJson loadout, double distance, CargoJson? cargo = null)
         {
             var fsdKey = GetFsdSpecKeyFromItem(fsd.Item);
