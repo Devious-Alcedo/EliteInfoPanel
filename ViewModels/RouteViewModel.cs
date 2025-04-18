@@ -73,16 +73,26 @@ namespace EliteInfoPanel.ViewModels
             Application.Current.Dispatcher.Invoke(() =>
             {
                 Items.Clear();
+                Log.Information("UpdateRoute: Clearing route items and preparing new update.");
+                var route = _gameState.CurrentRoute?.Route;
+                if (route == null)
+                {
+                    Log.Information("UpdateRoute: No route found in GameState.");
+                    return;
+                }
 
-            var jumps = _gameState.CurrentRoute?.Route?.Where(j => j.StarPos?.Length == 3).ToList();
-                if (_gameState.CurrentRoute?.Route?.FirstOrDefault(j => j.StarPos?.Length == 3) is { } firstJump)
+                var firstJump = route.FirstOrDefault(j => j.StarPos?.Length == 3);
+                if (firstJump != null)
                 {
                     _gameState.CurrentSystemCoordinates = (firstJump.StarPos[0], firstJump.StarPos[1], firstJump.StarPos[2]);
+                    Log.Information("UpdateRoute: Set system coordinates to {X}, {Y}, {Z}", firstJump.StarPos[0], firstJump.StarPos[1], firstJump.StarPos[2]);
                 }
                 else
                 {
                     _gameState.CurrentSystemCoordinates = null;
+                    Log.Information("UpdateRoute: No valid jump with position data found. System coordinates set to null.");
                 }
+
 
                 if (_gameState.RouteWasActive && _gameState.RouteCompleted && !_gameState.IsInHyperspace)
             {
@@ -138,8 +148,9 @@ namespace EliteInfoPanel.ViewModels
                         FontSize = (int)this.FontSize
                     });
                 }
+                Log.Information("UpdateRoute: CurrentFuel={Fuel}, MaxFuel={MaxFuel}, CanEstimate={CanEstimate}", currentFuel, maxFuelCapacity, canEstimate);
 
-            if (_gameState.CurrentRoute?.Route == null) return;
+                if (_gameState.CurrentRoute?.Route == null) return;
 
             double remainingFuel = currentFuel;
             var currentPos = _gameState.CurrentSystemCoordinates;
@@ -157,8 +168,9 @@ namespace EliteInfoPanel.ViewModels
                 bool isScoopable = !string.IsNullOrWhiteSpace(jump.StarClass) && "OBAFGKM".Contains(char.ToUpper(jump.StarClass[0]));
                 string scoopIcon = isScoopable ? "🟡" : "🔴";
                 string label = $"{scoopIcon} {jump.StarSystem}";
+                    Log.Information("UpdateRoute: Processing jump to {System}", jump.StarSystem);
 
-                double jumpDistance = 0, fuelUsed = 0;
+                    double jumpDistance = 0, fuelUsed = 0;
                 bool willRunOutOfFuel = false;
                 bool showRefuelHint = false;
 
@@ -198,9 +210,11 @@ namespace EliteInfoPanel.ViewModels
                         {
                             refuelNeeded = true;
                             jumpsUntilRefuel = Items.Count(i => i.ItemType == RouteItemType.System) + 1;
-                        }
+                                Log.Information("UpdateRoute: Inserted fuel warning after {JumpCount} jumps.", jumpsUntilRefuel);
 
-                        Items.Add(new RouteItemViewModel(label, jump.StarClass, jump.SystemAddress, RouteItemType.System)
+                            }
+
+                            Items.Add(new RouteItemViewModel(label, jump.StarClass, jump.SystemAddress, RouteItemType.System)
                         {
                             FontSize = (int)this.FontSize,
                             IsScoopable = isScoopable,
