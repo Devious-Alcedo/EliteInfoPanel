@@ -615,6 +615,18 @@ namespace EliteInfoPanel.ViewModels
             get => _starClass;
             set => SetProperty(ref _starClass, value);
         }
+        public string RefuelHint
+        {
+            get
+            {
+                if (ItemType != RouteItemType.System) return null;
+                if (Text != null && Text.Contains("Refuel here!"))
+                    return "🔄 Refuel here!";
+                return null;
+            }
+        }
+
+        public Brush RefuelColor => Brushes.Gold;
 
         public long? SystemAddress
         {

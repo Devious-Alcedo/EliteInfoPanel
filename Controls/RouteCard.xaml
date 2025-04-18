@@ -104,17 +104,20 @@
                                ToolTip="Click to copy system name">
                                                                 <TextBlock.Inlines>
                                                                     <Run Text="{Binding Icon, Mode=OneWay}"
-                                 FontSize="{Binding FontSize}"
-                                 Foreground="{Binding IconColor, Mode=OneWay}"
-                                 FontWeight="Bold"/>
+                                                                         FontSize="{Binding FontSize}"
+                                                                         Foreground="{Binding IconColor, Mode=OneWay}"
+                                                                         FontWeight="Bold"/>
                                                                     <Run Text=" " />
                                                                     <Run Text="{Binding SystemText, Mode=OneWay}"
-                                 Foreground="White"/>
+                                                                         Foreground="White"/>
+                                                                    <Run Text="{Binding RefuelHint, Mode=OneWay}" 
+     Foreground="{Binding RefuelColor, Mode=OneWay}" 
+     FontWeight="Bold" />
                                                                 </TextBlock.Inlines>
                                                                 <TextBlock.InputBindings>
                                                                     <MouseBinding Gesture="LeftClick"
-                                          Command="{Binding DataContext.CopySystemNameCommand, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}"
-                                          CommandParameter="{Binding}" />
+                                                                        Command="{Binding DataContext.CopySystemNameCommand, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}"
+                                                                        CommandParameter="{Binding}" />
                                                                 </TextBlock.InputBindings>
                                                             </TextBlock>
                                                         </Border>
