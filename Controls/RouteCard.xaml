@@ -26,10 +26,31 @@
                                                 <ControlTemplate>
                                                     <TextBlock Text="{Binding Text}" 
                                                                FontSize="{Binding FontSize}" 
-                                                                                               TextWrapping="Wrap"
-                                TextTrimming="None"
+                                                               TextWrapping="Wrap"
+                                                               TextTrimming="None"
                                                                Margin="0,0,0,6"
                                                                Foreground="{DynamicResource MaterialDesignBody}"/>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ItemType}" Value="FuelWarning">
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate>
+                                                    <Border Background="#44FF0000" 
+                                                            BorderBrush="#88FF0000" 
+                                                            BorderThickness="1" 
+                                                            CornerRadius="4"
+                                                            Margin="0,4,0,6"
+                                                            Padding="8,4,8,4">
+                                                        <TextBlock Text="{Binding Text}" 
+                                                                   FontSize="{Binding FontSize}" 
+                                                                   TextWrapping="Wrap"
+                                                                   TextTrimming="None"
+                                                                   FontWeight="Bold"
+                                                                   Foreground="White"/>
+                                                    </Border>
                                                 </ControlTemplate>
                                             </Setter.Value>
                                         </Setter>
@@ -40,8 +61,8 @@
                                                 <ControlTemplate>
                                                     <TextBlock Text="{Binding Text}" 
                                                                FontSize="{Binding FontSize}" 
-                                                                                               TextWrapping="Wrap"
-                                TextTrimming="None"
+                                                               TextWrapping="Wrap"
+                                                               TextTrimming="None"
                                                                Margin="0,0,0,6"
                                                                Foreground="{DynamicResource MaterialDesignBody}"/>
                                                 </ControlTemplate>
@@ -53,10 +74,12 @@
                                             <Setter.Value>
                                                 <ControlTemplate>
                                                     <TextBlock FontSize="{Binding FontSize}" 
-                           Margin="8,0,0,2"
-                           Foreground="{DynamicResource MaterialDesignBody}"
-                           Cursor="Hand"
-                           ToolTip="Click to copy system name">
+                                                               Margin="8,0,0,2"
+                                                               Foreground="{DynamicResource MaterialDesignBody}"
+                                                               Cursor="Hand"
+                                                               TextWrapping="Wrap"
+                                                               TextTrimming="None"
+                                                               ToolTip="Click to copy system name">
                                                         <TextBlock.Text>
                                                             <MultiBinding StringFormat="{}{0}">
                                                                 <Binding Path="Text" />
@@ -64,10 +87,10 @@
                                                         </TextBlock.Text>
                                                         <TextBlock.InputBindings>
                                                             <MouseBinding Gesture="LeftClick" 
-                                      Command="{Binding DataContext.CopySystemNameCommand, 
-                                                RelativeSource={RelativeSource FindAncestor, 
-                                                AncestorType={x:Type UserControl}}}"
-                                      CommandParameter="{Binding}"/>
+                                                                          Command="{Binding DataContext.CopySystemNameCommand, 
+                                                                          RelativeSource={RelativeSource FindAncestor, 
+                                                                          AncestorType={x:Type UserControl}}}"
+                                                                          CommandParameter="{Binding}"/>
                                                         </TextBlock.InputBindings>
                                                     </TextBlock>
                                                 </ControlTemplate>
