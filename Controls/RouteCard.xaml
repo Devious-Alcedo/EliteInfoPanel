@@ -103,10 +103,10 @@
                                TextTrimming="None"
                                ToolTip="Click to copy system name">
                                                                 <TextBlock.Inlines>
-                                                                    <Run Text="{Binding Icon, Mode=OneWay}"
-                                                                         FontSize="{Binding FontSize}"
-                                                                         Foreground="{Binding IconColor, Mode=OneWay}"
-                                                                         FontWeight="Bold"/>
+                                                                    <Image Source="{Binding IconUrl, Mode=OneWay}"
+       Width="20" Height="20"
+       Margin="0,0,6,0"
+       VerticalAlignment="Center"/>
                                                                     <Run Text=" " />
                                                                     <Run Text="{Binding SystemText, Mode=OneWay}"
                                                                          Foreground="White"/>

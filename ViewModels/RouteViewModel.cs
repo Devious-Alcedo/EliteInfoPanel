@@ -211,7 +211,7 @@ namespace EliteInfoPanel.ViewModels
                     {
                         remainingFuel -= fuelUsed;
                         currentPos = targetSystem;
-                            label += $"\n  [Distance: {jumpDistance:0.00} LY] ({jump.StarClass})";
+                            label += $"\n  [Distance: {jumpDistance:0.00} LY] ({jump.StarClass}{(isScoopable ? " - Fuel" : "")})";
                             label += $"\n  [⛽ {remainingFuel:0.00}T after jump]";
 
                         if (i + 1 < nextJumps.Count && nextJumps[i + 1].StarPos?.Length == 3)
@@ -228,11 +228,14 @@ namespace EliteInfoPanel.ViewModels
                             jumpsUntilRefuel = Items.Count(i => i.ItemType == RouteItemType.System) + 1;
                         }
                     }
-                    else
-                    {
-                        label += $"\n  [Distance: {jumpDistance:0.00} LY]\n  ⚠️ INSUFFICIENT FUEL ({remainingFuel:0.00}T)";
+                        else
+                        {
+                            label += $"\n  [Distance: {jumpDistance:0.00} LY] ({jump.StarClass}{(isScoopable ? " - Fuel" : "")})";
 
-                        if (!refuelNeeded)
+                            label += $"\n  ⚠️ INSUFFICIENT FUEL ({remainingFuel:0.00}T)";
+
+
+                            if (!refuelNeeded)
                         {
                             refuelNeeded = true;
                             jumpsUntilRefuel = Items.Count(i => i.ItemType == RouteItemType.System) + 1;
@@ -346,6 +349,10 @@ namespace EliteInfoPanel.ViewModels
             SystemAddress = systemAddress;
             ItemType = itemType;
         }
+        public string IconUrl => ItemType != RouteItemType.System
+                    ? null
+                    : $"pack://application:,,,/{StarIconMapper.GetIconPath(StarClass) ?? "Assets/Stars/Unknown.ico"}";
+
 
         public string Text { get; set; }
         public string SystemText => ItemType != RouteItemType.System ? Text : Text?.IndexOf(' ') is int i and >= 0 ? Text.Substring(i + 1) : Text;
