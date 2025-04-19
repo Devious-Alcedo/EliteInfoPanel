@@ -2,6 +2,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
 using EliteInfoPanel.Core;
@@ -22,6 +23,11 @@ namespace EliteInfoPanel.ViewModels
         private double _fuelMain;
         private double _fuelReservoir;
         private double _fuelBarRatio;
+        private bool _initialized = false;
+        private bool _hasCommander;
+        private bool _hasShip;
+        private bool _hasFuel;
+
         #endregion
 
         #region Public Properties
@@ -84,8 +90,17 @@ namespace EliteInfoPanel.ViewModels
             // Subscribe to property changes on the game state
             _gameState.PropertyChanged += GameState_PropertyChanged;
 
-            // Initial update of all items
+            // Removing LoadoutUpdated subscription for now
+            // _gameState.LoadoutUpdated += OnLoadoutUpdated;
+
+            // Force immediate initialization
             InitializeAllItems();
+
+            // Schedule a delayed second initialization attempt
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() => {
+                // Just call InitializeAllItems directly
+                InitializeAllItems();
+            }), System.Windows.Threading.DispatcherPriority.Background);
         }
         #endregion
 
@@ -102,6 +117,50 @@ namespace EliteInfoPanel.ViewModels
         {
             return Items.FirstOrDefault(x => x.Tag == tag);
         }
+        private void ForceInitializeItems()
+        {
+            // Force updates for all items, even if fields not all available yet
+            UpdateCommanderItem();
+            UpdateSquadronItem();
+            UpdateShipItem();
+            UpdateBalanceItem();
+            UpdateSystemItem();
+            UpdateFuelInfo();
+            UpdateCarrierCountdown();
+
+            // Schedule one more attempt after a longer delay
+            Application.Current.Dispatcher.BeginInvoke(new Action(() => {
+                if (Items.Count < 2)
+                {
+                    Log.Information("🔄 Final attempt to initialize summary items");
+                    InitializeAllItems();
+                }
+            }), DispatcherPriority.Background,
+            TimeSpan.FromSeconds(2));
+        }
+        private async void EnsureDataIsLoaded()
+        {
+            // Wait a brief moment to let the application fully initialize
+            await Task.Delay(500);
+
+            // Check if we have data already
+            if (Items.Count == 0 || _gameState.CommanderName == null)
+            {
+                Log.Information("SummaryViewModel initialization check - no data detected, forcing refresh");
+
+                // Attempt to refresh the data
+                InitializeAllItems();
+
+                // If still no data, try once more after a delay
+                if (Items.Count == 0)
+                {
+                    await Task.Delay(1000);
+                    Log.Information("SummaryViewModel performing second initialization attempt");
+                    InitializeAllItems();
+                }
+            }
+        }
+
 
         private void RemoveNonCustomItems()
         {
@@ -124,40 +183,69 @@ namespace EliteInfoPanel.ViewModels
 
             Log.Debug("📦 Items after cleanup: {Count}", Items.Count);
         }
+        private void OnLoadoutUpdated()
+        {
+            if (!_initialized)
+            {
+                Log.Information("📦 SummaryViewModel received LoadoutUpdated event — checking readiness...");
+               
+            }
+        }
+
 
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            // Check which property changed and update only what's needed
+         
+            switch (e.PropertyName)
+            {
+                case nameof(GameStateService.CommanderName):
+                    _hasCommander = true;
+                    break;
+                case nameof(GameStateService.ShipName):
+                case nameof(GameStateService.ShipLocalised):
+                case nameof(GameStateService.UserShipName):
+                case nameof(GameStateService.UserShipId):
+                    _hasShip = true;
+                    break;
+                case nameof(GameStateService.CurrentLoadout):
+                case nameof(GameStateService.CurrentStatus):
+                    _hasFuel = _gameState.CurrentLoadout != null && _gameState.CurrentStatus?.Fuel != null;
+                    break;
+            }
+
+            // Trigger init when all critical info is available, once
+            if (!_initialized && _hasCommander && _hasShip && _hasFuel)
+            {
+                Log.Information("🟢 SummaryViewModel: all critical data ready — initializing summary");
+                _initialized = true;
+                InitializeAllItems();
+            }
+
+            // Regular updates
             switch (e.PropertyName)
             {
                 case nameof(GameStateService.CommanderName):
                     UpdateCommanderItem();
                     break;
-
                 case nameof(GameStateService.SquadronName):
                     UpdateSquadronItem();
                     break;
-
                 case nameof(GameStateService.ShipName):
                 case nameof(GameStateService.ShipLocalised):
                 case nameof(GameStateService.UserShipName):
                 case nameof(GameStateService.UserShipId):
                     UpdateShipItem();
                     break;
-
                 case nameof(GameStateService.Balance):
                     UpdateBalanceItem();
                     break;
-
                 case nameof(GameStateService.CurrentSystem):
                     UpdateSystemItem();
                     break;
-
                 case nameof(GameStateService.CurrentStatus):
                 case nameof(GameStateService.CurrentLoadout):
                     UpdateFuelInfo();
                     break;
-
                 case nameof(GameStateService.FleetCarrierJumpTime):
                 case nameof(GameStateService.CarrierJumpDestinationSystem):
                     UpdateCarrierCountdown();
@@ -169,22 +257,27 @@ namespace EliteInfoPanel.ViewModels
         {
             try
             {
+                Log.Information("SummaryViewModel: InitializeAllItems called");
                 RemoveNonCustomItems();
 
-                if (_gameState.CurrentStatus == null)
-                    return;
+                // Even if CurrentStatus is null, still try to update the other items
+                // that might have data available
 
-                // Update all individual items
                 UpdateCommanderItem();
                 UpdateSquadronItem();
                 UpdateShipItem();
                 UpdateBalanceItem();
                 UpdateSystemItem();
-                UpdateFuelInfo();
-                UpdateCarrierCountdown();
+
+                // These are more dependent on CurrentStatus, so check before calling
+                if (_gameState.CurrentStatus != null)
+                {
+                    UpdateFuelInfo();
+                    UpdateCarrierCountdown();
+                }
 
                 // Log final state
-                Log.Debug("📋 Final Summary Items after initialization:");
+                Log.Debug("📋 Final Summary Items after initialization: {Count} items", Items.Count);
                 foreach (var item in Items)
                 {
                     Log.Debug("  - Tag: {Tag}, Content: {Content}", item.Tag, item.Content);
@@ -195,29 +288,43 @@ namespace EliteInfoPanel.ViewModels
                 Log.Error(ex, "Error in InitializeAllItems");
             }
         }
-
         private void UpdateCommanderItem()
         {
             try
             {
-                if (string.IsNullOrEmpty(_gameState.CommanderName))
+                // More defensive check that handles the null case better
+                if (_gameState == null)
+                {
+                    Log.Warning("UpdateCommanderItem: GameState is null");
                     return;
+                }
+
+                if (string.IsNullOrEmpty(_gameState.CommanderName))
+                {
+                    // Log this to help diagnose startup issues
+                    Log.Debug("UpdateCommanderItem: CommanderName is null or empty");
+                    return;
+                }
 
                 var item = FindItemByTag("Commander");
                 if (item != null)
                 {
                     item.Content = $"CMDR {_gameState.CommanderName}";
+                    Log.Debug("Updated existing Commander item: {Content}", item.Content);
                 }
                 else
                 {
-                    Items.Add(new SummaryItemViewModel(
+                    var newItem = new SummaryItemViewModel(
                         "Commander",
                         $"CMDR {_gameState.CommanderName}",
                         Brushes.WhiteSmoke,
                         PackIconKind.AccountCircle)
                     {
                         FontSize = (int)this.FontSize
-                    });
+                    };
+
+                    Items.Add(newItem);
+                    Log.Debug("Added new Commander item: {Content}", newItem.Content);
                 }
             }
             catch (Exception ex)
@@ -225,7 +332,6 @@ namespace EliteInfoPanel.ViewModels
                 Log.Error(ex, "Error updating Commander item");
             }
         }
-
         private void UpdateSquadronItem()
         {
             try
@@ -528,9 +634,8 @@ namespace EliteInfoPanel.ViewModels
         {
             if (!System.Windows.Application.Current.Dispatcher.CheckAccess())
             {
-                bool result = false;
-                System.Windows.Application.Current.Dispatcher.Invoke(() => result = UpdateFuelInfo());
-                return result;
+                return (bool)System.Windows.Application.Current.Dispatcher.Invoke(
+                    new Func<bool>(UpdateFuelInfo));
             }
 
             try

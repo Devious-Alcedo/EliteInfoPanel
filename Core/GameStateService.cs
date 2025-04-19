@@ -646,6 +646,7 @@ namespace EliteInfoPanel.Core
             {
                 Log.Information("⚡ Setting CurrentLoadout...");
                 CurrentLoadout = newLoadout;
+                LoadoutUpdated?.Invoke();
                 return true;
             }
 
@@ -656,22 +657,27 @@ namespace EliteInfoPanel.Core
 
         private void LoadAllData()
         {
-            LoadStatusData();
-            LoadNavRouteData();
-            LoadCargoData();
-            LoadBackpackData();
-            LoadMaterialsData();
-            LoadLoadoutData();
+            bool statusChanged = LoadStatusData();
+            bool routeChanged = LoadNavRouteData();
+            bool cargoChanged = LoadCargoData();
+            bool backpackChanged = LoadBackpackData();
+            bool materialsChanged = LoadMaterialsData();
+            bool loadoutChanged = LoadLoadoutData(); // This will now look for the right file
 
             latestJournalPath = Directory.GetFiles(gamePath, "Journal.*.log")
                 .OrderByDescending(File.GetLastWriteTime)
                 .FirstOrDefault();
 
             LoadRouteProgress();
+            Task.Run(async () => await ProcessJournalAsync()).Wait();
             OnPropertyChanged(nameof(CurrentLoadout));
-            OnPropertyChanged(nameof(CurrentStatus));
             OnPropertyChanged(nameof(CurrentCargo));
             OnPropertyChanged(nameof(CurrentRoute));
+            OnPropertyChanged(nameof(CommanderName));
+            OnPropertyChanged(nameof(ShipName));
+            OnPropertyChanged(nameof(CurrentSystem));
+            OnPropertyChanged(nameof(Balance));
+            OnPropertyChanged(nameof(CurrentStatus));
 
         }
 
