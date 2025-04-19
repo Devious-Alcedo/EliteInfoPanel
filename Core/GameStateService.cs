@@ -92,7 +92,7 @@ namespace EliteInfoPanel.Core
             get => _currentSystemCoordinates;
             set => SetProperty(ref _currentSystemCoordinates, value);
         }
-
+      
         public bool FirstLoadCompleted => _firstLoadCompleted;
 
         public double MaxJumpRange
@@ -303,7 +303,7 @@ namespace EliteInfoPanel.Core
         // Event for hyperspace jump notification
         public event Action<bool, string> HyperspaceJumping;
         public event Action LoadoutUpdated;
-
+        public event Action FirstLoadCompletedEvent;
 
         #endregion
 
@@ -755,8 +755,14 @@ namespace EliteInfoPanel.Core
             latestJournalPath = Directory.GetFiles(gamePath, "Journal.*.log")
                 .OrderByDescending(File.GetLastWriteTime)
                 .FirstOrDefault();
+            _firstLoadCompleted = true;
+            Log.Information("✅ First journal scan completed");
+
+            FirstLoadCompletedEvent?.Invoke(); // 🔔 raise the event here
+
 
             LoadRouteProgress();
+
             Task.Run(async () => await ProcessJournalAsync()).Wait();
             OnPropertyChanged(nameof(CurrentLoadout));
             OnPropertyChanged(nameof(CurrentCargo));
@@ -964,6 +970,8 @@ namespace EliteInfoPanel.Core
                         case "DockingGranted":
                             Log.Information("Docking granted by station — setting IsDocking = true");
                             SetDockingStatus();
+                           
+                            SetProperty(ref _isDocking, true, nameof(IsDocking));
                             break;
 
                         case "CarrierJumpRequest":
