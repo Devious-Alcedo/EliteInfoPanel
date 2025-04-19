@@ -588,18 +588,66 @@ namespace EliteInfoPanel.Core
             return true;
         }
 
+        // Replace the LoadCargoData method in GameStateService.cs with this improved version:
+
         private bool LoadCargoData()
         {
-            var newCargo = DeserializeJsonFile<CargoJson>(Path.Combine(gamePath, "Cargo.json"));
-            if (newCargo == null) return false;
-
-            if (CurrentCargo == null || !InventoriesEqual(CurrentCargo.Inventory, newCargo.Inventory))
+            try
             {
-                CurrentCargo = newCargo;
-                return true;
-            }
+                Log.Debug("GameStateService: Loading cargo data");
+                var newCargo = DeserializeJsonFile<CargoJson>(Path.Combine(gamePath, "Cargo.json"));
 
-            return false;
+                if (newCargo == null)
+                {
+                    Log.Warning("GameStateService: Failed to load Cargo.json or file not found");
+                    return false;
+                }
+
+                // Check if the inventory is null before proceeding
+                if (newCargo.Inventory == null)
+                {
+                    Log.Warning("GameStateService: Cargo.json loaded but Inventory is null");
+                    newCargo.Inventory = new List<CargoJson.CargoItem>(); // Initialize with empty list
+                }
+
+                bool hasChanged = false;
+
+                // First check - CurrentCargo might be null (first load)
+                if (CurrentCargo == null)
+                {
+                    Log.Information("GameStateService: First cargo data load - {Count} items",
+                        newCargo.Inventory.Count);
+                    CurrentCargo = newCargo;
+                    hasChanged = true;
+                }
+                // Second check - compare inventories
+                else if (!InventoriesEqual(CurrentCargo.Inventory, newCargo.Inventory))
+                {
+                    Log.Information("GameStateService: Cargo inventory changed - now {Count} items",
+                        newCargo.Inventory.Count);
+                    CurrentCargo = newCargo;
+                    hasChanged = true;
+                }
+
+                // Log specific details about the change if it happened
+                if (hasChanged)
+                {
+                    Log.Debug("GameStateService: Cargo details - {Count} items",
+                        CurrentCargo.Inventory.Count);
+
+                    foreach (var item in CurrentCargo.Inventory)
+                    {
+                        Log.Debug("  - {Name}: {Count}", item.Name, item.Count);
+                    }
+                }
+
+                return hasChanged;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error loading cargo data");
+                return false;
+            }
         }
 
         private bool LoadBackpackData()

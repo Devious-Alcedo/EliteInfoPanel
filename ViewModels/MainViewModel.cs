@@ -164,6 +164,8 @@ namespace EliteInfoPanel.ViewModels
 
         public void RefreshLayout(bool forceRebuild = false)
         {
+            Log.Information("MainViewModel: RefreshLayout called - forceRebuild={0}", forceRebuild);
+
             if (_layoutChangePending && !forceRebuild)
                 return; // Avoid redundant refreshes
 
@@ -187,6 +189,7 @@ namespace EliteInfoPanel.ViewModels
                     UpdateCardLayout(forceRebuild);
 
                     _layoutChangePending = false;
+                    Log.Information("MainViewModel: Layout refresh completed");
                 }
                 catch (Exception ex)
                 {

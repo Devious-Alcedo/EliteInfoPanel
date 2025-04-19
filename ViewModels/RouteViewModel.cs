@@ -106,7 +106,38 @@ namespace EliteInfoPanel.ViewModels
                 }
             }
         }
+        private void UpdateVisibility()
+        {
+            try
+            {
+                // Check if there's a route
+                bool hasRoute = _gameState.CurrentRoute?.Route?.Any() == true;
 
+                // Check if there's a destination
+                bool hasDestination = _gameState.CurrentStatus?.Destination != null &&
+                                      !string.IsNullOrWhiteSpace(_gameState.CurrentStatus.Destination.Name);
+
+                // Check if in hyperspace
+                bool isJumping = _gameState.IsHyperspaceJumping;
+
+                // Should show only if: (has route OR has destination) AND not jumping
+                bool shouldShow = (hasRoute || hasDestination) && !isJumping;
+
+                Log.Debug("RouteViewModel: Visibility check - HasRoute:{HasRoute}, HasDestination:{HasDestination}, " +
+                         "Jumping:{Jumping}, ShouldShow:{ShouldShow}",
+                         hasRoute, hasDestination, isJumping, shouldShow);
+
+                if (IsVisible != shouldShow)
+                {
+                    IsVisible = shouldShow;
+                    Log.Debug("RouteViewModel: Changed visibility to {Visibility}", shouldShow);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error updating route visibility");
+            }
+        }
         public ObservableCollection<RouteItemViewModel> Items { get; } = new ObservableCollection<RouteItemViewModel>();
 
         public int JumpsUntilRefuel
@@ -145,6 +176,10 @@ namespace EliteInfoPanel.ViewModels
                 case nameof(GameStateService.CurrentRoute):
                 case nameof(GameStateService.CurrentStatus):
                 case nameof(GameStateService.CurrentSystem):
+                    // These properties affect both content and visibility
+                    RequestRouteUpdate();
+                    break;
+
                 case nameof(GameStateService.LastFsdTargetSystem):
                 case nameof(GameStateService.RemainingJumps):
                 case nameof(GameStateService.CurrentLoadout):
@@ -152,8 +187,14 @@ namespace EliteInfoPanel.ViewModels
                 case nameof(GameStateService.CurrentSystemCoordinates):
                 case nameof(GameStateService.RouteWasActive):
                 case nameof(GameStateService.RouteCompleted):
-                case nameof(GameStateService.IsInHyperspace):
-                    RequestRouteUpdate();
+                    // These properties only affect content if already visible
+                    if (IsVisible)
+                        RequestRouteUpdate();
+                    break;
+
+                case nameof(GameStateService.IsHyperspaceJumping):
+                    // This property directly affects visibility
+                    UpdateVisibility();
                     break;
             }
         }
@@ -252,18 +293,16 @@ namespace EliteInfoPanel.ViewModels
                 Items.Clear();
                 Log.Debug("UpdateRoute: Clearing route items and preparing new update.");
 
-                var route = _gameState.CurrentRoute?.Route ?? new List<NavRouteJson.NavRouteSystem>();
+                // Update visibility first
+                UpdateVisibility();
 
-                bool hasRoute = route.Any();
-                bool hasDestination = !string.IsNullOrWhiteSpace(_gameState.CurrentStatus?.Destination?.Name);
-
-                // decide if card should be visible
-                IsVisible = hasRoute || hasDestination;
+                // If visibility check indicates we should be hidden, stop processing
                 if (!IsVisible)
                 {
-                    Log.Debug("UpdateRoute: No route and no destination — card hidden.");
+                    Log.Debug("UpdateRoute: No route and no destination, or in hyperspace — card hidden.");
                     return;
                 }
+                var route = _gameState.CurrentRoute?.Route ?? new List<NavRouteJson.NavRouteSystem>();
 
                 // fallback so jump loop can still run
                 route ??= new List<NavRouteJson.NavRouteSystem>();
