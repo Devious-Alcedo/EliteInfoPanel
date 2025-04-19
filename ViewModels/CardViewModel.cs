@@ -27,14 +27,24 @@ namespace EliteInfoPanel.ViewModels
             get => _isVisible;
             set
             {
-                if (SetProperty(ref _isVisible, value))
+                if (_isVisible != value)
                 {
-                    // Critical - Notify the main view model that a card's visibility has changed
-                    Log.Information("{CardType}: IsVisible changed to {IsVisible}", this.GetType().Name, value);
-                    NotifyCardVisibilityChanged();
+                    _isVisible = value;
+
+                    if (System.Windows.Application.Current.Dispatcher.CheckAccess())
+                    {
+                        NotifyCardVisibilityChanged();
+                    }
+                    else
+                    {
+                        System.Windows.Application.Current.Dispatcher.Invoke(NotifyCardVisibilityChanged);
+                    }
+
+                    OnPropertyChanged();
                 }
             }
         }
+
 
         // Add this method to the CardViewModel class:
 

@@ -66,6 +66,8 @@ namespace EliteInfoPanel.ViewModels
             StarClass = starClass;
             SystemAddress = systemAddress;
             ItemType = itemType;
+           
+
         }
         #endregion
     }
@@ -162,7 +164,11 @@ namespace EliteInfoPanel.ViewModels
 
             // Subscribe to relevant property changes from GameStateService
             _gameState.PropertyChanged += GameState_PropertyChanged;
-
+            _gameState.FirstLoadCompletedEvent += () =>
+            {
+                Log.Debug("RouteViewModel: FirstLoadCompleted triggered — forcing route update");
+                RequestRouteUpdate();
+            };
             // Do initial update
             RequestRouteUpdate();
         }
