@@ -1,21 +1,26 @@
-﻿// FlagsViewModel.cs
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
-using System.Windows;
 using System.Windows.Media;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
+using MaterialDesignThemes.Wpf;
 using Serilog;
 
 namespace EliteInfoPanel.ViewModels
 {
     public class FlagsViewModel : CardViewModel
     {
+        #region Private Fields
         private readonly GameStateService _gameState;
         private readonly AppSettings _appSettings;
+        private HashSet<Flag> _lastActiveFlags = new HashSet<Flag>();
+        private List<Flag> _lastVisibleFlags = new List<Flag>();
+        #endregion
 
-        private int _fontSize = 14;
+        #region Public Properties
         public override double FontSize
         {
             get => base.FontSize;
@@ -34,131 +39,171 @@ namespace EliteInfoPanel.ViewModels
         }
 
         public ObservableCollection<FlagItemViewModel> Items { get; } = new();
+        #endregion
 
+        #region Constructor
         public FlagsViewModel(GameStateService gameState) : base("Status Flags")
         {
-            _gameState = gameState;
+            _gameState = gameState ?? throw new ArgumentNullException(nameof(gameState));
             _appSettings = SettingsManager.Load();
 
-            // Subscribe to game state updates
-            _gameState.DataUpdated += UpdateFlags;
+            // Subscribe to property changes
+            _gameState.PropertyChanged += GameState_PropertyChanged;
 
             // Initial update
             UpdateFlags();
         }
+        #endregion
+
+        #region Private Methods
+        private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            // Only update when status changes
+            if (e.PropertyName == nameof(GameStateService.CurrentStatus) ||
+                e.PropertyName == nameof(GameStateService.IsDocking))
+            {
+                UpdateFlags();
+            }
+        }
 
         private void UpdateFlags()
         {
-            RunOnUIThread(() =>
+            if (_gameState.CurrentStatus == null)
+                return;
+
+            if (!System.Windows.Application.Current.Dispatcher.CheckAccess())
             {
-                Items.Clear();
+                System.Windows.Application.Current.Dispatcher.Invoke(UpdateFlags);
+                return;
+            }
 
-                var status = _gameState.CurrentStatus;
-                if (status == null)
-                    return;
-
-                IsVisible = true;
-
+            try
+            {
                 // Get all active flags
-                var activeFlags = System.Enum.GetValues(typeof(Flag))
-                    .Cast<Flag>()
-                    .Where(flag => status.Flags.HasFlag(flag) && flag != Flag.None)
-                    .ToHashSet();
-                Log.Debug("HudInAnalysisMode? {Value}", status.Flags.HasFlag(Flag.HudInAnalysisMode));
+                var activeFlags = GetActiveFlags();
 
-                // Add synthetic flags if active
-                foreach (var synthetic in SyntheticFlags.All)
+                // Check if active flags have changed
+                if (AreActiveFlagsEqual(activeFlags, _lastActiveFlags))
                 {
-                    if (synthetic == SyntheticFlags.HudInCombatMode && !status.Flags.HasFlag(Flag.HudInAnalysisMode))
-                    {
-                        activeFlags.Add(synthetic);
-                    }
-
-                    if (synthetic == SyntheticFlags.Docking && status.Flags.HasFlag(Flag.Docked) && _gameState.IsDocking)
-                    {
-                        activeFlags.Add(synthetic);
-                    }
+                    Log.Debug("Active flags unchanged, skipping update");
+                    return;
                 }
 
-
-                Log.Debug("Active flags after synthetic injection: {Flags}",
-                    string.Join(", ", activeFlags.Select(f => f.ToString())));
+                _lastActiveFlags = new HashSet<Flag>(activeFlags);
 
                 // Get the user's ordered visible flags
                 // Reload latest settings in case they changed
                 var latestSettings = SettingsManager.Load();
                 var visibleFlags = latestSettings.DisplayOptions.VisibleFlags;
 
-                Log.Debug("Loaded VisibleFlags from settings: {Flags}", string.Join(", ", visibleFlags));
-                Log.Debug("ActiveFlags this frame: {Flags}", string.Join(", ", activeFlags));
+                // Check if visible flags have changed
+                bool visibleFlagsChanged = !AreFlagListsEqual(visibleFlags, _lastVisibleFlags);
+                if (visibleFlagsChanged)
+                {
+                    _lastVisibleFlags = visibleFlags.ToList();
+                }
 
-                // If no visible flags are defined, use default order of active flags
+                // If no changes to what should be displayed, exit
+                if (!visibleFlagsChanged && Items.Count > 0)
+                {
+                    Log.Debug("No changes to displayed flags, skipping UI update");
+                    return;
+                }
+
+                // Clear and rebuild the Items collection
+                Items.Clear();
+
+                // Check if we have any visible flags defined
                 if (visibleFlags == null || visibleFlags.Count == 0)
                 {
-                    foreach (var flag in visibleFlags)
-                    {
-                        if (flag == Flag.HudInCombatMode && !status.Flags.HasFlag(Flag.HudInAnalysisMode))
-                        {
-                            Log.Debug("Adding synthetic flag: HudInCombatMode");
-                            AddFlagToItems(flag);
-                        }
-                        else if (flag == Flag.Docking && status.Flags.HasFlag(Flag.Docked) && _gameState.IsDocking)
-                        {
-                            Log.Debug("Adding synthetic flag: Docking");
-                            AddFlagToItems(flag);
-                        }
-                        else if (activeFlags.Contains(flag))
-                        {
-                            Log.Debug("Adding standard flag: \"{Flag}\"", flag);
-                            AddFlagToItems(flag);
-                        }
-                        else
-                        {
-                            Log.Debug("Skipping flag \"{Flag}\" ... not active", flag);
-                        }
-                    }
-
+                    Log.Debug("No visible flags defined in settings");
+                    return;
                 }
-                else
+
+                // Add flags in the user-defined order, but only if active
+                foreach (var flag in visibleFlags)
                 {
-                    // Only display flags that are both:
-                    // 1. Selected by the user in the options (in visibleFlags)
-                    // 2. Actually active in the current game state (in activeFlags)
-
-                    // Respect the exact order set by the user in the options dialog
-                    foreach (var flag in visibleFlags)
+                    if (flag == Flag.HudInCombatMode &&
+                        !_gameState.CurrentStatus.Flags.HasFlag(Flag.HudInAnalysisMode))
                     {
-                        // ✅ Handle synthetic HudInCombatMode
-                        if (flag == Flag.HudInCombatMode && !status.Flags.HasFlag(Flag.HudInAnalysisMode))
-                        {
-                            AddFlagToItems(flag);
-                            Log.Debug("Adding synthetic flag: HudInCombatMode");
-                        }
-                        // ✅ Handle synthetic Docking
-                        else if (flag == Flag.Docking && status.Flags.HasFlag(Flag.Docked) && _gameState.IsDocking)
-                        {
-                            AddFlagToItems(flag);
-                            Log.Debug("Adding synthetic flag: Docking");
-                        }
-                        // ✅ Handle all real flags
-                        else if (activeFlags.Contains(flag))
-                        {
-                            AddFlagToItems(flag);
-                            Log.Debug("Adding standard flag: {Flag}", flag);
-                        }
-                        else
-                        {
-                            Log.Debug("Skipping flag {Flag} — not active", flag);
-                        }
+                        Log.Debug("Adding synthetic flag: HudInCombatMode");
+                        AddFlagToItems(flag);
                     }
-
+                    else if (flag == Flag.Docking &&
+                             _gameState.CurrentStatus.Flags.HasFlag(Flag.Docked) &&
+                             _gameState.IsDocking)
+                    {
+                        Log.Debug("Adding synthetic flag: Docking");
+                        AddFlagToItems(flag);
+                    }
+                    else if (activeFlags.Contains(flag))
+                    {
+                        Log.Debug("Adding standard flag: {Flag}", flag);
+                        AddFlagToItems(flag);
+                    }
                 }
 
                 // Hide the card if no flags are being displayed
                 IsVisible = Items.Count > 0;
 
                 Log.Debug("Updated Flags Display: {Count} flags shown", Items.Count);
-            });
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error updating flags");
+            }
+        }
+
+        private HashSet<Flag> GetActiveFlags()
+        {
+            var status = _gameState.CurrentStatus;
+            if (status == null)
+                return new HashSet<Flag>();
+
+            // Get all active standard flags
+            var activeFlags = Enum.GetValues(typeof(Flag))
+                .Cast<Flag>()
+                .Where(flag => status.Flags.HasFlag(flag) && flag != Flag.None)
+                .ToHashSet();
+
+            // Add synthetic flags if active
+            if (!status.Flags.HasFlag(Flag.HudInAnalysisMode))
+            {
+                activeFlags.Add(SyntheticFlags.HudInCombatMode);
+            }
+
+            if (status.Flags.HasFlag(Flag.Docked) && _gameState.IsDocking)
+            {
+                activeFlags.Add(SyntheticFlags.Docking);
+            }
+
+            return activeFlags;
+        }
+
+        private bool AreActiveFlagsEqual(HashSet<Flag> set1, HashSet<Flag> set2)
+        {
+            if (set1.Count != set2.Count)
+                return false;
+
+            return set1.SetEquals(set2);
+        }
+
+        private bool AreFlagListsEqual(List<Flag> list1, List<Flag> list2)
+        {
+            if (list1 == null && list2 == null)
+                return true;
+            if (list1 == null || list2 == null)
+                return false;
+            if (list1.Count != list2.Count)
+                return false;
+
+            for (int i = 0; i < list1.Count; i++)
+            {
+                if (list1[i] != list2[i])
+                    return false;
+            }
+
+            return true;
         }
 
         private void AddFlagToItems(Flag flag)
@@ -173,21 +218,21 @@ namespace EliteInfoPanel.ViewModels
                 FontSize = (int)this.FontSize
             });
         }
-
-
-
-
+        #endregion
     }
 
     public class FlagItemViewModel : ViewModelBase
     {
+        #region Private Fields
         private Flag _flag;
         private string _displayText;
         private string _icon;
         private string _tooltip;
         private Brush _iconColor = Brushes.White;
         private int _fontSize = 14;
+        #endregion
 
+        #region Public Properties
         public Flag Flag
         {
             get => _flag;
@@ -223,7 +268,9 @@ namespace EliteInfoPanel.ViewModels
             get => _fontSize;
             set => SetProperty(ref _fontSize, value);
         }
+        #endregion
 
+        #region Constructor
         public FlagItemViewModel(Flag flag, string displayText, string icon, string tooltip, Brush iconColor = null)
         {
             _flag = flag;
@@ -232,6 +279,6 @@ namespace EliteInfoPanel.ViewModels
             _tooltip = tooltip;
             _iconColor = iconColor ?? Brushes.White;
         }
+        #endregion
     }
-
 }

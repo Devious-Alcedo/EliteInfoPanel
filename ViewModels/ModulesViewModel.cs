@@ -86,7 +86,7 @@ namespace EliteInfoPanel.ViewModels
             // Remove ColumnSpan = 2 assignment
 
             // Subscribe to game state events
-            _gameState.DataUpdated += UpdateModules;
+         //   _gameState.DataUpdated += UpdateModules;
 
             // Initial update
             try

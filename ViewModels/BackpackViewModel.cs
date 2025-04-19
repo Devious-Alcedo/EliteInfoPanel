@@ -35,7 +35,7 @@ namespace EliteInfoPanel.ViewModels
             _gameState = gameState;
 
             // Subscribe to game state updates
-            _gameState.DataUpdated += UpdateBackpack;
+        //    _gameState.DataUpdated += UpdateBackpack;
 
             // Initial update
             UpdateBackpack();

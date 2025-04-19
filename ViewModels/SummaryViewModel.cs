@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Linq;
 using System.Windows.Media;
 using System.Windows.Threading;
 using EliteInfoPanel.Core;
@@ -11,15 +13,20 @@ namespace EliteInfoPanel.ViewModels
 {
     public class SummaryViewModel : CardViewModel
     {
+        #region Private Fields
         private readonly GameStateService _gameState;
         private DispatcherTimer _carrierCountdownTimer;
         private SummaryItemViewModel _carrierCountdownItem;
+        private string _fuelPanelTitle;
+        private bool _showFuelBar;
+        private double _fuelMain;
+        private double _fuelReservoir;
+        private double _fuelBarRatio;
+        #endregion
+
+        #region Public Properties
         public ObservableCollection<SummaryItemViewModel> Items { get; } = new();
 
-        private SummaryItemViewModel FindItemByTag(string tag)
-        {
-            return Items.FirstOrDefault(x => x.Tag == tag);
-        }
         public override double FontSize
         {
             get => base.FontSize;
@@ -29,6 +36,7 @@ namespace EliteInfoPanel.ViewModels
                 {
                     base.FontSize = value;
 
+                    // Update font size for all items
                     foreach (var item in Items)
                     {
                         item.FontSize = (int)value;
@@ -37,54 +45,64 @@ namespace EliteInfoPanel.ViewModels
             }
         }
 
-
-        private string _fuelPanelTitle;
         public string FuelPanelTitle
         {
             get => _fuelPanelTitle;
             set => SetProperty(ref _fuelPanelTitle, value);
         }
 
-        private bool _showFuelBar;
         public bool ShowFuelBar
         {
             get => _showFuelBar;
             set => SetProperty(ref _showFuelBar, value);
         }
 
-        private double _fuelMain;
         public double FuelMain
         {
             get => _fuelMain;
             set => SetProperty(ref _fuelMain, value);
         }
 
-        private double _fuelReservoir;
         public double FuelReservoir
         {
             get => _fuelReservoir;
             set => SetProperty(ref _fuelReservoir, value);
         }
 
-        private double _fuelBarRatio;
         public double FuelBarRatio
         {
             get => _fuelBarRatio;
             set => SetProperty(ref _fuelBarRatio, value);
         }
+        #endregion
 
+        #region Constructor
         public SummaryViewModel(GameStateService gameState) : base("Summary")
         {
-            _gameState = gameState;
-            _gameState.DataUpdated += UpdateSummary;
-            UpdateSummary();
-        }
+            _gameState = gameState ?? throw new ArgumentNullException(nameof(gameState));
 
+            // Subscribe to property changes on the game state
+            _gameState.PropertyChanged += GameState_PropertyChanged;
+
+            // Initial update of all items
+            InitializeAllItems();
+        }
+        #endregion
+
+        #region Public Methods
         public void Initialize()
         {
             Log.Information("SummaryViewModel: Manual initialization requested");
-            UpdateSummary();
+            InitializeAllItems();
         }
+        #endregion
+
+        #region Private Methods
+        private SummaryItemViewModel FindItemByTag(string tag)
+        {
+            return Items.FirstOrDefault(x => x.Tag == tag);
+        }
+
         private void RemoveNonCustomItems()
         {
             Log.Debug("🧹 Running RemoveNonCustomItems...");
@@ -107,31 +125,90 @@ namespace EliteInfoPanel.ViewModels
             Log.Debug("📦 Items after cleanup: {Count}", Items.Count);
         }
 
-
-        private void UpdateSummary()
+        private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            // null check
-            if (_gameState == null)
+            // Check which property changed and update only what's needed
+            switch (e.PropertyName)
             {
-                Log.Error("GameStateService is null in UpdateSummary");
-                return;
-            }
-            if (System.Windows.Application.Current == null || !System.Windows.Application.Current.Dispatcher.CheckAccess())
-            {
-                System.Windows.Application.Current?.Dispatcher.Invoke(UpdateSummary);
-                return;
-            }
+                case nameof(GameStateService.CommanderName):
+                    UpdateCommanderItem();
+                    break;
 
+                case nameof(GameStateService.SquadronName):
+                    UpdateSquadronItem();
+                    break;
 
+                case nameof(GameStateService.ShipName):
+                case nameof(GameStateService.ShipLocalised):
+                case nameof(GameStateService.UserShipName):
+                case nameof(GameStateService.UserShipId):
+                    UpdateShipItem();
+                    break;
+
+                case nameof(GameStateService.Balance):
+                    UpdateBalanceItem();
+                    break;
+
+                case nameof(GameStateService.CurrentSystem):
+                    UpdateSystemItem();
+                    break;
+
+                case nameof(GameStateService.CurrentStatus):
+                case nameof(GameStateService.CurrentLoadout):
+                    UpdateFuelInfo();
+                    break;
+
+                case nameof(GameStateService.FleetCarrierJumpTime):
+                case nameof(GameStateService.CarrierJumpDestinationSystem):
+                    UpdateCarrierCountdown();
+                    break;
+            }
+        }
+
+        private void InitializeAllItems()
+        {
             try
             {
                 RemoveNonCustomItems();
-                int fontSize = (int)this.FontSize;
+
                 if (_gameState.CurrentStatus == null)
                     return;
 
-                // Commander
-                if (!string.IsNullOrEmpty(_gameState.CommanderName))
+                // Update all individual items
+                UpdateCommanderItem();
+                UpdateSquadronItem();
+                UpdateShipItem();
+                UpdateBalanceItem();
+                UpdateSystemItem();
+                UpdateFuelInfo();
+                UpdateCarrierCountdown();
+
+                // Log final state
+                Log.Debug("📋 Final Summary Items after initialization:");
+                foreach (var item in Items)
+                {
+                    Log.Debug("  - Tag: {Tag}, Content: {Content}", item.Tag, item.Content);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error in InitializeAllItems");
+            }
+        }
+
+        private void UpdateCommanderItem()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_gameState.CommanderName))
+                    return;
+
+                var item = FindItemByTag("Commander");
+                if (item != null)
+                {
+                    item.Content = $"CMDR {_gameState.CommanderName}";
+                }
+                else
                 {
                     Items.Add(new SummaryItemViewModel(
                         "Commander",
@@ -139,70 +216,147 @@ namespace EliteInfoPanel.ViewModels
                         Brushes.WhiteSmoke,
                         PackIconKind.AccountCircle)
                     {
-                        FontSize = fontSize
+                        FontSize = (int)this.FontSize
                     });
                 }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error updating Commander item");
+            }
+        }
 
-                // Squadron
-                if (!string.IsNullOrEmpty(_gameState.SquadronName))
+        private void UpdateSquadronItem()
+        {
+            try
+            {
+                var item = FindItemByTag("Squadron");
+
+                if (string.IsNullOrEmpty(_gameState.SquadronName))
                 {
-                    Items.Add(new SummaryItemViewModel(
-                        "Squadron",
-                        _gameState.SquadronName,
-                        Brushes.LightGoldenrodYellow,
-                        PackIconKind.AccountGroup)
+                    // Remove squadron item if it exists and no squadron name
+                    if (item != null)
                     {
-                        FontSize = fontSize
-                    });
-                }
-
-                // Ship
-                if (!string.IsNullOrEmpty(_gameState.ShipName))
-                {
-                    string shipDisplayName = !string.IsNullOrEmpty(_gameState.ShipLocalised)
-                        ? _gameState.ShipLocalised
-                        : ShipNameHelper.GetLocalisedName(_gameState.ShipName);
-
-                    string shipText = shipDisplayName;
-
-                    if (!string.IsNullOrEmpty(_gameState.UserShipName) || !string.IsNullOrEmpty(_gameState.UserShipId))
-                    {
-                        shipText += " - ";
-
-                        if (!string.IsNullOrEmpty(_gameState.UserShipName))
-                            shipText += _gameState.UserShipName;
-
-                        if (!string.IsNullOrEmpty(_gameState.UserShipId))
-                            shipText += $" [{_gameState.UserShipId}]";
+                        Items.Remove(item);
                     }
+                }
+                else
+                {
+                    if (item != null)
+                    {
+                        item.Content = _gameState.SquadronName;
+                    }
+                    else
+                    {
+                        Items.Add(new SummaryItemViewModel(
+                            "Squadron",
+                            _gameState.SquadronName,
+                            Brushes.LightGoldenrodYellow,
+                            PackIconKind.AccountGroup)
+                        {
+                            FontSize = (int)this.FontSize
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error updating Squadron item");
+            }
+        }
 
+        private void UpdateShipItem()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_gameState.ShipName))
+                    return;
+
+                string shipDisplayName = !string.IsNullOrEmpty(_gameState.ShipLocalised)
+                    ? _gameState.ShipLocalised
+                    : ShipNameHelper.GetLocalisedName(_gameState.ShipName);
+
+                string shipText = shipDisplayName;
+
+                if (!string.IsNullOrEmpty(_gameState.UserShipName) || !string.IsNullOrEmpty(_gameState.UserShipId))
+                {
+                    shipText += " - ";
+
+                    if (!string.IsNullOrEmpty(_gameState.UserShipName))
+                        shipText += _gameState.UserShipName;
+
+                    if (!string.IsNullOrEmpty(_gameState.UserShipId))
+                        shipText += $" [{_gameState.UserShipId}]";
+                }
+
+                var item = FindItemByTag("Ship");
+                if (item != null)
+                {
+                    item.Content = shipText;
+                }
+                else
+                {
                     Items.Add(new SummaryItemViewModel(
                         "Ship",
                         shipText,
                         Brushes.LightBlue,
                         PackIconKind.SpaceStation)
                     {
-                        FontSize = fontSize
-                                                     
+                        FontSize = (int)this.FontSize
                     });
                 }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error updating Ship item");
+            }
+        }
 
-                // Balance
-                if (_gameState.Balance.HasValue)
+        private void UpdateBalanceItem()
+        {
+            try
+            {
+                if (!_gameState.Balance.HasValue)
+                    return;
+
+                string balanceText = $"{_gameState.Balance.Value:N0} Cr";
+                var item = FindItemByTag("Balance");
+
+                if (item != null)
                 {
-                    string balanceText = $"{_gameState.Balance.Value:N0} Cr";
+                    item.Content = balanceText;
+                }
+                else
+                {
                     Items.Add(new SummaryItemViewModel(
                         "Balance",
                         balanceText,
                         Brushes.LightGreen,
                         PackIconKind.CurrencyUsd)
                     {
-                        FontSize = fontSize
+                        FontSize = (int)this.FontSize
                     });
                 }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error updating Balance item");
+            }
+        }
 
-                // Current System
-                if (!string.IsNullOrEmpty(_gameState.CurrentSystem))
+        private void UpdateSystemItem()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_gameState.CurrentSystem))
+                    return;
+
+                var item = FindItemByTag("System");
+                if (item != null)
+                {
+                    item.Content = _gameState.CurrentSystem;
+                }
+                else
                 {
                     Items.Add(new SummaryItemViewModel(
                         "System",
@@ -210,38 +364,16 @@ namespace EliteInfoPanel.ViewModels
                         Brushes.Orange,
                         PackIconKind.Earth)
                     {
-                        FontSize = fontSize
+                        FontSize = (int)this.FontSize
                     });
                 }
-
-                // Heat
-             
-
-
-                UpdateFuelInfo();
-                if (_gameState.JumpCountdown is TimeSpan countdown && countdown.TotalSeconds > 0)
-                {
-                    StartCarrierCountdown(countdown, _gameState.CarrierJumpDestinationSystem);
-                }
-
-                else
-                {
-                    StopCarrierCountdown();
-                }
-
-                Log.Debug("📋 Final Summary Items:");
-                foreach (var item in Items)
-                {
-                    Log.Debug("  - Tag: {Tag}, Content: {Content}", item.Tag, item.Content);
-                }
-
-
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Error in UpdateSummary");
+                Log.Error(ex, "Error updating System item");
             }
         }
+
         private string FormatCountdownText(TimeSpan time, string destination)
         {
             string timeText = time.TotalMinutes >= 60
@@ -249,8 +381,27 @@ namespace EliteInfoPanel.ViewModels
                 : $"{(int)time.TotalMinutes:00}:{time.Seconds:00}";
 
             return $"Carrier Jump: {timeText}\nto {destination}";
-
         }
+
+        private void UpdateCarrierCountdown()
+        {
+            try
+            {
+                if (_gameState.JumpCountdown is TimeSpan countdown && countdown.TotalSeconds > 0)
+                {
+                    StartCarrierCountdown(countdown, _gameState.CarrierJumpDestinationSystem);
+                }
+                else
+                {
+                    StopCarrierCountdown();
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error updating carrier countdown");
+            }
+        }
+
         private void StopCarrierCountdown()
         {
             Log.Debug("🛑 Stopping CarrierCountdown");
@@ -263,7 +414,6 @@ namespace EliteInfoPanel.ViewModels
                 _carrierCountdownItem = null;
             }
         }
-
 
         private void StartCarrierCountdown(TimeSpan initialCountdown, string destination)
         {
@@ -278,7 +428,6 @@ namespace EliteInfoPanel.ViewModels
                     PackIconKind.RocketLaunch)
                 {
                     FontSize = (int)this.FontSize
-
                 };
 
                 Items.Add(_carrierCountdownItem);
@@ -289,7 +438,7 @@ namespace EliteInfoPanel.ViewModels
                 _carrierCountdownItem = existing;
                 _carrierCountdownItem.Content = FormatCountdownText(initialCountdown, destination);
 
-                // ✅ Only reset color if not red or green
+                // Only reset color if not red or green
                 if (_carrierCountdownItem.Foreground != Brushes.Red &&
                     _carrierCountdownItem.Foreground != Brushes.LightGreen)
                 {
@@ -300,7 +449,7 @@ namespace EliteInfoPanel.ViewModels
                 Log.Debug("🔁 Reusing existing CarrierJumpCountdown item.");
             }
 
-            // ✅ Move to end of list (if not already last)
+            // Move to end of list (if not already last)
             if (Items.IndexOf(_carrierCountdownItem) != Items.Count - 1)
             {
                 Items.Remove(_carrierCountdownItem);
@@ -353,9 +502,8 @@ namespace EliteInfoPanel.ViewModels
                 }
 
                 _carrierCountdownItem.Content = FormatCountdownText(remaining, destination);
-            
 
-                // ✅ Style logic
+                // Style logic
                 if (remaining.TotalMinutes <= 2.75 && _carrierCountdownItem.Foreground != Brushes.Red)
                 {
                     _carrierCountdownItem.Foreground = Brushes.Red;
@@ -371,44 +519,65 @@ namespace EliteInfoPanel.ViewModels
                     _carrierCountdownItem.Foreground = Brushes.LightGreen;
                     _carrierCountdownItem.Pulse = false;
                 }
-
-                Log.Debug("⏱ Tick Update: {Content}", _carrierCountdownItem.Content);
-                Log.Debug(" - Foreground: {Foreground}", _carrierCountdownItem.Foreground.ToString());
-                Log.Debug(" - Pulse: {Pulse}", _carrierCountdownItem.Pulse);
-                Log.Debug(" - Items.Count: {Count}", Items.Count);
-
-                for (int i = 0; i < Items.Count; i++)
-                {
-                    var item = Items[i];
-                    Log.Debug("   - Item[{0}] Tag={1}, Content={2}", i, item.Tag, item.Content);
-                }
             };
 
             _carrierCountdownTimer.Start();
         }
 
-
-        private void UpdateFuelInfo()
+        private bool UpdateFuelInfo()
         {
             if (!System.Windows.Application.Current.Dispatcher.CheckAccess())
             {
-                System.Windows.Application.Current.Dispatcher.Invoke(UpdateFuelInfo);
-                return;
+                bool result = false;
+                System.Windows.Application.Current.Dispatcher.Invoke(() => result = UpdateFuelInfo());
+                return result;
             }
+
             try
             {
                 var status = _gameState.CurrentStatus;
                 if (status?.Fuel == null)
                 {
-                    ShowFuelBar = false;
-                    return;
+                    if (ShowFuelBar)
+                    {
+                        ShowFuelBar = false;
+                        return true;
+                    }
+                    return false;
                 }
+
+                bool fuelChanged = false;
+                double currentFuelMain = 0;
+                double currentFuelReservoir = 0;
+
                 if (status.Flags.HasFlag(Flag.InSRV) && status.SRV != null)
                 {
-                    FuelMain = Math.Round(status.SRV.Fuel, 2);
-                    FuelReservoir = 0;
-                    FuelBarRatio = FuelMain;
-                    ShowFuelBar = true;
+                    currentFuelMain = Math.Round(status.SRV.Fuel, 2);
+                    currentFuelReservoir = 0;
+
+                    if (Math.Abs(FuelMain - currentFuelMain) > 0.01)
+                    {
+                        FuelMain = currentFuelMain;
+                        fuelChanged = true;
+                    }
+
+                    if (Math.Abs(FuelReservoir - currentFuelReservoir) > 0.01)
+                    {
+                        FuelReservoir = currentFuelReservoir;
+                        fuelChanged = true;
+                    }
+
+                    if (Math.Abs(FuelBarRatio - FuelMain) > 0.01)
+                    {
+                        FuelBarRatio = FuelMain;
+                        fuelChanged = true;
+                    }
+
+                    if (!ShowFuelBar)
+                    {
+                        ShowFuelBar = true;
+                        fuelChanged = true;
+                    }
                 }
                 else if (status.Fuel != null)
                 {
@@ -421,73 +590,51 @@ namespace EliteInfoPanel.ViewModels
 
                     if (fsd != null && loadout != null && status != null && cargo != null)
                     {
-                        // Log detailed information about the parameters for debugging
-                        var fsdKey = FsdJumpRangeCalculator.GetFsdSpecKeyFromItem(fsd.Item);
-                        double cargoMass = cargo?.Inventory?.Sum(i => i.Count) ?? 0;
-
-                        Log.Debug("🚀 Jump Range Debug - Parameters:");
-                        Log.Debug("  - FSD Module: {0}, Key: {1}", fsd.Item, fsdKey);
-                        Log.Debug("  - Loadout: UnladenMass={0}, Game MaxJumpRange={1}",
-                            loadout.UnladenMass, loadout.MaxJumpRange);
-                        Log.Debug("  - Fuel: Main={0}, Reserve={1}",
-                            status.Fuel.FuelMain, status.Fuel.FuelReservoir);
-                        Log.Debug("  - Cargo Mass: {0}", cargoMass);
-
-                        // Log FSD engineering if present
-                        if (fsd.Engineering != null && fsd.Engineering.Modifiers != null)
-                        {
-                            var optMassModifier = fsd.Engineering.Modifiers
-                                .FirstOrDefault(m => m.Label.Equals("FSDOptimalMass", StringComparison.OrdinalIgnoreCase));
-                            if (optMassModifier != null)
-                            {
-                                Log.Debug("  - FSD Engineering: OptimalMass={0}", optMassModifier.Value);
-                            }
-                        }
-
-                        // Try different base constant values for debugging
-                        if (fsdKey != null)
-                        {
-                            int size = int.Parse(fsdKey[0].ToString());
-                            char rating = fsdKey[1];
-
-                            // Get constants from dictionaries (assuming these are accessible)
-                            // This is just pseudocode - adjust to match your actual implementation
-                            double classConstant = 0;
-                            double ratingConstant = 0;
-
-                            // Use reflection to get the constants if they're private
-                            var classConstants = typeof(FsdJumpRangeCalculator)
-                                .GetField("ClassConstants", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
-                                ?.GetValue(null) as Dictionary<int, double>;
-
-                            var ratingConstants = typeof(FsdJumpRangeCalculator)
-                                .GetField("RatingConstants", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
-                                ?.GetValue(null) as Dictionary<char, double>;
-
-                            if (classConstants != null && ratingConstants != null)
-                            {
-                                classConstants.TryGetValue(size, out classConstant);
-                                ratingConstants.TryGetValue(rating, out ratingConstant);
-
-                                Log.Debug("  - Constants: Class={0}, Rating={1}", classConstant, ratingConstant);
-                            }
-                        }
-
                         // Calculate the jump ranges
                         double maxRange = FsdJumpRangeCalculator.CalculateMaxJumpRange(fsd, loadout, status, cargo);
                         double currentRange = FsdJumpRangeCalculator.CalculateCurrentJumpRange(fsd, loadout, status, cargo);
 
-                        // Compare with game provided value if available
-                        if (loadout.MaxJumpRange > 0)
+                        // Update the fuel panel title
+                        FuelPanelTitle = $"Fuel - Current: {currentRange:0.00} LY | Max: {maxRange:0.00} LY";
+
+                        // Update fuel levels
+                        currentFuelMain = Math.Round(status.Fuel.FuelMain, 2);
+                        currentFuelReservoir = Math.Round(status.Fuel.FuelReservoir, 2);
+
+                        if (Math.Abs(FuelMain - currentFuelMain) > 0.01)
                         {
-                            Log.Debug("  - COMPARISON - Calculated Max: {0:0.00} LY, Game Max: {1:0.00} LY, Ratio: {2:0.00}",
-                                maxRange, loadout.MaxJumpRange, loadout.MaxJumpRange / maxRange);
+                            FuelMain = currentFuelMain;
+                            fuelChanged = true;
                         }
 
-                        Log.Debug("  - Final calculated values - Current: {0:0.00} LY, Max: {1:0.00} LY",
-                            currentRange, maxRange);
+                        if (Math.Abs(FuelReservoir - currentFuelReservoir) > 0.01)
+                        {
+                            FuelReservoir = currentFuelReservoir;
+                            fuelChanged = true;
+                        }
 
-                        FuelPanelTitle = $"Fuel - Current: {currentRange:0.00} LY | Max: {maxRange:0.00} LY";
+                        if (loadout?.FuelCapacity?.Main > 0)
+                        {
+                            double max = loadout.FuelCapacity.Main;
+                            double ratio = Math.Min(1.0, FuelMain / max);
+
+                            if (Math.Abs(FuelBarRatio - ratio) > 0.01)
+                            {
+                                FuelBarRatio = ratio;
+                                fuelChanged = true;
+                            }
+
+                            if (!ShowFuelBar)
+                            {
+                                ShowFuelBar = true;
+                                fuelChanged = true;
+                            }
+                        }
+                        else if (ShowFuelBar)
+                        {
+                            ShowFuelBar = false;
+                            fuelChanged = true;
+                        }
                     }
                     else
                     {
@@ -495,32 +642,32 @@ namespace EliteInfoPanel.ViewModels
                         Log.Warning("Missing components for jump range calculation: FSD={0}, Loadout={1}, Status={2}, Cargo={3}",
                             fsd != null, loadout != null, status != null, cargo != null);
 
-                        FuelPanelTitle = "Fuel - Jump range: Unknown";
-                    }
-
-                    FuelMain = Math.Round(status.Fuel.FuelMain, 2);
-                    FuelReservoir = Math.Round(status.Fuel.FuelReservoir, 2);
-                    if (loadout?.FuelCapacity?.Main > 0)
-                    {
-                        double max = loadout.FuelCapacity.Main;
-                        FuelBarRatio = Math.Min(1.0, FuelMain / max);
-                        ShowFuelBar = true;
-                    }
-                    else
-                    {
-                        ShowFuelBar = false;
+                        if (ShowFuelBar)
+                        {
+                            ShowFuelBar = false;
+                            fuelChanged = true;
+                        }
                     }
                 }
-                else
+                else if (ShowFuelBar)
                 {
                     ShowFuelBar = false;
+                    fuelChanged = true;
                 }
+
+                return fuelChanged;
             }
             catch (Exception ex)
             {
                 Log.Error(ex, "Error in UpdateFuelInfo");
-                ShowFuelBar = false;
+                if (ShowFuelBar)
+                {
+                    ShowFuelBar = false;
+                    return true;
+                }
+                return false;
             }
         }
+        #endregion
     }
 }

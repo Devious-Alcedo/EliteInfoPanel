@@ -11,24 +11,89 @@ namespace EliteInfoPanel.ViewModels
 {
     public class SettingsViewModel : ViewModelBase
     {
+        #region Private Fields
+
+       
         private AppSettings _appSettings;
-        public AppSettings AppSettings => _appSettings;
-        public event Action DisplayChangeRequested;
-        private double _fontSizePreview = 14;
-        public double FontSizePreview
-        {
-            get => _fontSizePreview;
-            set => SetProperty(ref _fontSizePreview, value);
-        }
         private int _fontSize = 14;
-        public int FontSize
+        private double _fontSizePreview = 14;
+
+        #endregion Private Fields
+
+        #region Public Constructors
+
+        public SettingsViewModel(AppSettings settings)
         {
-            get => _fontSize;
-            set => SetProperty(ref _fontSize, value);
+            _appSettings = settings ?? throw new ArgumentNullException(nameof(settings));
+
+            // Initialize default font scales if they're 0
+            if (_appSettings.FullscreenFontScale <= 0)
+                _appSettings.FullscreenFontScale = 1.0;
+
+            if (_appSettings.FloatingFontScale <= 0)
+                _appSettings.FloatingFontScale = 1.0;
+
+            // Initialize preview font size
+            UpdateFontSizePreview();
+
+            // Initialize commands
+            SaveCommand = new RelayCommand(_ => SaveSettings());
+            CancelCommand = new RelayCommand(_ => { /* Will be handled by view */ });
+            ChangeDisplayCommand = new RelayCommand(_ => RequestDisplayChange());
         }
 
-        // Font scale properties
-        // Replace both font scale property setters in SettingsViewModel.cs
+        #endregion Public Constructors
+
+        #region Public Events
+
+        public event Action DisplayChangeRequested;
+
+        // Event for font size change
+        public event Action FontSizeChanged;
+
+        // Event for screen change notification
+        public event Action<Screen> ScreenChanged;
+
+        #endregion Public Events
+
+        #region Public Properties
+
+        public bool AlwaysOnTop
+        {
+            get => _appSettings.AlwaysOnTop;
+            set
+            {
+                if (_appSettings.AlwaysOnTop != value)
+                {
+                    _appSettings.AlwaysOnTop = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public AppSettings AppSettings => _appSettings;
+        public RelayCommand CancelCommand { get; set; }
+
+        public RelayCommand ChangeDisplayCommand { get; set; }
+
+        public double CurrentFontScale
+        {
+            get => IsFloatingWindowMode ? FloatingFontScale : FullscreenFontScale;
+            set
+            {
+                if (IsFloatingWindowMode)
+                {
+                    FloatingFontScale = value;
+                }
+                else
+                {
+                    FullscreenFontScale = value;
+                }
+
+                // Also notify that the scale percentage text has changed
+                OnPropertyChanged(nameof(ScalePercentage));
+            }
+        }
 
         public double FloatingFontScale
         {
@@ -51,12 +116,20 @@ namespace EliteInfoPanel.ViewModels
                 }
             }
         }
-        public string ScalePercentage
+
+        public double FontScaleStep => 0.05;
+
+        public int FontSize
         {
-            get => $"Scale: {CurrentFontScale:P0}";
+            get => _fontSize;
+            set => SetProperty(ref _fontSize, value);
         }
 
-
+        public double FontSizePreview
+        {
+            get => _fontSizePreview;
+            set => SetProperty(ref _fontSizePreview, value);
+        }
         public double FullscreenFontScale
         {
             get => _appSettings.FullscreenFontScale;
@@ -79,44 +152,91 @@ namespace EliteInfoPanel.ViewModels
             }
         }
 
-        // Font scale bounds
-        public double MinFontScale => 0.7;
-        public double MaxFontScale => 1.5;
-        public double FontScaleStep => 0.05;
-
-        // Current font scale based on window mode
-        // Replace the CurrentFontScale property in SettingsViewModel.cs
-
-        public double CurrentFontScale
+        public bool IsFloatingWindowMode
         {
-            get => IsFloatingWindowMode ? FloatingFontScale : FullscreenFontScale;
+            get => _appSettings.UseFloatingWindow;
             set
             {
-                if (IsFloatingWindowMode)
+                if (_appSettings.UseFloatingWindow != value)
                 {
-                    FloatingFontScale = value;
+                    _appSettings.UseFloatingWindow = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsFullScreenMode));
+                    OnPropertyChanged(nameof(CurrentFontScale));
+                    UpdateFontSizePreview();
                 }
-                else
-                {
-                    FullscreenFontScale = value;
-                }
-
-                // Also notify that the scale percentage text has changed
-                OnPropertyChanged(nameof(ScalePercentage));
             }
         }
 
-        private void UpdateFontSizePreview()
+        // Window mode properties
+        public bool IsFullScreenMode
         {
-            // Update preview text size based on current scale
-            double baseFontSize = AppSettings.UseFloatingWindow
-                ? AppSettings.DEFAULT_FLOATING_BASE * FloatingFontScale
-                : AppSettings.DEFAULT_FULLSCREEN_BASE * FullscreenFontScale;
+            get => !_appSettings.UseFloatingWindow;
+            set
+            {
+                if (_appSettings.UseFloatingWindow == value)
+                {
+                    _appSettings.UseFloatingWindow = !value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsFloatingWindowMode));
+                    OnPropertyChanged(nameof(CurrentFontScale));
+                    UpdateFontSizePreview();
+                }
+            }
+        }
 
-            FontSizePreview = baseFontSize;
-            Log.Debug("Font size preview updated to: {Size} (scale: {Scale})",
-                baseFontSize,
-                IsFloatingWindowMode ? FloatingFontScale : FullscreenFontScale);
+        public double MaxFontScale => 1.5;
+
+        // Font scale bounds
+        public double MinFontScale => 0.7;
+
+        // Commands
+        public RelayCommand SaveCommand { get; set; }
+
+        // Font scale properties
+        // Replace both font scale property setters in SettingsViewModel.cs
+        public string ScalePercentage
+        {
+            get => $"Scale: {CurrentFontScale:P0}";
+        }
+        public bool ShowBackpack
+        {
+            get => _appSettings.DisplayOptions.ShowBackpack;
+            set
+            {
+                if (_appSettings.DisplayOptions.ShowBackpack != value)
+                {
+                    _appSettings.DisplayOptions.ShowBackpack = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool ShowCargo
+        {
+            get => _appSettings.DisplayOptions.ShowCargo;
+            set
+            {
+                if (_appSettings.DisplayOptions.ShowCargo != value)
+                {
+                    _appSettings.DisplayOptions.ShowCargo = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        // Panel display options
+        public bool ShowCommanderName
+        {
+            get => _appSettings.DisplayOptions.ShowCommanderName;
+            set
+            {
+                if (_appSettings.DisplayOptions.ShowCommanderName != value)
+                {
+                    _appSettings.DisplayOptions.ShowCommanderName = value;
+                    OnPropertyChanged();
+                }
+            }
         }
 
         // Flag properties
@@ -146,20 +266,6 @@ namespace EliteInfoPanel.ViewModels
             }
         }
 
-        // Panel display options
-        public bool ShowCommanderName
-        {
-            get => _appSettings.DisplayOptions.ShowCommanderName;
-            set
-            {
-                if (_appSettings.DisplayOptions.ShowCommanderName != value)
-                {
-                    _appSettings.DisplayOptions.ShowCommanderName = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
         public bool ShowFuelLevel
         {
             get => _appSettings.DisplayOptions.ShowFuelLevel;
@@ -168,32 +274,6 @@ namespace EliteInfoPanel.ViewModels
                 if (_appSettings.DisplayOptions.ShowFuelLevel != value)
                 {
                     _appSettings.DisplayOptions.ShowFuelLevel = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public bool ShowCargo
-        {
-            get => _appSettings.DisplayOptions.ShowCargo;
-            set
-            {
-                if (_appSettings.DisplayOptions.ShowCargo != value)
-                {
-                    _appSettings.DisplayOptions.ShowCargo = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public bool ShowBackpack
-        {
-            get => _appSettings.DisplayOptions.ShowBackpack;
-            set
-            {
-                if (_appSettings.DisplayOptions.ShowBackpack != value)
-                {
-                    _appSettings.DisplayOptions.ShowBackpack = value;
                     OnPropertyChanged();
                 }
             }
@@ -212,94 +292,22 @@ namespace EliteInfoPanel.ViewModels
             }
         }
 
-        // Window mode properties
-        public bool IsFullScreenMode
-        {
-            get => !_appSettings.UseFloatingWindow;
-            set
-            {
-                if (_appSettings.UseFloatingWindow == value)
-                {
-                    _appSettings.UseFloatingWindow = !value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(IsFloatingWindowMode));
-                    OnPropertyChanged(nameof(CurrentFontScale));
-                    UpdateFontSizePreview();
-                }
-            }
-        }
+        #endregion Public Properties
 
-        public bool IsFloatingWindowMode
-        {
-            get => _appSettings.UseFloatingWindow;
-            set
-            {
-                if (_appSettings.UseFloatingWindow != value)
-                {
-                    _appSettings.UseFloatingWindow = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(IsFullScreenMode));
-                    OnPropertyChanged(nameof(CurrentFontScale));
-                    UpdateFontSizePreview();
-                }
-            }
-        }
-
-        public bool AlwaysOnTop
-        {
-            get => _appSettings.AlwaysOnTop;
-            set
-            {
-                if (_appSettings.AlwaysOnTop != value)
-                {
-                    _appSettings.AlwaysOnTop = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        // Commands
-        public RelayCommand SaveCommand { get; set; }
-        public RelayCommand CancelCommand { get; set; }
-        public RelayCommand ChangeDisplayCommand { get; set; }
-
-        private void RequestDisplayChange()
-        {
-            DisplayChangeRequested?.Invoke();
-        }
-
-        // Event for screen change notification
-        public event Action<Screen> ScreenChanged;
-
-        // Event for font size change
-        public event Action FontSizeChanged;
-
-        public SettingsViewModel(AppSettings settings)
-        {
-            _appSettings = settings ?? throw new ArgumentNullException(nameof(settings));
-
-            // Initialize default font scales if they're 0
-            if (_appSettings.FullscreenFontScale <= 0)
-                _appSettings.FullscreenFontScale = 1.0;
-
-            if (_appSettings.FloatingFontScale <= 0)
-                _appSettings.FloatingFontScale = 1.0;
-
-            // Initialize preview font size
-            UpdateFontSizePreview();
-
-            // Initialize commands
-            SaveCommand = new RelayCommand(_ => SaveSettings());
-            CancelCommand = new RelayCommand(_ => { /* Will be handled by view */ });
-            ChangeDisplayCommand = new RelayCommand(_ => RequestDisplayChange());
-        }
-        // Add this public method to the SettingsViewModel class
+        #region Public Methods
 
         // Public method to notify font size changes
         public void NotifyFontSizeChanged()
         {
             FontSizeChanged?.Invoke();
         }
+
+        public void RaisePropertyChanged(string propertyName)
+        {
+            OnPropertyChanged(propertyName);
+        }
+
+        // Add this public method to the SettingsViewModel class
         public void SaveSettings()
         {
             SettingsManager.Save(_appSettings);
@@ -308,10 +316,7 @@ namespace EliteInfoPanel.ViewModels
                 _appSettings.FullscreenFontScale,
                 _appSettings.FloatingFontScale);
         }
-        public void RaisePropertyChanged(string propertyName)
-        {
-            OnPropertyChanged(propertyName);
-        }
+
         // Method to handle screen selection
         public void SelectScreen(Screen screen)
         {
@@ -322,5 +327,31 @@ namespace EliteInfoPanel.ViewModels
                 ScreenChanged?.Invoke(screen);
             }
         }
+
+        #endregion Public Methods
+
+        #region Private Methods
+
+        private void RequestDisplayChange()
+        {
+            DisplayChangeRequested?.Invoke();
+        }
+
+        // Current font scale based on window mode
+        // Replace the CurrentFontScale property in SettingsViewModel.cs
+        private void UpdateFontSizePreview()
+        {
+            // Update preview text size based on current scale
+            double baseFontSize = AppSettings.UseFloatingWindow
+                ? AppSettings.DEFAULT_FLOATING_BASE * FloatingFontScale
+                : AppSettings.DEFAULT_FULLSCREEN_BASE * FullscreenFontScale;
+
+            FontSizePreview = baseFontSize;
+            Log.Debug("Font size preview updated to: {Size} (scale: {Scale})",
+                baseFontSize,
+                IsFloatingWindowMode ? FloatingFontScale : FullscreenFontScale);
+        }
+
+        #endregion Private Methods
     }
 }

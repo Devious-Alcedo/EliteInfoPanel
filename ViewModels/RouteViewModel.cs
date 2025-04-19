@@ -97,7 +97,7 @@ namespace EliteInfoPanel.ViewModels
         {
             _gameState = gameState;
             CopySystemNameCommand = new RelayCommand(CopySystemName);
-            _gameState.DataUpdated += UpdateRoute;
+          //  _gameState.DataUpdated += UpdateRoute;
             UpdateRoute();
         }
 
