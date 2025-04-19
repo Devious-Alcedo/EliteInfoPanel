@@ -211,8 +211,8 @@ namespace EliteInfoPanel.ViewModels
                     {
                         remainingFuel -= fuelUsed;
                         currentPos = targetSystem;
-                        label += $"\n  [Distance: {jumpDistance:0.00} LY]";
-                        label += $"\n  [⛽ {remainingFuel:0.00}T after jump]";
+                            label += $"\n  [Distance: {jumpDistance:0.00} LY] ({jump.StarClass})";
+                            label += $"\n  [⛽ {remainingFuel:0.00}T after jump]";
 
                         if (i + 1 < nextJumps.Count && nextJumps[i + 1].StarPos?.Length == 3)
                         {
@@ -240,16 +240,21 @@ namespace EliteInfoPanel.ViewModels
 
                             }
 
-                            Items.Add(new RouteItemViewModel(label, jump.StarClass, jump.SystemAddress, RouteItemType.System)
-                        {
-                            FontSize = (int)this.FontSize,
-                            IsScoopable = isScoopable,
-                            JumpRequiresFuel = true,
-                            IsReachable = false,
-                            ShowRefuelHint = false
-                        });
+                            var routeItem = new RouteItemViewModel(label, jump.StarClass, jump.SystemAddress, RouteItemType.System)
+                            {
+                                FontSize = (int)this.FontSize,
+                                IsScoopable = isScoopable,
+                                JumpRequiresFuel = willRunOutOfFuel,
+                                IsReachable = !willRunOutOfFuel,
+                                ShowRefuelHint = showRefuelHint
+                            };
 
-                        currentPos = targetSystem;
+                            Log.Information("Adding RouteItem: {System} | StarClass: {Class} | Scoopable: {Scoopable} | IconColor: {Color}",
+                                jump.StarSystem, jump.StarClass, isScoopable, routeItem.IconColor.ToString());
+
+                            Items.Add(routeItem);
+
+                            currentPos = targetSystem;
                         continue;
                     }
                 }
@@ -356,7 +361,18 @@ namespace EliteInfoPanel.ViewModels
         public bool ShowRefuelHint { get; set; }
 
         public string Icon => ItemType != RouteItemType.System ? string.Empty : IsScoopable ? "🟡" : "🔴";
-        public Brush IconColor => JumpRequiresFuel ? Brushes.Red : IsScoopable ? Brushes.Gold : Brushes.White;
+        public Brush IconColor
+        {
+            get
+            {
+                if (!IsReachable)
+                    return Brushes.Gray;
+                if (JumpRequiresFuel)
+                    return Brushes.White;
+                return IsScoopable ? Brushes.Gold : Brushes.Red;
+            }
+        }
+
         public string RefuelHint => ShowRefuelHint ? "🔄 Refuel here!" : null;
         public Brush RefuelColor => Brushes.Gold;
         public Brush TextColor => !IsReachable ? Brushes.Gray : IsFuelWarning || JumpRequiresFuel ? Brushes.Red : IsNextJump ? Brushes.LightGreen : IsScoopable ? Brushes.Gold : Brushes.White;

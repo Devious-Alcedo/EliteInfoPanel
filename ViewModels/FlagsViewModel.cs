@@ -64,7 +64,7 @@ namespace EliteInfoPanel.ViewModels
                     .Cast<Flag>()
                     .Where(flag => status.Flags.HasFlag(flag) && flag != Flag.None)
                     .ToHashSet();
-                Log.Information("HudInAnalysisMode? {Value}", status.Flags.HasFlag(Flag.HudInAnalysisMode));
+                Log.Debug("HudInAnalysisMode? {Value}", status.Flags.HasFlag(Flag.HudInAnalysisMode));
 
                 // Add synthetic flags if active
                 foreach (var synthetic in SyntheticFlags.All)
@@ -81,7 +81,7 @@ namespace EliteInfoPanel.ViewModels
                 }
 
 
-                Log.Information("Active flags after synthetic injection: {Flags}",
+                Log.Debug("Active flags after synthetic injection: {Flags}",
                     string.Join(", ", activeFlags.Select(f => f.ToString())));
 
                 // Get the user's ordered visible flags
@@ -89,8 +89,8 @@ namespace EliteInfoPanel.ViewModels
                 var latestSettings = SettingsManager.Load();
                 var visibleFlags = latestSettings.DisplayOptions.VisibleFlags;
 
-                Log.Information("Loaded VisibleFlags from settings: {Flags}", string.Join(", ", visibleFlags));
-                Log.Information("ActiveFlags this frame: {Flags}", string.Join(", ", activeFlags));
+                Log.Debug("Loaded VisibleFlags from settings: {Flags}", string.Join(", ", visibleFlags));
+                Log.Debug("ActiveFlags this frame: {Flags}", string.Join(", ", activeFlags));
 
                 // If no visible flags are defined, use default order of active flags
                 if (visibleFlags == null || visibleFlags.Count == 0)
@@ -99,22 +99,22 @@ namespace EliteInfoPanel.ViewModels
                     {
                         if (flag == Flag.HudInCombatMode && !status.Flags.HasFlag(Flag.HudInAnalysisMode))
                         {
-                            Log.Information("Adding synthetic flag: HudInCombatMode");
+                            Log.Debug("Adding synthetic flag: HudInCombatMode");
                             AddFlagToItems(flag);
                         }
                         else if (flag == Flag.Docking && status.Flags.HasFlag(Flag.Docked) && _gameState.IsDocking)
                         {
-                            Log.Information("Adding synthetic flag: Docking");
+                            Log.Debug("Adding synthetic flag: Docking");
                             AddFlagToItems(flag);
                         }
                         else if (activeFlags.Contains(flag))
                         {
-                            Log.Information("Adding standard flag: \"{Flag}\"", flag);
+                            Log.Debug("Adding standard flag: \"{Flag}\"", flag);
                             AddFlagToItems(flag);
                         }
                         else
                         {
-                            Log.Information("Skipping flag \"{Flag}\" ... not active", flag);
+                            Log.Debug("Skipping flag \"{Flag}\" ... not active", flag);
                         }
                     }
 
@@ -132,23 +132,23 @@ namespace EliteInfoPanel.ViewModels
                         if (flag == Flag.HudInCombatMode && !status.Flags.HasFlag(Flag.HudInAnalysisMode))
                         {
                             AddFlagToItems(flag);
-                            Log.Information("Adding synthetic flag: HudInCombatMode");
+                            Log.Debug("Adding synthetic flag: HudInCombatMode");
                         }
                         // ✅ Handle synthetic Docking
                         else if (flag == Flag.Docking && status.Flags.HasFlag(Flag.Docked) && _gameState.IsDocking)
                         {
                             AddFlagToItems(flag);
-                            Log.Information("Adding synthetic flag: Docking");
+                            Log.Debug("Adding synthetic flag: Docking");
                         }
                         // ✅ Handle all real flags
                         else if (activeFlags.Contains(flag))
                         {
                             AddFlagToItems(flag);
-                            Log.Information("Adding standard flag: {Flag}", flag);
+                            Log.Debug("Adding standard flag: {Flag}", flag);
                         }
                         else
                         {
-                            Log.Information("Skipping flag {Flag} — not active", flag);
+                            Log.Debug("Skipping flag {Flag} — not active", flag);
                         }
                     }
 
@@ -157,7 +157,7 @@ namespace EliteInfoPanel.ViewModels
                 // Hide the card if no flags are being displayed
                 IsVisible = Items.Count > 0;
 
-                Log.Information("Updated Flags Display: {Count} flags shown", Items.Count);
+                Log.Debug("Updated Flags Display: {Count} flags shown", Items.Count);
             });
         }
 

@@ -111,8 +111,8 @@
                                                                     <Run Text="{Binding SystemText, Mode=OneWay}"
                                                                          Foreground="White"/>
                                                                     <Run Text="{Binding RefuelHint, Mode=OneWay}" 
-     Foreground="{Binding RefuelColor, Mode=OneWay}" 
-     FontWeight="Bold" />
+                                                                         Foreground="{Binding RefuelColor, Mode=OneWay}" 
+                                                                         FontWeight="Bold" />
                                                                 </TextBlock.Inlines>
                                                                 <TextBlock.InputBindings>
                                                                     <MouseBinding Gesture="LeftClick"
