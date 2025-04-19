@@ -32,6 +32,8 @@ namespace EliteInfoPanel.Core
                 return false;
 
             storage = value;
+            Log.Information("🚨 SetProperty fired for: {Property}", propertyName); // 👈 TEMP LOG
+
             OnPropertyChanged(propertyName);
             return true;
         }
@@ -282,6 +284,9 @@ namespace EliteInfoPanel.Core
         #region Events
         // Event for hyperspace jump notification
         public event Action<bool, string> HyperspaceJumping;
+        public event Action LoadoutUpdated;
+
+
         #endregion
 
         #region Constructor
@@ -627,17 +632,27 @@ namespace EliteInfoPanel.Core
 
         private bool LoadLoadoutData()
         {
-            var newLoadout = DeserializeJsonFile<LoadoutJson>(Path.Combine(gamePath, "Loadout.json"));
-            if (newLoadout == null) return false;
+            var newLoadout = DeserializeJsonFile<LoadoutJson>(Path.Combine(gamePath, "ModulesInfo.json"));
+
+            if (newLoadout == null)
+            {
+                Log.Warning("🚫 ModulesInfo.json was null on startup");
+                return false;
+            }
+
+            Log.Information("✅ Loaded ModulesInfo.json with {Count} modules", newLoadout.Modules?.Count ?? 0);
 
             if (CurrentLoadout == null || !JsonEquals(CurrentLoadout, newLoadout))
             {
+                Log.Information("⚡ Setting CurrentLoadout...");
                 CurrentLoadout = newLoadout;
                 return true;
             }
 
             return false;
         }
+
+
 
         private void LoadAllData()
         {
@@ -653,6 +668,11 @@ namespace EliteInfoPanel.Core
                 .FirstOrDefault();
 
             LoadRouteProgress();
+            OnPropertyChanged(nameof(CurrentLoadout));
+            OnPropertyChanged(nameof(CurrentStatus));
+            OnPropertyChanged(nameof(CurrentCargo));
+            OnPropertyChanged(nameof(CurrentRoute));
+
         }
 
         private void LoadRouteProgress()
@@ -786,6 +806,7 @@ namespace EliteInfoPanel.Core
                                 CurrentLoadout = loadout;
                                 UserShipName = loadout.ShipName;
                                 UserShipId = loadout.ShipIdent;
+                                LoadoutUpdated?.Invoke();
                             }
                             break;
 
