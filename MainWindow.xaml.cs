@@ -309,9 +309,12 @@ namespace EliteInfoPanel
                 : AppSettings.DEFAULT_FULLSCREEN_SMALL * fontScale;
 
             // Update application resources
-            Application.Current.Resources["BaseFontSize"] = baseFontSize;
-            Application.Current.Resources["HeaderFontSize"] = headerFontSize;
-            Application.Current.Resources["SmallFontSize"] = smallFontSize;
+            if (Application.Current != null && Application.Current.Resources != null)
+            {
+                Application.Current.Resources["BaseFontSize"] = baseFontSize;
+                Application.Current.Resources["HeaderFontSize"] = headerFontSize;
+                Application.Current.Resources["SmallFontSize"] = smallFontSize;
+            }
 
             // Update each card's font size directly
             if (_viewModel != null)
