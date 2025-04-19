@@ -1,4 +1,7 @@
 ﻿// CardViewModel.cs
+using Serilog;
+using System.Windows;
+
 namespace EliteInfoPanel.ViewModels
 {
     public abstract class CardViewModel : ViewModelBase
@@ -22,7 +25,31 @@ namespace EliteInfoPanel.ViewModels
         public bool IsVisible
         {
             get => _isVisible;
-            set => SetProperty(ref _isVisible, value);
+            set
+            {
+                if (SetProperty(ref _isVisible, value))
+                {
+                    // Critical - Notify the main view model that a card's visibility has changed
+                    Log.Information("{CardType}: IsVisible changed to {IsVisible}", this.GetType().Name, value);
+                    NotifyCardVisibilityChanged();
+                }
+            }
+        }
+
+        // Add this method to the CardViewModel class:
+
+        private void NotifyCardVisibilityChanged()
+        {
+            // Find the MainViewModel
+            if (Application.Current?.MainWindow?.DataContext is MainViewModel mainVm)
+            {
+                Log.Information("{CardType}: Notifying MainViewModel about visibility change", this.GetType().Name);
+                mainVm.RefreshLayout(false);
+            }
+            else
+            {
+                Log.Warning("{CardType}: Cannot notify MainViewModel - not found", this.GetType().Name);
+            }
         }
 
         protected CardViewModel(string title)

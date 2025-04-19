@@ -46,8 +46,8 @@ namespace EliteInfoPanel.Util
                 { Flag.SrvHighBeam, ("HighDefinition", "SRV high beams on", Brushes.LemonChiffon) },
 
                 // Synthetic/special flags
-                { Flag.HudInCombatMode, ("Crosshairs", "Combat Mode (derived)", Brushes.Red) },
-                { Flag.Docking, ("Ferry", "Docking in progress (derived)", Brushes.SkyBlue) },
+                { Flag.HudInCombatMode, ("Crosshairs", "Combat Mode", Brushes.Red) },
+                { Flag.Docking, ("Ferry", "Docking in progress", Brushes.SkyBlue) },
             };
         public static bool TryGetMetadata(Flag flag, out (string Icon, string Tooltip, Brush Color) meta)
         {
