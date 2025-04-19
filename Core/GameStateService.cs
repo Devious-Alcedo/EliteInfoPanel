@@ -1088,9 +1088,11 @@ namespace EliteInfoPanel.Core
 
                         case "FSDJump":
                             Log.Information("Hyperspace jump completed");
-                            IsHyperspaceJumping = false;
+                            IsHyperspaceJumping = false; // ✅ Flip early
+                            _isInHyperspace = false;
                             HyperspaceDestination = null;
                             HyperspaceStarClass = null;
+
 
                             if (root.TryGetProperty("StarSystem", out JsonElement systemElement))
                             {
@@ -1147,9 +1149,10 @@ namespace EliteInfoPanel.Core
                         case "SupercruiseExit":
                             if (_isInHyperspace)
                             {
-                                _isInHyperspace = false;
                                 IsHyperspaceJumping = false;
+                                _isInHyperspace = false;
                             }
+
 
                             if (root.TryGetProperty("StarSystem", out JsonElement exitSystemElement))
                             {
