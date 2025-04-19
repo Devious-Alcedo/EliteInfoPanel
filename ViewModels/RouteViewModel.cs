@@ -131,6 +131,7 @@ namespace EliteInfoPanel.ViewModels
                 {
                     IsVisible = shouldShow;
                     Log.Debug("RouteViewModel: Changed visibility to {Visibility}", shouldShow);
+                    UpdateTitle();
                 }
             }
             catch (Exception ex)
@@ -176,8 +177,8 @@ namespace EliteInfoPanel.ViewModels
                 case nameof(GameStateService.CurrentRoute):
                 case nameof(GameStateService.CurrentStatus):
                 case nameof(GameStateService.CurrentSystem):
-                    // These properties affect both content and visibility
                     RequestRouteUpdate();
+                    UpdateTitle(); // Always update title here
                     break;
 
                 case nameof(GameStateService.LastFsdTargetSystem):
@@ -197,6 +198,10 @@ namespace EliteInfoPanel.ViewModels
                     UpdateVisibility();
                     break;
             }
+            if (e.PropertyName == nameof(GameStateService.CurrentRoute))
+    {
+        UpdateTitle();
+    }
         }
         #endregion
 
@@ -248,6 +253,30 @@ namespace EliteInfoPanel.ViewModels
 
             return name;
         }
+        private void UpdateTitle()
+        {
+            bool hasRoute = _gameState.CurrentRoute?.Route?.Any() == true;
+            bool hasDestination = _gameState.CurrentStatus?.Destination != null &&
+                                  !string.IsNullOrWhiteSpace(_gameState.CurrentStatus.Destination.Name);
+
+            bool destinationInSystem = hasDestination &&
+                                       (!hasRoute);
+
+            if (destinationInSystem)
+            {
+                Title = "Nav Route (In-System Target)";
+            }
+            else if (hasRoute && _gameState.TotalRemainingJumps > 0)
+            {
+                Title = $"Nav Route ({_gameState.TotalRemainingJumps} jumps)";
+            }
+            else
+            {
+                Title = "Nav Route";
+            }
+        }
+
+
 
         private void ShowToast(string message)
         {
@@ -321,10 +350,51 @@ namespace EliteInfoPanel.ViewModels
                     _gameState.ResetRouteActivity();
                 }
 
-                bool isTargetInSameSystem = string.Equals(_gameState.CurrentSystem, _gameState.LastFsdTargetSystem, StringComparison.OrdinalIgnoreCase);
+                Log.Information("RouteViewModel: Updating route - CurrentSystem={CurrentSystem}, LastFsdTargetSystem={Target}, RemainingJumps={Jumps}, HasDestination={HasDest}",
+     _gameState.CurrentSystem,
+     _gameState.LastFsdTargetSystem,
+     _gameState.RemainingJumps,
+     _gameState.CurrentStatus?.Destination != null);
 
-                if (_gameState.RemainingJumps.HasValue && !isTargetInSameSystem)
+                // Use improved logic to check if target is in current system
+                bool currentSystemIsTarget = false;
+
+                // Check #1: Is the FSD target explicitly the current system?
+                if (!string.IsNullOrEmpty(_gameState.CurrentSystem) &&
+                    !string.IsNullOrEmpty(_gameState.LastFsdTargetSystem) &&
+                    string.Equals(_gameState.CurrentSystem, _gameState.LastFsdTargetSystem, StringComparison.OrdinalIgnoreCase))
                 {
+                    currentSystemIsTarget = true;
+                    Log.Debug("RouteViewModel: Current system is the FSD target");
+                }
+
+                // Check #2: Is the destination body in the current system?
+                // Check #2: Is the destination body in the current system?
+                if (_gameState.CurrentStatus?.Destination != null &&
+                      !string.IsNullOrWhiteSpace(_gameState.CurrentStatus.Destination.Name))
+                {
+                    // If we have a destination (body target), assume it's important
+                    currentSystemIsTarget = true;
+                    Log.Debug("RouteViewModel: Has destination target - treating as in-system");
+                }
+
+                // Check #3: Are we at the end of a route?
+                if (_gameState.CurrentRoute?.Route?.Any() == true &&
+                    _gameState.CurrentRoute.Route.Count == 1 &&
+                    string.Equals(_gameState.CurrentSystem,
+                                 _gameState.CurrentRoute.Route[0].StarSystem,
+                                 StringComparison.OrdinalIgnoreCase))
+                {
+                    currentSystemIsTarget = true;
+                    Log.Debug("RouteViewModel: At final system in route");
+                }
+
+                // Only show remaining jumps if we're actually going somewhere else
+                if (_gameState.RemainingJumps.HasValue &&
+                    (_gameState.RemainingJumps.Value > 0) &&
+                    !currentSystemIsTarget)
+                {
+                    Log.Debug("RouteViewModel: Adding jumps remaining: {Jumps}", _gameState.RemainingJumps.Value);
                     Items.Add(new RouteItemViewModel($"Jumps Remaining: {_gameState.RemainingJumps.Value}", null, null, RouteItemType.Info)
                     {
                         FontSize = (int)this.FontSize
@@ -370,13 +440,7 @@ namespace EliteInfoPanel.ViewModels
                 {
                     Log.Debug("Skipping route estimation — missing FSD, loadout or cargo info");
                 }
-                else
-                {
-                    Items.Add(new RouteItemViewModel($"Current Fuel: {currentFuel:0.00}/{maxFuelCapacity:0.00} T", null, null, RouteItemType.Info)
-                    {
-                        FontSize = (int)this.FontSize
-                    });
-                }
+               
 
                 Log.Debug("UpdateRoute: CurrentFuel={Fuel}, MaxFuel={MaxFuel}, CanEstimate={CanEstimate}",
                     currentFuel, maxFuelCapacity, canEstimate);
@@ -488,6 +552,7 @@ namespace EliteInfoPanel.ViewModels
                 // Update state properties
                 NeedsRefueling = refuelNeeded;
                 JumpsUntilRefuel = jumpsUntilRefuel;
+                UpdateTitle();
             }
             catch (Exception ex)
             {

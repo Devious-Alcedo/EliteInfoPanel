@@ -25,7 +25,7 @@ namespace EliteInfoPanel.Core
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
-
+        private CancellationTokenSource _dockingCts = new CancellationTokenSource();
         protected bool SetProperty<T>(ref T storage, T value, [CallerMemberName] string propertyName = null)
         {
             if (EqualityComparer<T>.Default.Equals(storage, value))
@@ -184,8 +184,18 @@ namespace EliteInfoPanel.Core
         public LoadoutJson CurrentLoadout
         {
             get => _currentLoadout;
-            internal set => SetProperty(ref _currentLoadout, value);
+            set
+            {
+                if (_currentLoadout != value)
+                {
+                    _currentLoadout = value;
+                    OnPropertyChanged(); // "CurrentLoadout" itself changed
+                    OnPropertyChanged(nameof(TotalRemainingJumps)); // total jumps might be affected
+                    OnPropertyChanged(nameof(MaxJumpRange)); // max range might be recalculated
+                }
+            }
         }
+
 
         public FCMaterialsJson CurrentMaterials
         {
@@ -196,7 +206,15 @@ namespace EliteInfoPanel.Core
         public NavRouteJson CurrentRoute
         {
             get => _currentRoute;
-            private set => SetProperty(ref _currentRoute, value);
+            set
+            {
+                if (_currentRoute != value)
+                {
+                    _currentRoute = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(TotalRemainingJumps)); // crucial
+                }
+            }
         }
 
         public StatusJson CurrentStatus
@@ -320,13 +338,30 @@ namespace EliteInfoPanel.Core
 
         public void SetDockingStatus()
         {
+            // Cancel any existing docking timer
+            _dockingCts.Cancel();
+            _dockingCts.Dispose();
+            _dockingCts = new CancellationTokenSource();
+
             IsDocking = true;
+
+            var token = _dockingCts.Token;
 
             Task.Run(async () =>
             {
-                await Task.Delay(10000); // 10 seconds
-                IsDocking = false;
-            });
+                try
+                {
+                    await Task.Delay(10000, token); // Wait 10 seconds or until cancelled
+                    if (!token.IsCancellationRequested)
+                    {
+                        IsDocking = false;
+                    }
+                }
+                catch (TaskCanceledException)
+                {
+                    // Ignored—this is expected behavior if canceled
+                }
+            }, token);
         }
 
         public void UpdateLoadout(LoadoutJson loadout)
@@ -354,6 +389,9 @@ namespace EliteInfoPanel.Core
                 };
 
                 CurrentRoute = updatedRoute;
+                OnPropertyChanged(nameof(TotalRemainingJumps));
+
+
             }
         }
 
@@ -757,6 +795,28 @@ namespace EliteInfoPanel.Core
                 Log.Warning(ex, "Failed to save RouteProgress.json");
             }
         }
+        public int TotalRemainingJumps
+        {
+            get
+            {
+                if (CurrentRoute?.Route == null || string.IsNullOrEmpty(CurrentSystem))
+                    return 0;
+
+                var routeSystems = CurrentRoute.Route;
+                int currentIndex = routeSystems.FindIndex(s =>
+                    string.Equals(s.StarSystem, CurrentSystem, StringComparison.OrdinalIgnoreCase));
+
+                if (currentIndex >= 0)
+                {
+                    return routeSystems.Count - currentIndex - 1;
+                }
+                else
+                {
+                    // Current system not found, assume entire route is remaining
+                    return routeSystems.Count;
+                }
+            }
+        }
 
         private async Task ProcessJournalAsync()
         {
@@ -855,14 +915,18 @@ namespace EliteInfoPanel.Core
                                     {
                                         InferClassAndRatingFromItem(module);
                                     }
+                                    
                                 }
 
                                 CurrentLoadout = loadout;
-                                UserShipName = loadout.ShipName;
-                                UserShipId = loadout.ShipIdent;
-                                LoadoutUpdated?.Invoke();
+
+                                // explicitly notify UI
+                                OnPropertyChanged(nameof(CurrentLoadout));
+                                OnPropertyChanged(nameof(CurrentStatus)); // fuel level from status might need updating
+                                LoadoutUpdated?.Invoke(); // explicitly notify subscribers
                             }
                             break;
+
 
                         case "CarrierCancelJump":
                             FleetCarrierJumpTime = null;
@@ -944,6 +1008,7 @@ namespace EliteInfoPanel.Core
 
                             if (root.TryGetProperty("Name", out var fsdNameProp))
                                 LastFsdTargetSystem = fsdNameProp.GetString();
+                   
                             break;
 
                         case "StartJump":
@@ -997,6 +1062,14 @@ namespace EliteInfoPanel.Core
                             {
                                 CurrentStationName = null;
                             }
+
+                            IsDocking = false; // Immediately clear docking state
+                            break;
+
+                        // Optional, if you ever see "DockingCancelled"
+                        case "DockingCancelled":
+                            IsDocking = false; // Immediately clear docking state
+                            Log.Debug("Docking cancelled explicitly");
                             break;
 
                         case "Undocked":

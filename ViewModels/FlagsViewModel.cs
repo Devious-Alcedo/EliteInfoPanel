@@ -153,12 +153,13 @@ namespace EliteInfoPanel.ViewModels
                         AddFlagToItems(flag);
                     }
                     else if (flag == Flag.Docking &&
-                             _gameState.CurrentStatus.Flags.HasFlag(Flag.Docked) &&
-                             _gameState.IsDocking)
+           !_gameState.CurrentStatus.Flags.HasFlag(Flag.Docked) &&
+           _gameState.IsDocking)
                     {
                         Log.Debug("Adding synthetic flag: Docking");
                         AddFlagToItems(flag);
                     }
+
                     // Only add the flag if it's active in the game
                     else if (activeFlags.Contains(flag))
                     {
