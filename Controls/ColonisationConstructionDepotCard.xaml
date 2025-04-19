@@ -25,75 +25,84 @@
         <TextBlock Text="{Binding TitleWithPage}"
            Style="{StaticResource CardTitleStyle}" 
                DockPanel.Dock="Top" />
-
-        <!-- Scrollable Content Area -->
-        <ScrollViewer x:Name="modulesScroll"
+        <Grid>
+            <TextBlock Text="{Binding MarketID}"/>
+            <ProgressBar Height="20"
+             Margin="0,6,0,0"
+             Value="{Binding ConstructionProgress}"
+             Maximum="1.0"
+             Foreground="Orange"
+             Background="DarkSlateGray"
+             Style="{StaticResource NonAnimatedProgressBarStyle}" />
+            <!-- Scrollable Content Area -->
+            <ScrollViewer x:Name="modulesScroll"
                   VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
-            <Grid x:Name="modulesContent">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
+                <Grid x:Name="modulesContent">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
 
-                <!-- Left Column -->
-                <ItemsControl x:Name="LeftItemsControl"
+                    <!-- Left Column -->
+                    <ItemsControl x:Name="LeftItemsControl"
                           Grid.Column="0"
                           ItemsSource="{Binding LeftItems}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock FontSize="{Binding FontSize}"
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock FontSize="{Binding FontSize}"
                                    Margin="4"
                                    Foreground="{Binding HealthColor}"
                                    TextWrapping="Wrap"
                                    TextTrimming="None"
                                    MaxWidth="280"
                                    ToolTip="{Binding Name}">
-                                <TextBlock.Text>
-                                    <MultiBinding StringFormat="{}{0} ({1:P0})">
-                                        <Binding Path="Name" />
-                                        <Binding Path="Health" />
-                                    </MultiBinding>
-                                </TextBlock.Text>
-                            </TextBlock>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                                    <TextBlock.Text>
+                                        <MultiBinding StringFormat="{}{0} ({1:P0})">
+                                            <Binding Path="Name" />
+                                            <Binding Path="Health" />
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
 
-                <!-- Right Column -->
-                <ItemsControl x:Name="RightItemsControl"
+                    <!-- Right Column -->
+                    <ItemsControl x:Name="RightItemsControl"
                           Grid.Column="1"
                           ItemsSource="{Binding RightItems}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock FontSize="{Binding FontSize}"
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock FontSize="{Binding FontSize}"
                                    Margin="4"
                                    Foreground="{Binding HealthColor}"
                                    TextWrapping="Wrap"
                                    TextTrimming="None"
                                    MaxWidth="280"
                                    ToolTip="{Binding Name}">
-                                <TextBlock.Text>
-                                    <MultiBinding StringFormat="{}{0} ({1:P0})">
-                                        <Binding Path="Name" />
-                                        <Binding Path="Health" />
-                                    </MultiBinding>
-                                </TextBlock.Text>
-                            </TextBlock>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </Grid>
-        </ScrollViewer>
+                                    <TextBlock.Text>
+                                        <MultiBinding StringFormat="{}{0} ({1:P0})">
+                                            <Binding Path="Name" />
+                                            <Binding Path="Health" />
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
+            </ScrollViewer>
+        </Grid>
     </DockPanel>
 </UserControl>

@@ -21,7 +21,6 @@ namespace EliteInfoPanel.ViewModels
         public double AvailableHeight { get; set; }
         private List<ModuleItemViewModel> _allModules = new();
 
-        public long MarketID { get; set; }
 
         public ObservableCollection<ModuleItemViewModel> LeftItems { get; } = new();
         public ObservableCollection<ModuleItemViewModel> RightItems { get; } = new();
@@ -45,14 +44,22 @@ namespace EliteInfoPanel.ViewModels
                 }
             }
         }
-
+        public long MarketID
+        {
+            get => _gameState.CurrentColonisationConstructionDepot.MarketID;
+            private set => marketID = value;
+        }
+        public double ConstructionProgress
+        {
+            get => _gameState.CurrentColonisationConstructionDepot.ConstructionProgress;
+            private set => _gameState.CurrentColonisationConstructionDepot.ConstructionProgress = value;
+        }
 
 
 
         private List<List<ModuleItemViewModel>> _pagedLeft = new();
         private List<List<ModuleItemViewModel>> _pagedRight = new();
-
-
+        private long marketID;
 
         public int CurrentPage
         {
@@ -229,7 +236,8 @@ namespace EliteInfoPanel.ViewModels
             {
                 try
                 {
-                    MarketID = _gameState.CurrentColonisationConstructionDepot.MarketID;
+                    //MarketID = _gameState.CurrentColonisationConstructionDepot.MarketID;
+
                     LeftItems.Clear();
                     RightItems.Clear();
 
@@ -343,6 +351,7 @@ namespace EliteInfoPanel.ViewModels
                     //// Restore or clamp current page
                     //if (_currentPage >= _pagedLeft.Count)
                     //    _currentPage = Math.Max(0, _pagedLeft.Count - 1);
+                    OnPropertyChanged(nameof(MarketID));
                     OnPropertyChanged(nameof(TitleWithPage));
                     LoadCurrentPage();
                 }

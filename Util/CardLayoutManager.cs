@@ -79,6 +79,9 @@ namespace EliteInfoPanel.Util
             // Add modules (will take extra space)
             if (_viewModel.ModulesCard.IsVisible)
                 result.Add(_viewModel.ModulesCard);
+            // Add colonisation construction depot
+            if (_viewModel.ColonisationConstructionDepotCard.IsVisible)
+                result.Add(_viewModel.ColonisationConstructionDepotCard);
 
             // Add flags last
             if (_viewModel.FlagsCard.IsVisible)

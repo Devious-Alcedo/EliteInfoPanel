@@ -68,12 +68,12 @@ namespace EliteInfoPanel.Controls
             var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(300));
             var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(300));
 
-            modulesContent.BeginAnimation(OpacityProperty, fadeOut);
-            await Task.Delay(300);
+            //modulesContent.BeginAnimation(OpacityProperty, fadeOut);
+            //await Task.Delay(300);
 
-            updateAction?.Invoke();
+            //updateAction?.Invoke();
 
-            modulesContent.BeginAnimation(OpacityProperty, fadeIn);
+            //modulesContent.BeginAnimation(OpacityProperty, fadeIn);
         }
     }
 
