@@ -349,9 +349,20 @@ namespace EliteInfoPanel.ViewModels
             SystemAddress = systemAddress;
             ItemType = itemType;
         }
-        public string IconUrl => ItemType != RouteItemType.System
-                    ? null
-                    : $"pack://application:,,,/{StarIconMapper.GetIconPath(StarClass) ?? "Assets/Stars/Unknown.ico"}";
+        public string IconUrl
+        {
+            get
+            {
+                if (ItemType != RouteItemType.System || string.IsNullOrWhiteSpace(StarClass))
+                    return null;
+
+                string localPath = StarIconMapper.GetIconPath(StarClass);
+                if (string.IsNullOrWhiteSpace(localPath))
+                    return null;
+
+                return $"pack://application:,,,/{localPath}";
+            }
+        }
 
 
         public string Text { get; set; }
