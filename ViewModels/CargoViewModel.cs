@@ -1,55 +1,85 @@
 ﻿// CargoViewModel.cs
+using System;
 using System.Collections.ObjectModel;
-using EliteInfoPanel.Core;
-using EliteInfoPanel.Util;
+using System.ComponentModel;
 using System.Linq;
 using System.Windows;
-using static MaterialDesignThemes.Wpf.Theme.ToolBar;
+using EliteInfoPanel.Core;
+using EliteInfoPanel.Util;
+using Serilog;
 
 namespace EliteInfoPanel.ViewModels
 {
+    public class CargoItemViewModel : ViewModelBase
+    {
+
+        #region Private Fields
+
+        private int _count;
+        private int _fontSize = 14;
+        private string _name;
+
+        #endregion Private Fields
+
+        #region Public Constructors
+
+        public CargoItemViewModel(string name, int count)
+        {
+            _name = name;
+            _count = count;
+        }
+
+        #endregion Public Constructors
+
+        #region Public Properties
+
+        public int Count
+        {
+            get => _count;
+            set => SetProperty(ref _count, value);
+        }
+
+        public int FontSize
+        {
+            get => _fontSize;
+            set => SetProperty(ref _fontSize, value);
+        }
+
+        public string Name
+        {
+            get => _name;
+            set => SetProperty(ref _name, value);
+        }
+
+        #endregion Public Properties
+    }
+
     public class CargoViewModel : CardViewModel
     {
+
+        #region Private Fields
+
         private readonly GameStateService _gameState;
 
-        public ObservableCollection<CargoItemViewModel> Items { get; } = new();
+        #endregion Private Fields
+
+        #region Public Constructors
 
         public CargoViewModel(GameStateService gameState) : base("Cargo")
         {
-            _gameState = gameState;
+            _gameState = gameState ?? throw new ArgumentNullException(nameof(gameState));
 
-            // Subscribe to game state updates
-            _gameState.DataUpdated += UpdateCargo;
+            // Subscribe to property changes from GameStateService
+            _gameState.PropertyChanged += GameState_PropertyChanged;
 
             // Initial update
             UpdateCargo();
         }
 
-        private void UpdateCargo()
-        {
-            RunOnUIThread(() =>
-            {
-                Items.Clear();
+        #endregion Public Constructors
 
-                if (_gameState.CurrentCargo?.Inventory == null)
-                    return;
+        #region Public Properties
 
-                IsVisible = _gameState.CurrentCargo.Inventory.Count > 0;
-
-                foreach (var item in _gameState.CurrentCargo.Inventory.OrderByDescending(i => i.Count))
-                {
-                    Items.Add(new CargoItemViewModel(
-                      CommodityMapper.GetDisplayName(item.Name),
-                      item.Count)
-                    {
-                        FontSize = (int)this.FontSize // ✅ apply current font size after construction
-                    });
-
-                }
-
-                UpdateCargoTitle(); // ✅ Call this at the end
-            });
-        }
         public override double FontSize
         {
             get => base.FontSize;
@@ -67,50 +97,135 @@ namespace EliteInfoPanel.ViewModels
             }
         }
 
+        public ObservableCollection<CargoItemViewModel> Items { get; } = new();
+
+        #endregion Public Properties
+
+        #region Private Methods
+
+        private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            // Add specific logging for cargo changes
+            if (e.PropertyName == nameof(GameStateService.CurrentCargo))
+            {
+                Log.Information("CargoViewModel: Received CurrentCargo change notification");
+                UpdateCargo();
+            }
+            else if (e.PropertyName == nameof(GameStateService.CurrentLoadout))
+            {
+                UpdateCargoTitle();
+            }
+            else if (e.PropertyName == nameof(GameStateService.CurrentStatus) ||
+                     e.PropertyName == nameof(GameStateService.IsHyperspaceJumping))
+            {
+                UpdateVisibility();
+            }
+        }
+
+        private void UpdateCargo()
+        {
+            try
+            {
+                // Log before any processing
+                Log.Information("CargoViewModel: UpdateCargo called - checking inventory");
+
+                // Get cargo data
+                var cargo = _gameState.CurrentCargo;
+                bool hasInventory = cargo?.Inventory != null && cargo.Inventory.Count > 0;
+
+                // Log cargo state immediately
+                Log.Information("CargoViewModel: Cargo data - HasInventory:{HasInventory}, ItemCount:{ItemCount}",
+                    hasInventory, cargo?.Inventory?.Count ?? 0);
+
+                RunOnUIThread(() =>
+                {
+                    // Clear existing items
+                    Items.Clear();
+
+                    // CRITICAL FIX: Set visibility directly based on inventory state
+                    if (hasInventory && !(_gameState.CurrentStatus?.OnFoot == true) && !_gameState.IsHyperspaceJumping)
+                    {
+                        Log.Information("CargoViewModel: Setting IsVisible = true");
+                        IsVisible = true;
+
+                        // Add items to display
+                        foreach (var item in cargo.Inventory.OrderByDescending(i => i.Count))
+                        {
+                            string displayName = CommodityMapper.GetDisplayName(item.Name);
+                            Items.Add(new CargoItemViewModel(displayName, item.Count)
+                            {
+                                FontSize = (int)this.FontSize
+                            });
+                        }
+
+                        UpdateCargoTitle();
+                        Log.Information("CargoViewModel: Added {Count} items to display", Items.Count);
+                    }
+                    else
+                    {
+                        Log.Information("CargoViewModel: Setting IsVisible = false");
+                        IsVisible = false;
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error updating cargo");
+            }
+        }
         private void UpdateCargoTitle()
         {
-            int used = 0;
-            int total = 0;
+            try
+            {
+                int used = 0;
+                int total = 0;
 
-            if (_gameState.CurrentCargo?.Inventory != null)
-                used = _gameState.CurrentCargo.Inventory.Sum(i => i.Count);
+                if (_gameState.CurrentCargo?.Inventory != null)
+                    used = _gameState.CurrentCargo.Inventory.Sum(i => i.Count);
 
-            if (_gameState.CurrentLoadout != null)
-                total = _gameState.CurrentLoadout.CargoCapacity;
+                if (_gameState.CurrentLoadout != null)
+                    total = _gameState.CurrentLoadout.CargoCapacity;
 
-            Title = $"Cargo {used}/{total}";
+                Title = $"Cargo {used}/{total}";
+                Log.Debug("CargoViewModel: Updated title to {Title}", Title);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error updating cargo title");
+            }
         }
 
-    }
-
-    public class CargoItemViewModel : ViewModelBase
-    {
-        private string _name;
-        private int _count;
-
-        public string Name
+        private void UpdateVisibility()
         {
-            get => _name;
-            set => SetProperty(ref _name, value);
+            try
+            {
+                // Get direct access to cargo
+                var cargo = _gameState.CurrentCargo;
+                bool hasInventory = cargo?.Inventory != null && cargo.Inventory.Count > 0;
+                bool isOnFoot = _gameState.CurrentStatus?.OnFoot == true;
+                bool isJumping = _gameState.IsHyperspaceJumping;
+
+                // Direct visibility calculation
+                bool shouldShow = hasInventory && !isOnFoot && !isJumping;
+
+                // Log calculation details
+                Log.Information("CargoViewModel: UpdateVisibility - HasInventory:{HasInventory}, OnFoot:{OnFoot}, " +
+                             "Jumping:{Jumping}, ShouldShow:{ShouldShow}, CurrentVisibility:{CurrentVisibility}",
+                             hasInventory, isOnFoot, isJumping, shouldShow, IsVisible);
+
+                // Update visibility if changed
+                if (IsVisible != shouldShow)
+                {
+                    IsVisible = shouldShow;
+                    Log.Information("CargoViewModel: Changed visibility to {NewState}", shouldShow);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error updating cargo visibility");
+            }
         }
 
-        public int Count
-        {
-            get => _count;
-            set => SetProperty(ref _count, value);
-        }
-        private int _fontSize = 14;
-        public int FontSize
-        {
-            get => _fontSize;
-            set => SetProperty(ref _fontSize, value);
-        }
-
-
-        public CargoItemViewModel(string name, int count)
-        {
-            _name = name;
-            _count = count;
-        }
+        #endregion Private Methods        
     }
 }

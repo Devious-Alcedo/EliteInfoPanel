@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
-using System.Windows.Controls;
 using System.Windows;
+using System.Windows.Controls;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
 using MaterialDesignThemes.Wpf;
@@ -13,7 +15,6 @@ namespace EliteInfoPanel.ViewModels
     public class MainViewModel : ViewModelBase
     {
         #region Private Fields
-
         private readonly GameStateService _gameState;
         private string _hyperspaceDestination;
         private string _hyperspaceStarClass;
@@ -24,6 +25,11 @@ namespace EliteInfoPanel.ViewModels
         private Grid _mainGrid;
         private SnackbarMessageQueue _toastQueue = new SnackbarMessageQueue(TimeSpan.FromSeconds(3));
         private bool _isFullScreenMode;
+        private readonly bool _useFloatingWindow;
+        private bool _layoutChangePending = false;
+        #endregion Private Fields
+
+        #region Public Properties
         public bool IsFullScreenMode
         {
             get => _isFullScreenMode;
@@ -36,71 +42,9 @@ namespace EliteInfoPanel.ViewModels
             }
         }
 
-
-        #endregion Private Fields
-
-        #region Public Constructors
-
-        private readonly bool _useFloatingWindow;
-
-        public MainViewModel(GameStateService gameState, bool useFloatingWindow)
-        {
-            _gameState = gameState;
-            _useFloatingWindow = useFloatingWindow;
-
-            // Initialize commands
-            OpenOptionsCommand = new RelayCommand(_ => OpenOptions());
-
-            // Initialize card ViewModels
-            SummaryCard = new SummaryViewModel(gameState) { Title = "Summary" };
-            CargoCard = new CargoViewModel(gameState) { Title = "Cargo" };
-            BackpackCard = new BackpackViewModel(gameState) { Title = "Backpack" };
-            RouteCard = new RouteViewModel(gameState) { Title = "Nav Route" };
-            ModulesCard = new ModulesViewModel(gameState) { Title = "Ship Modules" };
-            FlagsCard = new FlagsViewModel(gameState) { Title = "Status Flags" };
-
-            // Add cards to collection
-            Cards.Add(SummaryCard);
-            Cards.Add(CargoCard);
-            Cards.Add(BackpackCard);
-            Cards.Add(RouteCard);
-            Cards.Add(ModulesCard);
-            Cards.Add(FlagsCard);
-
-            UpdateLoadingState();
-
-            // Subscribe to game state events
-            _gameState.DataUpdated += OnGameStateUpdated;
-            _gameState.HyperspaceJumping += OnHyperspaceJumping;
-
-            // Initial update
-          
-            double scale = SettingsManager.Load().UseFloatingWindow
-                ? SettingsManager.Load().FloatingFontScale
-                : SettingsManager.Load().FullscreenFontScale;
-
-            double baseFontSize = AppSettings.DEFAULT_FULLSCREEN_BASE * scale;
-
-            foreach (var card in Cards)
-            {
-                card.FontSize = baseFontSize;
-            }
-            RefreshCardVisibility();
-
-        }
-
-        #endregion Public Constructors
-
-        #region Public Properties
+        public ObservableCollection<CardViewModel> Cards { get; } = new ObservableCollection<CardViewModel>();
 
         public BackpackViewModel BackpackCard { get; }
-
-        public ObservableCollection<CardViewModel> Cards { get; } = new ObservableCollection<CardViewModel>();
-        public void ApplyWindowModeFromSettings()
-        {
-            var isFullscreen = !SettingsManager.Load().UseFloatingWindow;
-            IsFullScreenMode = isFullscreen;
-        }
 
         public CargoViewModel CargoCard { get; }
 
@@ -125,6 +69,7 @@ namespace EliteInfoPanel.ViewModels
             get => _isCarrierJumping;
             set => SetProperty(ref _isCarrierJumping, value);
         }
+
         public bool IsHyperspaceJumping
         {
             get => _isHyperspaceJumping;
@@ -150,29 +95,108 @@ namespace EliteInfoPanel.ViewModels
 
         public RouteViewModel RouteCard { get; }
 
-        // Individual card ViewModels
         public SummaryViewModel SummaryCard { get; }
+
         public SnackbarMessageQueue ToastQueue
         {
             get => _toastQueue;
             set => SetProperty(ref _toastQueue, value);
         }
+        #endregion
 
-        #endregion Public Properties
+        #region Constructor
+        public MainViewModel(GameStateService gameState, bool useFloatingWindow)
+        {
+            _gameState = gameState ?? throw new ArgumentNullException(nameof(gameState));
+            _useFloatingWindow = useFloatingWindow;
+
+            // Initialize commands
+            OpenOptionsCommand = new RelayCommand(_ => OpenOptions());
+
+            // Initialize card ViewModels
+            SummaryCard = new SummaryViewModel(gameState) { Title = "Summary" };
+            CargoCard = new CargoViewModel(gameState) { Title = "Cargo" };
+            BackpackCard = new BackpackViewModel(gameState) { Title = "Backpack" };
+            RouteCard = new RouteViewModel(gameState) { Title = "Nav Route" };
+            ModulesCard = new ModulesViewModel(gameState) { Title = "Ship Modules" };
+            FlagsCard = new FlagsViewModel(gameState) { Title = "Status Flags" };
+
+            // Add cards to collection
+            Cards.Add(SummaryCard);
+            Cards.Add(CargoCard);
+            Cards.Add(BackpackCard);
+            Cards.Add(RouteCard);
+            Cards.Add(ModulesCard);
+            Cards.Add(FlagsCard);
+
+            // Subscribe to PropertyChanged events from GameStateService
+            _gameState.PropertyChanged += GameState_PropertyChanged;
+
+            // Subscribe to HyperspaceJumping events
+            _gameState.HyperspaceJumping += OnHyperspaceJumping;
+
+            // Initial update based on current state
+            UpdateLoadingState();
+
+            // Initialize card visibilities
+            SetInitialCardVisibility();
+
+            // Apply initial font size
+            double scale = SettingsManager.Load().UseFloatingWindow
+                ? SettingsManager.Load().FloatingFontScale
+                : SettingsManager.Load().FullscreenFontScale;
+
+            double baseFontSize = AppSettings.DEFAULT_FULLSCREEN_BASE * scale;
+
+            foreach (var card in Cards)
+            {
+                card.FontSize = baseFontSize;
+            }
+        }
+        #endregion
 
         #region Public Methods
-
-        // Public method to refresh layout when font size changes
-        public void RefreshLayout()
+        public void ApplyWindowModeFromSettings()
         {
-            // First refresh visibility to ensure the right cards are shown
-            RefreshCardVisibility();
+            var isFullscreen = !SettingsManager.Load().UseFloatingWindow;
+            IsFullScreenMode = isFullscreen;
+        }
 
-            // Force recreate all cards to apply new font sizes
-            RecreateAllCards();
+        public void RefreshLayout(bool forceRebuild = false)
+        {
+            Log.Information("MainViewModel: RefreshLayout called - forceRebuild={0}", forceRebuild);
 
-            // Then update the layout to apply new spacing/fonts
-            UpdateCardLayout();
+            if (_layoutChangePending && !forceRebuild)
+                return; // Avoid redundant refreshes
+
+            _layoutChangePending = true;
+
+            // Use dispatcher to batch layout updates and avoid multiple refreshes in same frame
+            Application.Current.Dispatcher.BeginInvoke((Action)(() =>
+            {
+                try
+                {
+                    // Refresh visibility first
+                    RefreshCardVisibility(false);
+
+                    if (forceRebuild)
+                    {
+                        // Force recreate all cards to apply new font sizes
+                        RecreateAllCards();
+                    }
+
+                    // Update the layout
+                    UpdateCardLayout(forceRebuild);
+
+                    _layoutChangePending = false;
+                    Log.Information("MainViewModel: Layout refresh completed");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error in RefreshLayout");
+                    _layoutChangePending = false;
+                }
+            }), System.Windows.Threading.DispatcherPriority.Background);
         }
 
         public void SetMainGrid(Grid mainGrid)
@@ -184,8 +208,9 @@ namespace EliteInfoPanel.ViewModels
             _layoutManager = new CardLayoutManager(_mainGrid, appSettings, this);
 
             // Do initial layout
-            UpdateCardLayout();
+            UpdateCardLayout(true);
         }
+
         public void ShowToast(string message)
         {
             ToastQueue.Enqueue(message);
@@ -193,32 +218,163 @@ namespace EliteInfoPanel.ViewModels
 
         public void UpdateLoadingState()
         {
+            bool wasLoading = IsLoading;
             IsLoading = !IsEliteRunning();
+
+            if (wasLoading && !IsLoading)
+            {
+                // When we first load, we need to do a full refresh
+                RefreshCardVisibility(true);
+            }
+        }
+        #endregion
+
+        #region Private Methods
+        private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            // Use targeted updates based on which property changed
+            switch (e.PropertyName)
+            {
+                case nameof(GameStateService.CurrentStatus):
+                    OnStatusChanged();
+                    break;
+
+                case nameof(GameStateService.CurrentCargo):
+                    UpdateCargoVisibility();
+                    break;
+
+                case nameof(GameStateService.CurrentBackpack):
+                    UpdateBackpackVisibility();
+                    break;
+
+                case nameof(GameStateService.CurrentRoute):
+                    UpdateRouteVisibility();
+                    break;
+
+                case nameof(GameStateService.CurrentLoadout):
+                    UpdateModulesVisibility();
+                    break;
+
+                case nameof(GameStateService.FleetCarrierJumpInProgress):
+                case nameof(GameStateService.CarrierJumpDestinationSystem):
+                    UpdateCarrierJumpState();
+                    break;
+
+                case nameof(GameStateService.IsHyperspaceJumping):
+                case nameof(GameStateService.HyperspaceDestination):
+                case nameof(GameStateService.HyperspaceStarClass):
+                    UpdateHyperspaceState();
+                    break;
+            }
         }
 
-        #endregion Public Methods
-
-        #region Protected Methods
-
-        protected void RunOnUiThread(Action action)
+        private void OnStatusChanged()
         {
-            if (System.Windows.Threading.Dispatcher.CurrentDispatcher.CheckAccess())
+            var status = _gameState.CurrentStatus;
+            if (status == null || status.Flags == Flag.None)
             {
-                // We're already on the UI thread
-                action();
+                Log.Debug("Game data not ready. Still waiting...");
+                return;
+            }
+
+            bool wasLoading = IsLoading;
+            UpdateLoadingState();
+
+            if (wasLoading && !IsLoading)
+            {
+                // Full refresh if loading state changed
+                RefreshCardVisibility(true);
             }
             else
             {
-                // We need to invoke the action on the UI thread
-                System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(action);
+                // Otherwise just check if any cards need showing/hiding
+                EnsureCorrectCardsVisible();
             }
         }
 
-        #endregion Protected Methods
+        private void UpdateCarrierJumpState()
+        {
+            if (!string.IsNullOrEmpty(_gameState.CarrierJumpDestinationSystem) &&
+                _gameState.FleetCarrierJumpInProgress == false)
+            {
+                IsCarrierJumping = false;
+            }
+        }
 
-        #region Private Methods
+        private void UpdateHyperspaceState()
+        {
+            IsHyperspaceJumping = _gameState.IsHyperspaceJumping;
+            HyperspaceDestination = _gameState.HyperspaceDestination;
+            HyperspaceStarClass = _gameState.HyperspaceStarClass;
 
-        // Add to MainViewModel
+            // Hyperspace state affects card visibility
+            EnsureCorrectCardsVisible();
+        }
+
+        private void UpdateCargoVisibility()
+        {
+            if (_gameState.CurrentStatus?.OnFoot == true)
+                return; // Backpack takes precedence
+
+            bool hasCargo = (_gameState.CurrentCargo?.Inventory?.Count ?? 0) > 0;
+            bool shouldShow = hasCargo && !IsHyperspaceJumping;
+
+            if (CargoCard.IsVisible != shouldShow)
+            {
+                CargoCard.IsVisible = shouldShow;
+                UpdateCardLayout();
+            }
+        }
+
+        private void UpdateBackpackVisibility()
+        {
+            bool isOnFoot = _gameState.CurrentStatus?.OnFoot == true;
+            bool hasItems = (_gameState.CurrentBackpack?.Inventory?.Count ?? 0) > 0;
+            bool shouldShow = isOnFoot && hasItems && !IsHyperspaceJumping;
+
+            if (BackpackCard.IsVisible != shouldShow)
+            {
+                BackpackCard.IsVisible = shouldShow;
+                UpdateCardLayout();
+            }
+        }
+
+        private void UpdateRouteVisibility()
+        {
+            bool hasRoute = _gameState.CurrentRoute?.Route?.Any() == true ||
+                          !string.IsNullOrWhiteSpace(_gameState.CurrentStatus?.Destination?.Name);
+
+            bool shouldShow = hasRoute && !IsHyperspaceJumping;
+
+            if (RouteCard.IsVisible != shouldShow)
+            {
+                RouteCard.IsVisible = shouldShow;
+                UpdateCardLayout();
+            }
+        }
+
+        private void UpdateModulesVisibility()
+        {
+            bool inMainShip = _gameState.CurrentStatus?.Flags.HasFlag(Flag.InMainShip) == true &&
+                            !(_gameState.CurrentStatus?.OnFoot == true) &&
+                            !_gameState.CurrentStatus.Flags.HasFlag(Flag.InSRV) &&
+                            !_gameState.CurrentStatus.Flags.HasFlag(Flag.InFighter);
+
+            bool shouldShow = inMainShip && !IsHyperspaceJumping;
+
+            if (ModulesCard.IsVisible != shouldShow)
+            {
+                ModulesCard.IsVisible = shouldShow;
+                UpdateCardLayout();
+            }
+        }
+
+        private void OnHyperspaceJumping(bool jumping, string systemName)
+        {
+            // This is already handled by property change events
+            // Left for compatibility with existing code
+        }
+
         private bool IsEliteRunning()
         {
             var status = _gameState?.CurrentStatus;
@@ -230,51 +386,19 @@ namespace EliteInfoPanel.ViewModels
                 status.Flags.HasFlag(Flag.InFighter) ||
                 status.Flags.HasFlag(Flag.InMainShip));
         }
-        private void OnGameStateUpdated()
-        {
-            Log.Debug("GameState update received.");
 
-            var status = _gameState?.CurrentStatus;
-            if (!string.IsNullOrEmpty(_gameState.CarrierJumpDestinationSystem) &&
-                _gameState.FleetCarrierJumpInProgress == false)
-            {
-                IsCarrierJumping = false;
-            }
-            if (status == null || status.Flags == Flag.None)
-            {
-                Log.Debug("Game data not ready. Still waiting...");
-                return; // don't flip loading off yet
-            }
-
-            UpdateLoadingState(); // will flip IsLoading based on flags
-
-            if (!IsLoading)
-                //  Log.Information("Game state confirmed. Hiding loading overlay.");
-
-                RefreshCardVisibility();
-        }
-
-
-        private void OnHyperspaceJumping(bool jumping, string systemName)
-        {
-            IsHyperspaceJumping = jumping;
-            HyperspaceDestination = systemName;
-            HyperspaceStarClass = _gameState.HyperspaceStarClass;
-            RefreshCardVisibility();
-        }
         private void OpenOptions()
         {
             // This will be handled in the view
             System.Diagnostics.Debug.WriteLine("Open Options requested");
         }
 
-        // Forces recreation of all cards to apply new font settings
         private void RecreateAllCards()
         {
             // Make sure we're on the UI thread
-            if (!System.Windows.Application.Current.Dispatcher.CheckAccess())
+            if (!Application.Current.Dispatcher.CheckAccess())
             {
-                System.Windows.Application.Current.Dispatcher.Invoke(RecreateAllCards);
+                Application.Current.Dispatcher.Invoke(RecreateAllCards);
                 return;
             }
 
@@ -293,12 +417,107 @@ namespace EliteInfoPanel.ViewModels
             _mainGrid.UpdateLayout();
         }
 
-        private void RefreshCardVisibility()
+        private void EnsureCorrectCardsVisible()
         {
             // Make sure we're on the UI thread
-            if (!System.Windows.Application.Current.Dispatcher.CheckAccess())
+            if (!Application.Current.Dispatcher.CheckAccess())
             {
-                System.Windows.Application.Current.Dispatcher.Invoke(RefreshCardVisibility);
+                Application.Current.Dispatcher.Invoke(EnsureCorrectCardsVisible);
+                return;
+            }
+
+            var status = _gameState.CurrentStatus;
+            if (status == null) return;
+
+            // Calculate all visibility states
+            bool shouldShowPanels = !IsHyperspaceJumping && (
+                status.Flags.HasFlag(Flag.Docked) ||
+                status.Flags.HasFlag(Flag.Supercruise) ||
+                status.Flags.HasFlag(Flag.InSRV) ||
+                status.OnFoot ||
+                status.Flags.HasFlag(Flag.InFighter) ||
+                status.Flags.HasFlag(Flag.InMainShip));
+
+            bool visibilityChanged = false;
+
+            // Summary card visibility
+            bool shouldShowSummary = shouldShowPanels;
+            if (SummaryCard.IsVisible != shouldShowSummary)
+            {
+                SummaryCard.IsVisible = shouldShowSummary;
+                visibilityChanged = true;
+            }
+
+            // Backpack visibility
+            bool shouldShowBackpack = shouldShowPanels && status.OnFoot;
+            if (BackpackCard.IsVisible != shouldShowBackpack)
+            {
+                BackpackCard.IsVisible = shouldShowBackpack;
+                visibilityChanged = true;
+            }
+
+            // Cargo visibility
+            bool hasCargo = (_gameState.CurrentCargo?.Inventory?.Count ?? 0) > 0;
+            bool shouldShowCargo = shouldShowPanels && !shouldShowBackpack && hasCargo;
+            if (CargoCard.IsVisible != shouldShowCargo)
+            {
+                CargoCard.IsVisible = shouldShowCargo;
+                visibilityChanged = true;
+            }
+
+            // Route visibility
+            bool hasRoute = _gameState.CurrentRoute?.Route?.Any() == true ||
+                          !string.IsNullOrWhiteSpace(_gameState.CurrentStatus?.Destination?.Name);
+            bool shouldShowRoute = shouldShowPanels && hasRoute;
+            if (RouteCard.IsVisible != shouldShowRoute)
+            {
+                RouteCard.IsVisible = shouldShowRoute;
+                visibilityChanged = true;
+            }
+
+            // Modules visibility
+            bool inMainShip = shouldShowPanels && status.Flags.HasFlag(Flag.InMainShip) &&
+                            !status.OnFoot &&
+                            !status.Flags.HasFlag(Flag.InSRV) &&
+                            !status.Flags.HasFlag(Flag.InFighter);
+            if (ModulesCard.IsVisible != inMainShip)
+            {
+                ModulesCard.IsVisible = inMainShip;
+                visibilityChanged = true;
+            }
+
+            // Flags visibility
+            bool shouldShowFlags = shouldShowPanels;
+            if (FlagsCard.IsVisible != shouldShowFlags)
+            {
+                FlagsCard.IsVisible = shouldShowFlags;
+                visibilityChanged = true;
+            }
+
+            // Only update layout if visibility changed
+            if (visibilityChanged)
+            {
+                UpdateCardLayout(false);
+            }
+        }
+
+        private void SetInitialCardVisibility()
+        {
+            // Default state - hide all cards initially
+            foreach (var card in Cards)
+            {
+                card.IsVisible = false;
+            }
+
+            // We'll let the status update handle showing the right cards
+        }
+
+        private void RefreshCardVisibility(bool updateLayout = true)
+        {
+            // Make sure we're on the UI thread
+            if (!Application.Current.Dispatcher.CheckAccess())
+            {
+                Application.Current.Dispatcher.Invoke(() => RefreshCardVisibility(updateLayout));
                 return;
             }
 
@@ -354,15 +573,16 @@ namespace EliteInfoPanel.ViewModels
             FlagsCard.IsVisible = true;
 
             // Now that visibility is set, update the layout
-            UpdateCardLayout();
+            if (updateLayout)
+                UpdateCardLayout(false);
         }
 
-        private void UpdateCardLayout()
+        private void UpdateCardLayout(bool forceRebuild = false)
         {
             // Use the layout manager if it's been initialized
             if (_layoutManager != null)
             {
-                _layoutManager.UpdateLayout();
+                _layoutManager.UpdateLayout(forceRebuild);
             }
             else
             {
@@ -437,17 +657,17 @@ namespace EliteInfoPanel.ViewModels
 
                     // Create appropriate content based on card type
                     if (card == SummaryCard)
-                        cardElement.Content = new Controls.SummaryCard { DataContext = card };
+                        cardElement.Content = new EliteInfoPanel.Controls.SummaryCard { DataContext = card };
                     else if (card == CargoCard)
-                        cardElement.Content = new Controls.CargoCard { DataContext = card };
+                        cardElement.Content = new EliteInfoPanel.Controls.CargoCard { DataContext = card };
                     else if (card == BackpackCard)
-                        cardElement.Content = new Controls.BackpackCard { DataContext = card };
+                        cardElement.Content = new EliteInfoPanel.Controls.BackpackCard { DataContext = card };
                     else if (card == RouteCard)
-                        cardElement.Content = new Controls.RouteCard { DataContext = card };
+                        cardElement.Content = new EliteInfoPanel.Controls.RouteCard { DataContext = card };
                     else if (card == ModulesCard)
-                        cardElement.Content = new Controls.ModulesCard { DataContext = card };
+                        cardElement.Content = new EliteInfoPanel.Controls.ModulesCard { DataContext = card };
                     else if (card == FlagsCard)
-                        cardElement.Content = new Controls.FlagsCard { DataContext = card };
+                        cardElement.Content = new EliteInfoPanel.Controls.FlagsCard { DataContext = card };
 
                     // Add to grid
                     Grid.SetColumn(cardElement, i);
@@ -455,7 +675,6 @@ namespace EliteInfoPanel.ViewModels
                 }
             }
         }
-
-        #endregion Private Methods
+        #endregion
     }
 }

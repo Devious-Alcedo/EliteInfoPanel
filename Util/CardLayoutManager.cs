@@ -13,34 +13,83 @@ namespace EliteInfoPanel.Util
 {
     public class CardLayoutManager
     {
+        #region Private Fields
         private readonly Grid _mainGrid;
         private readonly AppSettings _appSettings;
         private readonly MainViewModel _viewModel;
+        private Dictionary<Type, UIElement> _cardCache = new Dictionary<Type, UIElement>();
+        private List<CardViewModel> _lastVisibleCards = new List<CardViewModel>();
+        private bool _initialLayoutComplete = false;
+        #endregion
 
+        #region Constructor
         public CardLayoutManager(Grid mainGrid, AppSettings appSettings, MainViewModel viewModel)
         {
             _mainGrid = mainGrid ?? throw new ArgumentNullException(nameof(mainGrid));
             _appSettings = appSettings ?? throw new ArgumentNullException(nameof(appSettings));
             _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         }
+        #endregion
 
-        public void UpdateLayout()
+        #region Public Methods
+        public void UpdateLayout(bool forceRebuild = false)
         {
             try
             {
-                ClearGrid();
-
                 var visibleCards = GetVisibleCards();
 
-                // Use the same layout approach regardless of window mode
-                ApplyHorizontalLayout(visibleCards);
+                // Check if visible cards have changed
+                bool cardsChanged = !_initialLayoutComplete || forceRebuild ||
+                                   !AreCardListsEqual(_lastVisibleCards, visibleCards);
 
-                Log.Debug("Card layout updated with {Count} visible cards", visibleCards.Count);
+                if (cardsChanged)
+                {
+                    Log.Debug("Rebuilding card layout: initial={0}, force={1}, changed={2}",
+                              !_initialLayoutComplete, forceRebuild,
+                              _initialLayoutComplete && !forceRebuild && !AreCardListsEqual(_lastVisibleCards, visibleCards));
+
+                    // Clear and rebuild the entire grid
+                    ClearGrid();
+                    ApplyHorizontalLayout(visibleCards);
+                    _lastVisibleCards = visibleCards.ToList();
+                    _initialLayoutComplete = true;
+
+                    Log.Debug("Card layout rebuilt with {Count} visible cards", visibleCards.Count);
+                }
+                else
+                {
+                    // No layout change needed - the data binding will handle content updates
+                    Log.Debug("Card layout unchanged - skipping rebuild");
+                }
             }
             catch (Exception ex)
             {
                 Log.Error(ex, "Error updating card layout");
             }
+        }
+        #endregion
+
+        #region Private Methods
+        private bool AreCardListsEqual(List<CardViewModel> list1, List<CardViewModel> list2)
+        {
+            if (list1.Count != list2.Count)
+            {
+                Log.Debug("Card lists differ in count: {Count1} vs {Count2}", list1.Count, list2.Count);
+                return false;
+            }
+
+            for (int i = 0; i < list1.Count; i++)
+            {
+                // Compare by type and visibility
+                if (list1[i].GetType() != list2[i].GetType())
+                {
+                    Log.Debug("Card lists differ in type at index {Index}: {Type1} vs {Type2}",
+                              i, list1[i].GetType().Name, list2[i].GetType().Name);
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private void ClearGrid()
@@ -89,6 +138,27 @@ namespace EliteInfoPanel.Util
 
         private UIElement CreateCardElement(CardViewModel viewModel)
         {
+            // Check if we already have this card type cached
+            var vmType = viewModel.GetType();
+
+            if (_cardCache.TryGetValue(vmType, out UIElement cachedElement))
+            {
+                // Update DataContext before returning cached element
+                if (cachedElement is FrameworkElement element)
+                {
+                    element.DataContext = viewModel;
+
+                    // Also update the content DataContext if it's separate
+                    if (element is Card card && card.Content is FrameworkElement content)
+                    {
+                        content.DataContext = viewModel;
+                    }
+                }
+
+                Log.Debug("Using cached card element for {CardType}", vmType.Name);
+                return cachedElement;
+            }
+
             // Create the materialDesign Card
             var cardElement = new Card
             {
@@ -101,20 +171,25 @@ namespace EliteInfoPanel.Util
 
             // Create appropriate content based on card type
             if (viewModel is SummaryViewModel)
-                cardElement.Content = new Controls.SummaryCard { DataContext = viewModel };
+                cardElement.Content = new EliteInfoPanel.Controls.SummaryCard { DataContext = viewModel };
             else if (viewModel is CargoViewModel)
-                cardElement.Content = new Controls.CargoCard { DataContext = viewModel };
+                cardElement.Content = new EliteInfoPanel.Controls.CargoCard { DataContext = viewModel };
             else if (viewModel is BackpackViewModel)
-                cardElement.Content = new Controls.BackpackCard { DataContext = viewModel };
+                cardElement.Content = new EliteInfoPanel.Controls.BackpackCard { DataContext = viewModel };
             else if (viewModel is RouteViewModel)
-                cardElement.Content = new Controls.RouteCard { DataContext = viewModel };
+                cardElement.Content = new EliteInfoPanel.Controls.RouteCard { DataContext = viewModel };
             else if (viewModel is ModulesViewModel)
-                cardElement.Content = new Controls.ModulesCard { DataContext = viewModel };
+                cardElement.Content = new EliteInfoPanel.Controls.ModulesCard { DataContext = viewModel };
             else if (viewModel is FlagsViewModel)
-                cardElement.Content = new Controls.FlagsCard { DataContext = viewModel };
+                cardElement.Content = new EliteInfoPanel.Controls.FlagsCard { DataContext = viewModel };
+
+            // Cache the created element for future use
+            _cardCache[vmType] = cardElement;
+            Log.Debug("Created and cached new card element for {CardType}", vmType.Name);
 
             return cardElement;
         }
+
         // Use a single horizontal layout for both modes
         private void ApplyHorizontalLayout(List<CardViewModel> visibleCards)
         {
@@ -142,5 +217,6 @@ namespace EliteInfoPanel.Util
                 _mainGrid.Children.Add(cardElement);
             }
         }
+        #endregion
     }
 }
