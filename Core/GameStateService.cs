@@ -822,6 +822,8 @@ namespace EliteInfoPanel.Core
                             CarrierJumpDestinationSystem = null;
                             CarrierJumpDestinationBody = null;
                             FleetCarrierJumpInProgress = false;
+                            OnPropertyChanged(nameof(CarrierJumpDestinationSystem));
+                            OnPropertyChanged(nameof(FleetCarrierJumpTime));
                             break;
 
                         case "CarrierLocation":

@@ -610,21 +610,31 @@ namespace EliteInfoPanel.ViewModels
                 _carrierCountdownItem.Content = FormatCountdownText(remaining, destination);
 
                 // Style logic
-                if (remaining.TotalMinutes <= 2.75 && _carrierCountdownItem.Foreground != Brushes.Red)
+                if (remaining.TotalMinutes <= 2.75)
                 {
-                    _carrierCountdownItem.Foreground = Brushes.Red;
-                    _carrierCountdownItem.Pulse = true;
+                    if (_carrierCountdownItem.Foreground != Brushes.Red)
+                    {
+                        _carrierCountdownItem.Foreground = Brushes.Red;
+                        _carrierCountdownItem.Pulse = true;
+                    }
                 }
-                else if (remaining.TotalMinutes <= 10 && _carrierCountdownItem.Foreground != Brushes.Gold)
+                else if (remaining.TotalMinutes <= 10)
                 {
-                    _carrierCountdownItem.Foreground = Brushes.Gold;
-                    _carrierCountdownItem.Pulse = false;
+                    if (_carrierCountdownItem.Foreground != Brushes.Gold)
+                    {
+                        _carrierCountdownItem.Foreground = Brushes.Gold;
+                        _carrierCountdownItem.Pulse = false;
+                    }
                 }
-                else if (_carrierCountdownItem.Foreground != Brushes.LightGreen)
+                else
                 {
-                    _carrierCountdownItem.Foreground = Brushes.LightGreen;
-                    _carrierCountdownItem.Pulse = false;
+                    if (_carrierCountdownItem.Foreground != Brushes.LightGreen)
+                    {
+                        _carrierCountdownItem.Foreground = Brushes.LightGreen;
+                        _carrierCountdownItem.Pulse = false;
+                    }
                 }
+
             };
 
             _carrierCountdownTimer.Start();
