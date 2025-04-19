@@ -114,54 +114,30 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Resource Include="Assets\Stars\A.ico" />
     <Resource Include="Assets\Stars\A.png" />
-    <Resource Include="Assets\Stars\Ae.ico" />
     <Resource Include="Assets\Stars\Ae.png" />
-    <Resource Include="Assets\Stars\B.ico" />
     <Resource Include="Assets\Stars\B.png" />
-    <Resource Include="Assets\Stars\BlackHole.ico" />
     <Resource Include="Assets\Stars\BlackHole.png" />
-    <Resource Include="Assets\Stars\C.ico" />
     <Resource Include="Assets\Stars\C.png" />
-    <Resource Include="Assets\Stars\CJ.ico" />
     <Resource Include="Assets\Stars\CJ.png" />
-    <Resource Include="Assets\Stars\CN.ico" />
     <Resource Include="Assets\Stars\CN.png" />
-    <Resource Include="Assets\Stars\F.ico" />
     <Resource Include="Assets\Stars\F.png" />
-    <Resource Include="Assets\Stars\G.ico" />
     <Resource Include="Assets\Stars\G.png" />
-    <Resource Include="Assets\Stars\K.ico" />
     <Resource Include="Assets\Stars\K.png" />
-    <Resource Include="Assets\Stars\L.ico" />
     <Resource Include="Assets\Stars\L.png" />
-    <Resource Include="Assets\Stars\M.ico" />
     <Resource Include="Assets\Stars\M.png" />
-    <Resource Include="Assets\Stars\MS.ico" />
     <Resource Include="Assets\Stars\MS.png" />
-    <Resource Include="Assets\Stars\Neutron.ico" />
     <Resource Include="Assets\Stars\Neutron.png" />
-    <Resource Include="Assets\Stars\O.ico" />
     <Resource Include="Assets\Stars\O.png" />
-    <Resource Include="Assets\Stars\S.ico" />
     <Resource Include="Assets\Stars\S.png" />
-    <Resource Include="Assets\Stars\T.ico" />
     <Resource Include="Assets\Stars\T.png" />
-    <Resource Include="Assets\Stars\TT.ico" />
     <Resource Include="Assets\Stars\TT.png" />
     <Resource Include="Assets\Stars\WhiteDwarf.png" />
-    <Resource Include="Assets\Stars\WRC.ico" />
     <Resource Include="Assets\Stars\WRC.png" />
-    <Resource Include="Assets\Stars\WRN.ico" />
     <Resource Include="Assets\Stars\WRN.png" />
-    <Resource Include="Assets\Stars\WRNC.ico" />
     <Resource Include="Assets\Stars\WRNC.png" />
-    <Resource Include="Assets\Stars\WRO.ico" />
     <Resource Include="Assets\Stars\WRO.png" />
-    <Resource Include="Assets\Stars\WRS.ico" />
     <Resource Include="Assets\Stars\WRS.png" />
-    <Resource Include="Assets\Stars\Y.ico" />
     <Resource Include="Assets\Stars\Y.png" />
   </ItemGroup>
 
