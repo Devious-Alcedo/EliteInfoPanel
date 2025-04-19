@@ -743,12 +743,14 @@ namespace EliteInfoPanel.Core
 
         private void LoadAllData()
         {
-            bool statusChanged = LoadStatusData();
-            bool routeChanged = LoadNavRouteData();
-            bool cargoChanged = LoadCargoData();
-            bool backpackChanged = LoadBackpackData();
-            bool materialsChanged = LoadMaterialsData();
-            bool loadoutChanged = LoadLoadoutData(); // This will now look for the right file
+            Task statusTask = Task.Run(() => LoadStatusData());
+            Task routeTask = Task.Run(() => LoadNavRouteData());
+            Task cargoTask = Task.Run(() => LoadCargoData());
+            Task backpackTask = Task.Run(() => LoadBackpackData());
+            Task materialsTask = Task.Run(() => LoadMaterialsData());
+            Task loadoutTask = Task.Run(() => LoadLoadoutData());
+
+            Task.WaitAll(statusTask, routeTask, cargoTask, backpackTask, materialsTask, loadoutTask);
 
             latestJournalPath = Directory.GetFiles(gamePath, "Journal.*.log")
                 .OrderByDescending(File.GetLastWriteTime)
