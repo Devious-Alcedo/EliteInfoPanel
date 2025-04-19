@@ -7,6 +7,7 @@ using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
 using MaterialDesignThemes.Wpf;
 using Serilog;
+using EliteInfoPanel.Controls;
 
 namespace EliteInfoPanel.ViewModels
 {
@@ -58,6 +59,7 @@ namespace EliteInfoPanel.ViewModels
             RouteCard = new RouteViewModel(gameState) { Title = "Nav Route" };
             ModulesCard = new ModulesViewModel(gameState) { Title = "Ship Modules" };
             FlagsCard = new FlagsViewModel(gameState) { Title = "Status Flags" };
+            ColonisationConstructionDepotCard = new ColonisationConstructionDepotViewModel(gameState) { Title = "Colonisation Depot" };
 
             // Add cards to collection
             Cards.Add(SummaryCard);
@@ -66,6 +68,7 @@ namespace EliteInfoPanel.ViewModels
             Cards.Add(RouteCard);
             Cards.Add(ModulesCard);
             Cards.Add(FlagsCard);
+            Cards.Add(ColonisationConstructionDepotCard);
 
             UpdateLoadingState();
 
@@ -145,6 +148,7 @@ namespace EliteInfoPanel.ViewModels
         }
 
         public ModulesViewModel ModulesCard { get; }
+        public ColonisationConstructionDepotViewModel ColonisationConstructionDepotCard { get; }
 
         public RelayCommand OpenOptionsCommand { get; set; }
 
@@ -349,6 +353,7 @@ namespace EliteInfoPanel.ViewModels
 
             if (inMainShip)
                 ModulesCard.IsVisible = true;
+            ColonisationConstructionDepotCard.IsVisible = true;
 
             // Always show flags if we're showing panels
             FlagsCard.IsVisible = true;
@@ -407,6 +412,9 @@ namespace EliteInfoPanel.ViewModels
                 // Add modules (will take extra space)
                 if (ModulesCard.IsVisible)
                     visibleCards.Add(ModulesCard);
+                // Add colonisation depot if visible
+                if (ColonisationConstructionDepotCard.IsVisible)
+                    visibleCards.Add(ColonisationConstructionDepotCard);
 
                 // Add flags last
                 if (FlagsCard.IsVisible)

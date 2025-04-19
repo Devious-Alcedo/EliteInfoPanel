@@ -143,7 +143,7 @@ namespace EliteInfoPanel.Core
         public event Action<bool, string>? HyperspaceJumping;
         private bool isInHyperspace = false;
         public bool IsInHyperspace => isInHyperspace;
-
+        public ColonisationConstructionDepot CurrentColonisationConstructionDepot { get; private set; }
        
         public bool RouteWasActive => routeWasActive;
 
@@ -723,7 +723,14 @@ namespace EliteInfoPanel.Core
                             }
                             break;
 
-
+                        case "ColonisationConstructionDepot":
+                            if (root.TryGetProperty("MarketID", out var marketID))
+                            {
+                                Log.Information("ColonisationConstructionDepot event detected");
+                                ColonisationConstructionDepot depot = JsonSerializer.Deserialize<ColonisationConstructionDepot>(line);
+                                CurrentColonisationConstructionDepot = depot;
+                            }
+                            break;
 
                     }
                 }
