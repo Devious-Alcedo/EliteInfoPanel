@@ -18,6 +18,9 @@ namespace EliteInfoPanel.ViewModels
         private readonly AppSettings _appSettings;
         private HashSet<Flag> _lastActiveFlags = new HashSet<Flag>();
         private List<Flag> _lastVisibleFlags = new List<Flag>();
+        private bool _lastDockedState;
+        private bool _lastHyperspaceState;
+        private uint _lastStatusFlags;
         #endregion
 
         #region Public Properties
@@ -58,10 +61,13 @@ namespace EliteInfoPanel.ViewModels
         #region Private Methods
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            // Only update when status changes
+            // Expand the properties we listen to
             if (e.PropertyName == nameof(GameStateService.CurrentStatus) ||
-                e.PropertyName == nameof(GameStateService.IsDocking))
+                e.PropertyName == nameof(GameStateService.IsDocking) ||
+                e.PropertyName == nameof(GameStateService.IsHyperspaceJumping) ||
+                e.PropertyName == nameof(GameStateService.CurrentSystem))
             {
+                Log.Debug("FlagsViewModel: Detected change in {Property}", e.PropertyName);
                 UpdateFlags();
             }
         }
@@ -79,36 +85,53 @@ namespace EliteInfoPanel.ViewModels
 
             try
             {
+                // Force update if raw status flags have changed
+                uint currentStatusFlags = (uint)_gameState.CurrentStatus.Flags;
+                bool flagsValueChanged = currentStatusFlags != _lastStatusFlags;
+                if (flagsValueChanged)
+                {
+                    _lastStatusFlags = currentStatusFlags;
+                    Log.Debug("Status flags raw value changed: {OldValue} -> {NewValue}",
+                        _lastStatusFlags, currentStatusFlags);
+                }
+
+                // Force update if hyperspace state changed
+                bool hyperspaceChanged = _gameState.IsHyperspaceJumping != _lastHyperspaceState;
+                if (hyperspaceChanged)
+                {
+                    _lastHyperspaceState = _gameState.IsHyperspaceJumping;
+                    Log.Debug("Hyperspace state changed: {IsJumping}", _lastHyperspaceState);
+                }
+
+                // Force update if docked state changed
+                bool dockedChanged = _gameState.CurrentStatus.Flags.HasFlag(Flag.Docked) != _lastDockedState;
+                if (dockedChanged)
+                {
+                    _lastDockedState = _gameState.CurrentStatus.Flags.HasFlag(Flag.Docked);
+                    Log.Debug("Docked state changed: {IsDocked}", _lastDockedState);
+                }
+
                 // Get all active flags
                 var activeFlags = GetActiveFlags();
 
-                // Check if active flags have changed
-                if (AreActiveFlagsEqual(activeFlags, _lastActiveFlags))
+                // Get the user's ordered visible flags from current settings
+                var settings = SettingsManager.Load();
+                var visibleFlags = settings.DisplayOptions.VisibleFlags;
+
+                // Always reload visible flags to respect order from options window
+                _lastVisibleFlags = visibleFlags != null ? visibleFlags.ToList() : new List<Flag>();
+
+                // Skip update if nothing changed
+                if (!flagsValueChanged && !hyperspaceChanged && !dockedChanged &&
+                    AreActiveFlagsEqual(activeFlags, _lastActiveFlags) &&
+                    Items.Count > 0)
                 {
-                    Log.Debug("Active flags unchanged, skipping update");
+                    Log.Debug("No changes in flags, skipping update");
                     return;
                 }
 
+                // Update our last active flags
                 _lastActiveFlags = new HashSet<Flag>(activeFlags);
-
-                // Get the user's ordered visible flags
-                // Reload latest settings in case they changed
-                var latestSettings = SettingsManager.Load();
-                var visibleFlags = latestSettings.DisplayOptions.VisibleFlags;
-
-                // Check if visible flags have changed
-                bool visibleFlagsChanged = !AreFlagListsEqual(visibleFlags, _lastVisibleFlags);
-                if (visibleFlagsChanged)
-                {
-                    _lastVisibleFlags = visibleFlags.ToList();
-                }
-
-                // If no changes to what should be displayed, exit
-                if (!visibleFlagsChanged && Items.Count > 0)
-                {
-                    Log.Debug("No changes to displayed flags, skipping UI update");
-                    return;
-                }
 
                 // Clear and rebuild the Items collection
                 Items.Clear();
@@ -123,8 +146,8 @@ namespace EliteInfoPanel.ViewModels
                 // Add flags in the user-defined order, but only if active
                 foreach (var flag in visibleFlags)
                 {
-                    if (flag == Flag.HudInCombatMode &&
-                        !_gameState.CurrentStatus.Flags.HasFlag(Flag.HudInAnalysisMode))
+                    // Handle special synthetic flags
+                    if (flag == Flag.HudInCombatMode && !_gameState.CurrentStatus.Flags.HasFlag(Flag.HudInAnalysisMode))
                     {
                         Log.Debug("Adding synthetic flag: HudInCombatMode");
                         AddFlagToItems(flag);
@@ -136,6 +159,7 @@ namespace EliteInfoPanel.ViewModels
                         Log.Debug("Adding synthetic flag: Docking");
                         AddFlagToItems(flag);
                     }
+                    // Only add the flag if it's active in the game
                     else if (activeFlags.Contains(flag))
                     {
                         Log.Debug("Adding standard flag: {Flag}", flag);
@@ -185,21 +209,16 @@ namespace EliteInfoPanel.ViewModels
             if (set1.Count != set2.Count)
                 return false;
 
-            return set1.SetEquals(set2);
-        }
-
-        private bool AreFlagListsEqual(List<Flag> list1, List<Flag> list2)
-        {
-            if (list1 == null && list2 == null)
-                return true;
-            if (list1 == null || list2 == null)
-                return false;
-            if (list1.Count != list2.Count)
-                return false;
-
-            for (int i = 0; i < list1.Count; i++)
+            // Check each flag explicitly for more reliable comparison
+            foreach (var flag in set1)
             {
-                if (list1[i] != list2[i])
+                if (!set2.Contains(flag))
+                    return false;
+            }
+
+            foreach (var flag in set2)
+            {
+                if (!set1.Contains(flag))
                     return false;
             }
 
