@@ -41,6 +41,8 @@ namespace EliteInfoPanel.ViewModels
                 }
             }
         }
+      
+
 
         public ObservableCollection<CardViewModel> Cards { get; } = new ObservableCollection<CardViewModel>();
 

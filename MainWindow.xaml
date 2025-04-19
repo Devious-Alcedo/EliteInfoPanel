@@ -59,7 +59,7 @@
                            TextAlignment="Center"
                            Margin="0,0,0,20" />
                 <TextBlock x:Name="StarClassText"
-                           Text="Star Class: Unknown"
+                           Text="{Binding HyperspaceStarClass, StringFormat=Star Class: {0}}"
                            Foreground="#40FFFFFF"
                            FontSize="28"
                            FontWeight="Light"
