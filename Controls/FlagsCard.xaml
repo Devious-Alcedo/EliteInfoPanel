@@ -36,10 +36,11 @@
 
 
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <materialDesign:PackIcon Kind="{Binding Icon}" 
-                                Width="24" Height="24"
-                                Foreground="{Binding IconColor}" 
-                                Margin="0,0,8,0"/>
+                           <materialDesign:PackIcon Kind="{Binding IconKind}"
+                         Width="24" Height="24"
+                         Foreground="{Binding IconColor}" 
+                         Margin="0,0,8,0"/>
+
 
                                 <TextBlock Text="{Binding DisplayText}" 
            VerticalAlignment="Center" 

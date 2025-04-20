@@ -12,7 +12,8 @@ namespace EliteInfoPanel.Util
     {
         public static Dictionary<Flag, (string Icon, string Tooltip, Brush Color)> FlagVisuals = new()
             {
-                { Flag.Docked, ("Dock", "Docked at a station", Brushes.LightGreen) },
+                { Flag.Docked, ("Anchor", "Docked at a station", Brushes.LightGreen) },
+
                 { Flag.Landed, ("AirplaneLanding", "Landed on surface", Brushes.SandyBrown) },
                 { Flag.LandingGearDown, ("ArrowDownBox", "Landing gear deployed", Brushes.Orange) },
                 { Flag.ShieldsUp, ("Shield", "Shields active", Brushes.CadetBlue) },

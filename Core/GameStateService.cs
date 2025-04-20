@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -144,10 +145,12 @@ namespace EliteInfoPanel.Core
             {
                 if (SetProperty(ref _isHyperspaceJumping, value))
                 {
+                    Log.Information("HyperspaceJumping = {Value}", value);
                     HyperspaceJumping?.Invoke(value, HyperspaceDestination);
                 }
             }
         }
+
 
         public long? Balance => CurrentStatus?.Balance;
 
@@ -359,7 +362,8 @@ namespace EliteInfoPanel.Core
                 }
                 catch (TaskCanceledException)
                 {
-                    // Ignored—this is expected behavior if canceled
+                    // Ignored—this is expected behavior if canceled+
+                    Debug.WriteLine("Docking task was canceled.");
                 }
             }, token);
         }

@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows.Media;
+using System.Xml.Linq;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
 using MaterialDesignThemes.Wpf;
@@ -265,6 +266,7 @@ namespace EliteInfoPanel.ViewModels
             set => SetProperty(ref _displayText, value);
         }
 
+
         public string Icon
         {
             get => _icon;
@@ -281,6 +283,19 @@ namespace EliteInfoPanel.ViewModels
         {
             get => _iconColor;
             set => SetProperty(ref _iconColor, value);
+        }
+        public PackIconKind IconKind
+        {
+            get
+            {
+                if (Enum.TryParse(typeof(PackIconKind), _icon, out var kind))
+                {
+                    return (PackIconKind)kind;
+                }
+
+                // Optional: log fallback or use a default
+                return PackIconKind.Help; // or whatever default you want
+            }
         }
 
         public int FontSize
