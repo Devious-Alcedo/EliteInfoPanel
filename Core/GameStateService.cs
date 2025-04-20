@@ -33,7 +33,7 @@ namespace EliteInfoPanel.Core
                 return false;
 
             storage = value;
-            Log.Information("🚨 SetProperty fired for: {Property}", propertyName); // 👈 TEMP LOG
+            Log.Debug("🚨 SetProperty fired for: {Property}", propertyName); // 👈 TEMP LOG
 
             OnPropertyChanged(propertyName);
             return true;
@@ -85,6 +85,7 @@ namespace EliteInfoPanel.Core
         private bool _isHyperspaceJumping;
         private string _carrierJumpDestinationBody;
         private string _carrierJumpDestinationSystem;
+        private CancellationTokenSource _hyperspaceTimeoutCts;
         #endregion
 
         #region Public Properties
@@ -93,7 +94,7 @@ namespace EliteInfoPanel.Core
             get => _currentSystemCoordinates;
             set => SetProperty(ref _currentSystemCoordinates, value);
         }
-      
+
         public bool FirstLoadCompleted => _firstLoadCompleted;
 
         public double MaxJumpRange
@@ -406,6 +407,42 @@ namespace EliteInfoPanel.Core
         #endregion
 
         #region Private Methods
+        private void EnsureHyperspaceTimeout()
+        {
+            // Cancel any existing timeout
+            if (_hyperspaceTimeoutCts != null)
+            {
+                _hyperspaceTimeoutCts.Cancel();
+                _hyperspaceTimeoutCts.Dispose();
+            }
+
+            _hyperspaceTimeoutCts = new CancellationTokenSource();
+            var token = _hyperspaceTimeoutCts.Token;
+
+            // Set a 30-second safety timeout - hyperspace jumps should never take longer than this
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(30000, token); // 30-second timeout
+
+                    // If we reach here, the timeout wasn't cancelled, so force reset the hyperspace flag
+                    if (!token.IsCancellationRequested && (IsHyperspaceJumping || _isInHyperspace))
+                    {
+                        Log.Warning("⚠️ Hyperspace safety timeout reached - forcing reset of hyperspace state");
+                        IsHyperspaceJumping = false;
+                        _isInHyperspace = false;
+                        HyperspaceDestination = null;
+                        HyperspaceStarClass = null;
+                    }
+                }
+                catch (TaskCanceledException)
+                {
+                    // This is expected when the timeout is cancelled normally
+                }
+            }, token);
+        }
+
         private void SetupFileWatcher(string fileName, Func<bool> loadMethod)
         {
             try
@@ -927,7 +964,7 @@ namespace EliteInfoPanel.Core
                                     {
                                         InferClassAndRatingFromItem(module);
                                     }
-                                    
+
                                 }
 
                                 CurrentLoadout = loadout;
@@ -974,7 +1011,7 @@ namespace EliteInfoPanel.Core
                         case "DockingGranted":
                             Log.Information("Docking granted by station — setting IsDocking = true");
                             SetDockingStatus();
-                           
+
                             SetProperty(ref _isDocking, true, nameof(IsDocking));
                             break;
 
@@ -1022,7 +1059,7 @@ namespace EliteInfoPanel.Core
 
                             if (root.TryGetProperty("Name", out var fsdNameProp))
                                 LastFsdTargetSystem = fsdNameProp.GetString();
-                   
+
                             break;
 
                         case "StartJump":
@@ -1031,7 +1068,7 @@ namespace EliteInfoPanel.Core
                                 string jumpTypeString = jumpType.GetString();
                                 if (jumpTypeString == "Hyperspace")
                                 {
-                                    Log.Information("Hyperspace jump initiated");
+                                    Log.Information("🚀 Hyperspace jump initiated");
 
                                     if (root.TryGetProperty("StarSystem", out var starSystem))
                                         HyperspaceDestination = starSystem.GetString();
@@ -1041,10 +1078,23 @@ namespace EliteInfoPanel.Core
 
                                     _isInHyperspace = true;
                                     IsHyperspaceJumping = true;
+
+                                    // Start safety timeout
+                                    EnsureHyperspaceTimeout();
                                 }
                                 else if (jumpTypeString == "Supercruise")
                                 {
                                     Log.Debug("Supercruise initiated");
+
+                                    // Clear hyperspace state if it was set
+                                    if (IsHyperspaceJumping || _isInHyperspace)
+                                    {
+                                        Log.Warning("⚠️ Hyperspace flag was still active when entering Supercruise - resetting");
+                                        IsHyperspaceJumping = false;
+                                        _isInHyperspace = false;
+                                        HyperspaceDestination = null;
+                                        HyperspaceStarClass = null;
+                                    }
                                 }
                             }
                             break;
@@ -1091,12 +1141,13 @@ namespace EliteInfoPanel.Core
                             break;
 
                         case "FSDJump":
-                            Log.Information("Hyperspace jump completed");
-                            IsHyperspaceJumping = false; // ✅ Flip early
+                            Log.Information("✅ Hyperspace jump completed");
+
+                            // Clear hyperspace state - we've arrived
+                            IsHyperspaceJumping = false;
                             _isInHyperspace = false;
                             HyperspaceDestination = null;
                             HyperspaceStarClass = null;
-
 
                             if (root.TryGetProperty("StarSystem", out JsonElement systemElement))
                             {
@@ -1119,21 +1170,30 @@ namespace EliteInfoPanel.Core
 
                                 PruneCompletedRouteSystems();
                             }
-
-                            _isInHyperspace = false;
                             break;
 
                         case "SupercruiseEntry":
                             Log.Debug("Entered supercruise");
-                            // Ensure we're not in hyperspace jump mode when entering supercruise
-                            IsHyperspaceJumping = false;
+                            // For any of these events, we should not be in hyperspace
+                            if (IsHyperspaceJumping || _isInHyperspace)
+                            {
+                                Log.Warning("⚠️ Hyperspace state was still active during {Event} - resetting", eventType);
+                                IsHyperspaceJumping = false;
+                                _isInHyperspace = false;
+                                HyperspaceDestination = null;
+                                HyperspaceStarClass = null;
+                            }
                             break;
 
                         case "Location":
-                            if (_isInHyperspace)
+                            // For any of these events, we should not be in hyperspace
+                            if (IsHyperspaceJumping || _isInHyperspace)
                             {
-                                _isInHyperspace = false;
+                                Log.Warning("⚠️ Hyperspace state was still active during {Event} - resetting", eventType);
                                 IsHyperspaceJumping = false;
+                                _isInHyperspace = false;
+                                HyperspaceDestination = null;
+                                HyperspaceStarClass = null;
                             }
 
                             if (root.TryGetProperty("StarSystem", out JsonElement locationElement))
@@ -1151,12 +1211,15 @@ namespace EliteInfoPanel.Core
                             break;
 
                         case "SupercruiseExit":
-                            if (_isInHyperspace)
+                            // For any of these events, we should not be in hyperspace
+                            if (IsHyperspaceJumping || _isInHyperspace)
                             {
+                                Log.Warning("⚠️ Hyperspace state was still active during {Event} - resetting", eventType);
                                 IsHyperspaceJumping = false;
                                 _isInHyperspace = false;
+                                HyperspaceDestination = null;
+                                HyperspaceStarClass = null;
                             }
-
 
                             if (root.TryGetProperty("StarSystem", out JsonElement exitSystemElement))
                             {

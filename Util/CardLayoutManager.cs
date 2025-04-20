@@ -38,9 +38,8 @@ namespace EliteInfoPanel.Util
             {
                 var visibleCards = GetVisibleCards();
 
-                // Check if visible cards have changed
                 bool cardsChanged = !_initialLayoutComplete || forceRebuild ||
-                                   !AreCardListsEqual(_lastVisibleCards, visibleCards);
+                                    !AreCardListsEqual(_lastVisibleCards, visibleCards);
 
                 if (cardsChanged)
                 {
@@ -48,17 +47,18 @@ namespace EliteInfoPanel.Util
                               !_initialLayoutComplete, forceRebuild,
                               _initialLayoutComplete && !forceRebuild && !AreCardListsEqual(_lastVisibleCards, visibleCards));
 
-                    // Clear and rebuild the entire grid
-                    ClearGrid();
-                    ApplyHorizontalLayout(visibleCards);
-                    _lastVisibleCards = visibleCards.ToList();
-                    _initialLayoutComplete = true;
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        ClearGrid();
+                        ApplyHorizontalLayout(visibleCards);
+                        _lastVisibleCards = visibleCards.ToList();
+                        _initialLayoutComplete = true;
 
-                    Log.Debug("Card layout rebuilt with {Count} visible cards", visibleCards.Count);
+                        Log.Debug("Card layout rebuilt with {Count} visible cards", visibleCards.Count);
+                    });
                 }
                 else
                 {
-                    // No layout change needed - the data binding will handle content updates
                     Log.Debug("Card layout unchanged - skipping rebuild");
                 }
             }
@@ -67,6 +67,7 @@ namespace EliteInfoPanel.Util
                 Log.Error(ex, "Error updating card layout");
             }
         }
+
         #endregion
 
         #region Private Methods
@@ -94,10 +95,15 @@ namespace EliteInfoPanel.Util
 
         private void ClearGrid()
         {
+            if (!_mainGrid.Dispatcher.CheckAccess())
+            {
+                _mainGrid.Dispatcher.Invoke(ClearGrid);
+                return;
+            }
+
             _mainGrid.ColumnDefinitions.Clear();
             _mainGrid.RowDefinitions.Clear();
 
-            // Remove all cards from the grid (but keep other elements)
             for (int i = _mainGrid.Children.Count - 1; i >= 0; i--)
             {
                 if (_mainGrid.Children[i] is Card)
@@ -106,6 +112,7 @@ namespace EliteInfoPanel.Util
                 }
             }
         }
+
 
         private List<CardViewModel> GetVisibleCards()
         {

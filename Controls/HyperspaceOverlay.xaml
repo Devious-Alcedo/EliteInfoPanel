@@ -1,0 +1,39 @@
+﻿<UserControl x:Class="EliteInfoPanel.Controls.HyperspaceOverlay"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:EliteInfoPanel.Controls"
+             mc:Ignorable="d">
+
+    <Grid x:Name="RootGrid" 
+          Background="#DD000020"
+          HorizontalAlignment="Stretch"
+          VerticalAlignment="Stretch"
+          Visibility="Collapsed">
+        <StackPanel HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Orientation="Vertical"
+                    Margin="20">
+            <TextBlock x:Name="JumpDestinationText"
+                       Text="Hyperspace Jump in Progress..."
+                       Foreground="#80FFFFFF"
+                       FontSize="48"
+                       FontWeight="Light"
+                       TextAlignment="Center"
+                       Margin="0,0,0,20" />
+            <TextBlock x:Name="StarClassText"
+                       Text="Star Class: Unknown"
+                       Foreground="#40FFFFFF"
+                       FontSize="28"
+                       FontWeight="Light"
+                       TextAlignment="Center"
+                       Margin="0,0,0,40" />
+            <ProgressBar Width="400"
+                         Height="8"
+                         IsIndeterminate="True"
+                         Foreground="#60FFFFFF"
+                         Background="Transparent" />
+        </StackPanel>
+    </Grid>
+</UserControl>

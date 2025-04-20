@@ -41,37 +41,8 @@
     </Window.Resources>
 
     <Grid x:Name="RootGrid">
-        <!-- Hyperspace Jump Overlay -->
-        <Grid Background="#DD000020"
-              Visibility="{Binding IsHyperspaceJumping, Converter={StaticResource BoolToVis}}"
-              HorizontalAlignment="Stretch"
-              VerticalAlignment="Stretch"
-              Panel.ZIndex="9998">
-            <StackPanel HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Orientation="Vertical"
-                        Margin="20">
-                <TextBlock x:Name="JumpDestinationText"
-                           Text="Hyperspace Jump in Progress..."
-                           Foreground="#80FFFFFF"
-                           FontSize="48"
-                           FontWeight="Light"
-                           TextAlignment="Center"
-                           Margin="0,0,0,20" />
-                <TextBlock x:Name="StarClassText"
-                           Text="{Binding HyperspaceStarClass, StringFormat=Star Class: {0}}"
-                           Foreground="#40FFFFFF"
-                           FontSize="28"
-                           FontWeight="Light"
-                           TextAlignment="Center"
-                           Margin="0,0,0,40" />
-                <ProgressBar Width="400"
-                             Height="8"
-                             IsIndeterminate="True"
-                             Foreground="#60FFFFFF"
-                             Background="Transparent" />
-            </StackPanel>
-        </Grid>
+        <!-- Our new Hyperspace Overlay Control -->
+        <controls:HyperspaceOverlay x:Name="HyperspaceOverlay" Panel.ZIndex="9998" />
 
         <!-- Loading Overlay -->
         <Grid Background="#DD000020"
@@ -153,7 +124,6 @@
                 HorizontalAlignment="Right"
                 VerticalAlignment="Top"
                 Margin="16,8,16,0"
-
                 ToolTip="Close"
                 Click="CloseButton_Click"
                 Visibility="{Binding IsFullScreenMode, Converter={StaticResource BoolToVis}}">
