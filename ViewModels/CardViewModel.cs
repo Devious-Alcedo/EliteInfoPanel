@@ -53,7 +53,7 @@ namespace EliteInfoPanel.ViewModels
             // Find the MainViewModel
             if (Application.Current?.MainWindow?.DataContext is MainViewModel mainVm)
             {
-                Log.Information("{CardType}: Notifying MainViewModel about visibility change", this.GetType().Name);
+                Log.Debug("{CardType}: Notifying MainViewModel about visibility change", this.GetType().Name);
                 mainVm.RefreshLayout(false);
             }
             else

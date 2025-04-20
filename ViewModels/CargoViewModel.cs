@@ -108,7 +108,7 @@ namespace EliteInfoPanel.ViewModels
             // Add specific logging for cargo changes
             if (e.PropertyName == nameof(GameStateService.CurrentCargo))
             {
-                Log.Information("CargoViewModel: Received CurrentCargo change notification");
+                Log.Debug("CargoViewModel: Received CurrentCargo change notification");
                 UpdateCargo();
             }
             else if (e.PropertyName == nameof(GameStateService.CurrentLoadout))
@@ -127,14 +127,14 @@ namespace EliteInfoPanel.ViewModels
             try
             {
                 // Log before any processing
-                Log.Information("CargoViewModel: UpdateCargo called - checking inventory");
+                Log.Debug("CargoViewModel: UpdateCargo called - checking inventory");
 
                 // Get cargo data
                 var cargo = _gameState.CurrentCargo;
                 bool hasInventory = cargo?.Inventory != null && cargo.Inventory.Count > 0;
 
                 // Log cargo state immediately
-                Log.Information("CargoViewModel: Cargo data - HasInventory:{HasInventory}, ItemCount:{ItemCount}",
+                Log.Debug("CargoViewModel: Cargo data - HasInventory:{HasInventory}, ItemCount:{ItemCount}",
                     hasInventory, cargo?.Inventory?.Count ?? 0);
 
                 RunOnUIThread(() =>
@@ -145,7 +145,7 @@ namespace EliteInfoPanel.ViewModels
                     // CRITICAL FIX: Set visibility directly based on inventory state
                     if (hasInventory && !(_gameState.CurrentStatus?.OnFoot == true) && !_gameState.IsHyperspaceJumping)
                     {
-                        Log.Information("CargoViewModel: Setting IsVisible = true");
+                        Log.Debug("CargoViewModel: Setting IsVisible = true");
                         IsVisible = true;
 
                         // Add items to display
@@ -159,11 +159,11 @@ namespace EliteInfoPanel.ViewModels
                         }
 
                         UpdateCargoTitle();
-                        Log.Information("CargoViewModel: Added {Count} items to display", Items.Count);
+                        Log.Debug("CargoViewModel: Added {Count} items to display", Items.Count);
                     }
                     else
                     {
-                        Log.Information("CargoViewModel: Setting IsVisible = false");
+                        Log.Debug("CargoViewModel: Setting IsVisible = false");
                         IsVisible = false;
                     }
                 });
@@ -209,7 +209,7 @@ namespace EliteInfoPanel.ViewModels
                 bool shouldShow = hasInventory && !isOnFoot && !isJumping;
 
                 // Log calculation details
-                Log.Information("CargoViewModel: UpdateVisibility - HasInventory:{HasInventory}, OnFoot:{OnFoot}, " +
+                Log.Debug("CargoViewModel: UpdateVisibility - HasInventory:{HasInventory}, OnFoot:{OnFoot}, " +
                              "Jumping:{Jumping}, ShouldShow:{ShouldShow}, CurrentVisibility:{CurrentVisibility}",
                              hasInventory, isOnFoot, isJumping, shouldShow, IsVisible);
 
@@ -217,7 +217,7 @@ namespace EliteInfoPanel.ViewModels
                 if (IsVisible != shouldShow)
                 {
                     IsVisible = shouldShow;
-                    Log.Information("CargoViewModel: Changed visibility to {NewState}", shouldShow);
+                    Log.Debug("CargoViewModel: Changed visibility to {NewState}", shouldShow);
                 }
             }
             catch (Exception ex)

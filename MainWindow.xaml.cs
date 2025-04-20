@@ -1,5 +1,6 @@
 ﻿using System;
 using System.ComponentModel;
+using System.Formats.Asn1;
 using System.Linq;
 using System.Windows;
 using System.Windows.Input;
@@ -17,7 +18,7 @@ namespace EliteInfoPanel
         private readonly MainViewModel _viewModel;
         private Screen _currentScreen;
         private readonly AppSettings _appSettings;
-
+        public readonly GameStateService _gameState;
         public MainWindow()
         {
             InitializeComponent();
@@ -76,10 +77,37 @@ namespace EliteInfoPanel
             }
         }
 
+        // Find the Window_Loaded method and add the following code:
+
+        // Update the Window_Loaded method in MainWindow.xaml.cs:
+
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             // Apply window mode settings
             ApplyWindowSettings();
+
+            // Initialize the HyperspaceOverlay with the GameStateService from MainViewModel
+            if (HyperspaceOverlay != null && DataContext is MainViewModel vm)
+            {
+                // Force the overlay to be hidden first
+                HyperspaceOverlay.ForceHidden();
+
+                // Then set up the GameState
+                HyperspaceOverlay.SetGameState(vm._gameState);
+
+                // Use a timer to ensure it's in the correct state after all initial processing
+                var startupTimer = new System.Threading.Timer((state) =>
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        if (!vm._gameState.IsHyperspaceJumping)
+                        {
+                            HyperspaceOverlay.ForceHidden();
+                            Log.Information("🔴 Startup timer verified hyperspace overlay is hidden");
+                        }
+                    });
+                }, null, 1000, Timeout.Infinite); // One-time check after 1 second
+            }
         }
 
         private void ApplyWindowSettings()

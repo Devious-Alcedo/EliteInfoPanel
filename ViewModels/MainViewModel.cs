@@ -15,11 +15,8 @@ namespace EliteInfoPanel.ViewModels
     public class MainViewModel : ViewModelBase
     {
         #region Private Fields
-        private readonly GameStateService _gameState;
-        private string _hyperspaceDestination;
-        private string _hyperspaceStarClass;
+        public readonly GameStateService _gameState;
         private bool _isCarrierJumping;
-        private bool _isHyperspaceJumping;
         private bool _isLoading = true;
         private CardLayoutManager _layoutManager;
         private Grid _mainGrid;
@@ -41,8 +38,6 @@ namespace EliteInfoPanel.ViewModels
                 }
             }
         }
-      
-
 
         public ObservableCollection<CardViewModel> Cards { get; } = new ObservableCollection<CardViewModel>();
 
@@ -54,35 +49,10 @@ namespace EliteInfoPanel.ViewModels
 
         public FlagsViewModel FlagsCard { get; }
 
-        public string HyperspaceDestination
-        {
-            get => _hyperspaceDestination;
-            set => SetProperty(ref _hyperspaceDestination, value);
-        }
-
-        public string HyperspaceStarClass
-        {
-            get => _hyperspaceStarClass;
-            set => SetProperty(ref _hyperspaceStarClass, value);
-        }
-
         public bool IsCarrierJumping
         {
             get => _isCarrierJumping;
             set => SetProperty(ref _isCarrierJumping, value);
-        }
-
-        public bool IsHyperspaceJumping
-        {
-            get => _isHyperspaceJumping;
-            set
-            {
-                if (_isHyperspaceJumping != value)
-                {
-                    _isHyperspaceJumping = value;
-                    OnPropertyChanged(nameof(IsHyperspaceJumping));
-                }
-            }
         }
 
         public bool IsLoading
@@ -263,9 +233,8 @@ namespace EliteInfoPanel.ViewModels
                     break;
 
                 case nameof(GameStateService.IsHyperspaceJumping):
-                case nameof(GameStateService.HyperspaceDestination):
-                case nameof(GameStateService.HyperspaceStarClass):
-                    UpdateHyperspaceState();
+                    // We still need to handle this to update card visibility
+                    RefreshCardVisibility(true);
                     break;
             }
         }
@@ -303,23 +272,13 @@ namespace EliteInfoPanel.ViewModels
             }
         }
 
-        private void UpdateHyperspaceState()
-        {
-            IsHyperspaceJumping = _gameState.IsHyperspaceJumping;
-            HyperspaceDestination = _gameState.HyperspaceDestination;
-            HyperspaceStarClass = _gameState.HyperspaceStarClass;
-
-            // Hyperspace state affects card visibility
-            EnsureCorrectCardsVisible();
-        }
-
         private void UpdateCargoVisibility()
         {
             if (_gameState.CurrentStatus?.OnFoot == true)
                 return; // Backpack takes precedence
 
             bool hasCargo = (_gameState.CurrentCargo?.Inventory?.Count ?? 0) > 0;
-            bool shouldShow = hasCargo && !IsHyperspaceJumping;
+            bool shouldShow = hasCargo && !_gameState.IsHyperspaceJumping;
 
             if (CargoCard.IsVisible != shouldShow)
             {
@@ -332,7 +291,7 @@ namespace EliteInfoPanel.ViewModels
         {
             bool isOnFoot = _gameState.CurrentStatus?.OnFoot == true;
             bool hasItems = (_gameState.CurrentBackpack?.Inventory?.Count ?? 0) > 0;
-            bool shouldShow = isOnFoot && hasItems && !IsHyperspaceJumping;
+            bool shouldShow = isOnFoot && hasItems && !_gameState.IsHyperspaceJumping;
 
             if (BackpackCard.IsVisible != shouldShow)
             {
@@ -346,7 +305,7 @@ namespace EliteInfoPanel.ViewModels
             bool hasRoute = _gameState.CurrentRoute?.Route?.Any() == true ||
                           !string.IsNullOrWhiteSpace(_gameState.CurrentStatus?.Destination?.Name);
 
-            bool shouldShow = hasRoute && !IsHyperspaceJumping;
+            bool shouldShow = hasRoute && !_gameState.IsHyperspaceJumping;
 
             if (RouteCard.IsVisible != shouldShow)
             {
@@ -362,7 +321,7 @@ namespace EliteInfoPanel.ViewModels
                             !_gameState.CurrentStatus.Flags.HasFlag(Flag.InSRV) &&
                             !_gameState.CurrentStatus.Flags.HasFlag(Flag.InFighter);
 
-            bool shouldShow = inMainShip && !IsHyperspaceJumping;
+            bool shouldShow = inMainShip && !_gameState.IsHyperspaceJumping;
 
             if (ModulesCard.IsVisible != shouldShow)
             {
@@ -373,8 +332,8 @@ namespace EliteInfoPanel.ViewModels
 
         private void OnHyperspaceJumping(bool jumping, string systemName)
         {
-            // This is already handled by property change events
-            // Left for compatibility with existing code
+            // Refresh card visibility when hyperspace state changes
+            RefreshCardVisibility(true);
         }
 
         private bool IsEliteRunning()
@@ -432,7 +391,7 @@ namespace EliteInfoPanel.ViewModels
             if (status == null) return;
 
             // Calculate all visibility states
-            bool shouldShowPanels = !IsHyperspaceJumping && (
+            bool shouldShowPanels = !_gameState.IsHyperspaceJumping && (
                 status.Flags.HasFlag(Flag.Docked) ||
                 status.Flags.HasFlag(Flag.Supercruise) ||
                 status.Flags.HasFlag(Flag.InSRV) ||
@@ -527,7 +486,7 @@ namespace EliteInfoPanel.ViewModels
             if (status == null) return;
 
             // Calculate all visibility states
-            bool shouldShowPanels = !IsHyperspaceJumping && (
+            bool shouldShowPanels = !_gameState.IsHyperspaceJumping && (
                 status.Flags.HasFlag(Flag.Docked) ||
                 status.Flags.HasFlag(Flag.Supercruise) ||
                 status.Flags.HasFlag(Flag.InSRV) ||
