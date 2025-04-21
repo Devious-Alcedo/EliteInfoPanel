@@ -2,6 +2,8 @@
 using System.Data;
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Interop;
+using System.Windows.Media;
 
 namespace EliteInfoPanel;
 
@@ -14,6 +16,8 @@ public partial class App : Application
     {
         PresentationTraceSources.DataBindingSource.Switch.Level = SourceLevels.Error;
         PresentationTraceSources.DataBindingSource.Listeners.Add(new ConsoleTraceListener());
+      
+
     }
     /// <summary>
     /// Forces all windows to refresh their styling from resources

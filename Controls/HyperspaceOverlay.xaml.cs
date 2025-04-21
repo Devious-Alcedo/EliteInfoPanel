@@ -1,11 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 using EliteInfoPanel.Core;
 using Serilog;
 
@@ -17,11 +20,25 @@ namespace EliteInfoPanel.Controls
         private System.Threading.Timer _visibilityTimer;
         private readonly int _maxVisibilityTimeMs = 25000; // Maximum time overlay can stay visible (25 seconds)
         private readonly Random _random = new Random();
-        private readonly List<Ellipse> _stars = new List<Ellipse>();
+        private readonly List<FrameworkElement> _stars = new List<FrameworkElement>();
         private readonly List<Storyboard> _starAnimations = new List<Storyboard>();
-        private readonly int _numStars = 200; // Number of stars to create
+        private readonly int _numStars = 150; // Number of stars to create
         private bool _starfieldInitialized = false;
+        private Point _screenCenter;
+        private readonly List<StarInfo> _starInfos = new();
+        private DrawingVisual _starVisual;
+        private DrawingImage _starImage;
+        private Image _starImageControl;
+        private bool _isRendering = false;
+        private WriteableBitmap _bitmap;
+        private Image _bitmapImageControl;
+        private int _bitmapWidth, _bitmapHeight;
+        private byte[] _pixelBuffer;
+        private Stopwatch _renderTimer = Stopwatch.StartNew();
+        private const double TargetFrameTimeMs = 1000.0 / 60;
 
+
+        private bool _isUpdatingStars = false;
         // Star color options - blueish-white colors for a realistic space look
         private readonly Color[] _starColors = new[]
         {
@@ -46,6 +63,8 @@ namespace EliteInfoPanel.Controls
             { "Allied", new SolidColorBrush(Colors.LightBlue) },
             { "Thargoid", new SolidColorBrush(Colors.Purple) }
         };
+      
+
 
         public HyperspaceOverlay()
         {
@@ -81,6 +100,9 @@ namespace EliteInfoPanel.Controls
         {
             try
             {
+                // Update screen center
+                _screenCenter = new Point(e.NewSize.Width / 2, e.NewSize.Height / 2);
+
                 // Re-initialize the starfield when the size changes
                 if (RootGrid.Visibility == Visibility.Visible && e.NewSize.Width > 0 && e.NewSize.Height > 0)
                 {
@@ -119,126 +141,248 @@ namespace EliteInfoPanel.Controls
 
         private void InitializeStarfield()
         {
-            try
+            _bitmapWidth = (int)(ActualWidth / 1.5);  // 1.5x reduction = ~56% fewer pixels
+            _bitmapHeight = (int)(ActualHeight / 1.5);
+
+
+            if (_bitmapWidth <= 0 || _bitmapHeight <= 0) return;
+
+            _bitmap = new WriteableBitmap(_bitmapWidth, _bitmapHeight, 96, 96, PixelFormats.Bgra32, null);
+            _pixelBuffer = new byte[_bitmapWidth * _bitmapHeight * 4];
+
+            _bitmapImageControl = new Image
             {
-                // Only proceed if the canvas exists and has size
-                if (StarfieldCanvas == null || ActualWidth <= 0 || ActualHeight <= 0)
-                {
-                    Log.Debug("Skipping starfield initialization - canvas not ready");
-                    return;
-                }
+                Source = _bitmap,
+                Stretch = Stretch.Fill,
+                Width = ActualWidth,
+                Height = ActualHeight
+            };
 
-                double screenWidth = ActualWidth;
-                double screenHeight = ActualHeight;
+            StarfieldCanvas.Children.Clear();
+            StarfieldCanvas.Children.Add(_bitmapImageControl);
 
-                // Clear any existing stars first
-                StarfieldCanvas.Children.Clear();
-                _stars.Clear();
-                _starAnimations.Clear();
+            _starInfos.Clear();
+            _screenCenter = new Point(_bitmapWidth / 2, _bitmapHeight / 2);
 
-                // Create stars - different sizes and speeds
-                for (int i = 0; i < _numStars; i++)
-                {
-                    CreateStar(screenWidth, screenHeight);
-                }
-
-                _starfieldInitialized = true;
-                Log.Debug("✨ Starfield initialized with {0} stars", _numStars);
-            }
-            catch (Exception ex)
+            for (int i = 0; i < _numStars; i++)
             {
-                Log.Error(ex, "Error initializing starfield");
+                var angle = _random.NextDouble() * Math.PI * 2;
+                var speed = 0.5 + _random.NextDouble() * 2.5;
+                var radius = 2 + _random.NextDouble() * 2;
+
+                var velocity = new Vector(Math.Cos(angle) * speed, Math.Sin(angle) * speed);
+                _starInfos.Add(new StarInfo
+                {
+                    Position = _screenCenter,
+                    Velocity = velocity,
+                    Radius = radius,
+                    Color = _starColors[_random.Next(_starColors.Length)]
+                });
             }
+
+            if (!_isRendering)
+            {
+                DispatcherTimer _starTimer = new DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(16) // ~60 FPS
+                };
+                _starTimer.Tick += (s, e) => RenderStarsToBitmap(null, null);
+                _starTimer.Start();
+
+                _isRendering = true;
+            }
+
+            _starfieldInitialized = true;
         }
-
-        private void CreateStar(double screenWidth, double screenHeight)
+        private void RenderStarsToBitmap(object sender, EventArgs e)
         {
-            try
+            if (_renderTimer.Elapsed.TotalMilliseconds < TargetFrameTimeMs) return;
+            _renderTimer.Restart();
+            // Fade previous frame for motion blur effect
+            Span<byte> buffer = _pixelBuffer;
+
+            for (int i = 0; i < buffer.Length; i += 4)
             {
-                // Only proceed if the canvas exists
-                if (StarfieldCanvas == null) return;
-
-                // Determine star properties
-                double starSize = _random.NextDouble() * 2.5 + 0.5;  // Size between 0.5 and 3.0 pixels
-                double initialOpacity = _random.NextDouble() * 0.7 + 0.3;  // Opacity between 0.3 and 1.0
-
-                // Choose a random color from our star colors array
-                Color starColor = _starColors[_random.Next(_starColors.Length)];
-
-                // Create a star (small ellipse)
-                var star = new Ellipse
+                // Fade only non-zero pixels
+                if (buffer[i + 0] > 0 || buffer[i + 1] > 0 || buffer[i + 2] > 0)
                 {
-                    Width = starSize,
-                    Height = starSize,
-                    Fill = new SolidColorBrush(starColor),
-                    Opacity = initialOpacity
-                };
+                    buffer[i + 0] = (byte)(buffer[i + 0] * 0.92);
+                    buffer[i + 1] = (byte)(buffer[i + 1] * 0.92);
+                    buffer[i + 2] = (byte)(buffer[i + 2] * 0.92);
+                }
+                buffer[i + 3] = 255;
+            }
 
-                // Position randomly on canvas
-                Canvas.SetLeft(star, _random.NextDouble() * screenWidth * 1.2); // Some stars start off-screen
-                Canvas.SetTop(star, _random.NextDouble() * screenHeight);
+            foreach (var star in _starInfos)
+            {
+                // Calculate acceleration from center (for tunnel effect)
+                Vector toCenter = star.Position - _screenCenter;
+                double depthFactor = toCenter.Length / (_bitmapWidth / 2); // Range 0–1+
 
-                // Add to canvas and collection
-                StarfieldCanvas.Children.Add(star);
-                _stars.Add(star);
+                // Apply position change with perspective speed boost
+                star.Position += star.Velocity * (1.0 + depthFactor * 4.0);
 
-                // Create animation storyboard for this star
-                var storyboard = new Storyboard();
-
-                // Create horizontal movement animation (stars move left)
-                var moveAnimation = new DoubleAnimation
+                // Reset star if offscreen
+                if (star.Position.X < 0 || star.Position.X >= _bitmapWidth ||
+                    star.Position.Y < 0 || star.Position.Y >= _bitmapHeight)
                 {
-                    From = Canvas.GetLeft(star),
-                    To = -30, // Move left off screen
-                    Duration = TimeSpan.FromSeconds(2 + (_random.NextDouble() * 5)),
-                    FillBehavior = FillBehavior.Stop
-                };
+                    double angle = _random.NextDouble() * Math.PI * 2;
+                    double speed = 0.5 + _random.NextDouble() * 2.5;
+                    double radius = 1.0 + _random.NextDouble() * 1.2;
+                    var newPos = _screenCenter;
 
-                Storyboard.SetTarget(moveAnimation, star);
-                Storyboard.SetTargetProperty(moveAnimation, new PropertyPath("(Canvas.Left)"));
-                storyboard.Children.Add(moveAnimation);
-
-                // Optional: Add a slight twinkle animation for some stars
-                if (_random.NextDouble() > 0.7) // 30% of stars
-                {
-                    var opacityAnimation = new DoubleAnimation
-                    {
-                        From = initialOpacity,
-                        To = initialOpacity * 0.5, // Fade to half brightness
-                        Duration = TimeSpan.FromSeconds(0.5 + (_random.NextDouble() * 1.0)),
-                        AutoReverse = true,
-                        RepeatBehavior = RepeatBehavior.Forever
-                    };
-
-                    Storyboard.SetTarget(opacityAnimation, star);
-                    Storyboard.SetTargetProperty(opacityAnimation, new PropertyPath("Opacity"));
-                    storyboard.Children.Add(opacityAnimation);
+                    star.Position = newPos;
+                    star.Velocity = new Vector(Math.Cos(angle) * speed, Math.Sin(angle) * speed);
+                    star.Radius = radius;
+                    star.Color = _starColors[_random.Next(_starColors.Length)];
                 }
 
-                // Handle completion of the animation (star moves off-screen)
-                storyboard.Completed += (s, e) =>
-                {
-                    // Reset star to right side of screen
-                    Canvas.SetLeft(star, screenWidth + 10);
-                    Canvas.SetTop(star, _random.NextDouble() * screenHeight);
+                // Draw trail as a fixed-length line
+                Point trailStart = star.Position - (star.Velocity * 5);
+                DrawLineWithFade((int)trailStart.X, (int)trailStart.Y, (int)star.Position.X, (int)star.Position.Y, star.Color);
 
-                    // Restart animation after a small delay
-                    storyboard.BeginTime = TimeSpan.FromMilliseconds(_random.Next(0, 300));
-                    storyboard.Begin();
-                };
+                // Glow around the star
+                int px = (int)star.Position.X;
+                int py = (int)star.Position.Y;
 
-                // Add to our list of animations
-                _starAnimations.Add(storyboard);
-
-                // Start with a random delay to stagger star movement
-                storyboard.BeginTime = TimeSpan.FromMilliseconds(_random.Next(0, 1500));
-                storyboard.Begin();
+                DrawGlowPixel(px, py, star.Color, 0.9);     // center
+                DrawGlowPixel(px + 1, py, star.Color, 0.4); // neighbors
+                DrawGlowPixel(px - 1, py, star.Color, 0.4);
+                DrawGlowPixel(px, py + 1, star.Color, 0.4);
+                DrawGlowPixel(px, py - 1, star.Color, 0.4);
             }
-            catch (Exception ex)
+
+            // Commit pixel data to screen
+            _bitmap.WritePixels(new Int32Rect(0, 0, _bitmapWidth, _bitmapHeight), _pixelBuffer, _bitmapWidth * 4, 0);
+        }
+        private byte Blend(byte background, byte foreground, double alpha)
+        {
+            return (byte)(background * (1 - alpha) + foreground * alpha);
+        }
+
+        private void DrawLineWithFade(int x0, int y0, int x1, int y1, Color color)
+        {
+            int dx = Math.Abs(x1 - x0);
+            int dy = Math.Abs(y1 - y0);
+            int sx = x0 < x1 ? 1 : -1;
+            int sy = y0 < y1 ? 1 : -1;
+            int err = dx - dy;
+            int length = Math.Max(dx, dy);
+            double fadeStep = 1.0 / Math.Max(1, length);
+            double alpha = 0.15;
+
+            while (true)
             {
-                Log.Error(ex, "Error creating star");
+                if (x0 >= 0 && x0 < _bitmapWidth && y0 >= 0 && y0 < _bitmapHeight)
+                {
+                    int index = (y0 * _bitmapWidth + x0) * 4;
+
+                    _pixelBuffer[index + 0] = Blend(_pixelBuffer[index + 0], color.B, alpha);
+                    _pixelBuffer[index + 1] = Blend(_pixelBuffer[index + 1], color.G, alpha);
+                    _pixelBuffer[index + 2] = Blend(_pixelBuffer[index + 2], color.R, alpha);
+                    _pixelBuffer[index + 3] = 255;
+                }
+
+                if (x0 == x1 && y0 == y1)
+                    break;
+
+                int e2 = 2 * err;
+                if (e2 > -dy)
+                {
+                    err -= dy;
+                    x0 += sx;
+                }
+                if (e2 < dx)
+                {
+                    err += dx;
+                    y0 += sy;
+                }
+
+                alpha += fadeStep;
+                if (alpha > 1.0) alpha = 1.0;
             }
         }
+        private void DrawGlowPixel(int x, int y, Color color, double alpha)
+        {
+            if (x < 0 || x >= _bitmapWidth || y < 0 || y >= _bitmapHeight)
+                return;
+
+            Span<byte> buffer = _pixelBuffer;
+
+            int index = (y * _bitmapWidth + x) * 4;
+            buffer[index + 0] = Blend(buffer[index + 0], color.B, alpha);
+            buffer[index + 1] = Blend(buffer[index + 1], color.G, alpha);
+            buffer[index + 2] = Blend(buffer[index + 2], color.R, alpha);
+            buffer[index + 3] = 255;
+        }
+
+
+        private void DrawGlowCircle(int centerX, int centerY, int radius, Color color, double opacity)
+        {
+            int rSquared = radius * radius;
+            int minX = Math.Max(centerX - radius, 0);
+            int maxX = Math.Min(centerX + radius, _bitmapWidth - 1);
+            int minY = Math.Max(centerY - radius, 0);
+            int maxY = Math.Min(centerY + radius, _bitmapHeight - 1);
+
+            for (int y = minY; y <= maxY; y++)
+            {
+                for (int x = minX; x <= maxX; x++)
+                {
+                    int dx = x - centerX;
+                    int dy = y - centerY;
+                    int distanceSquared = dx * dx + dy * dy;
+
+                    if (distanceSquared <= rSquared)
+                    {
+                        double falloff = 1.0 - (distanceSquared / (double)rSquared);
+                        double finalOpacity = opacity * falloff;
+
+                        int index = (y * _bitmapWidth + x) * 4;
+
+                        byte r = (byte)(color.R * finalOpacity);
+                        byte g = (byte)(color.G * finalOpacity);
+                        byte b = (byte)(color.B * finalOpacity);
+
+                        _pixelBuffer[index + 0] = b;
+                        _pixelBuffer[index + 1] = g;
+                        _pixelBuffer[index + 2] = r;
+                        _pixelBuffer[index + 3] = 255;
+                    }
+                }
+            }
+        }
+
+
+
+        private void RenderStars(object sender, EventArgs e)
+        {
+            using var dc = _starVisual.RenderOpen();
+            foreach (var star in _starInfos)
+            {
+                // Update position
+                star.Position += star.Velocity;
+
+                // Recycle if offscreen
+                if (star.Position.X < 0 || star.Position.X > ActualWidth || star.Position.Y < 0 || star.Position.Y > ActualHeight)
+                {
+                    double angle = _random.NextDouble() * Math.PI * 2;
+                    double speed = 0.5 + _random.NextDouble() * 2.5;
+                    double radius = 3 + _random.NextDouble() * 2;
+
+                    star.Position = _screenCenter;
+                    star.Velocity = new Vector(Math.Cos(angle) * speed, Math.Sin(angle) * speed);
+                    star.Radius = radius;
+                    star.Color = _starColors[_random.Next(_starColors.Length)];
+                }
+
+                // Draw star
+                var brush = new SolidColorBrush(star.Color) { Opacity = 0.85 };
+                dc.DrawEllipse(brush, null, star.Position, star.Radius, star.Radius);
+            }
+        }
+
+
 
         public void SetGameState(GameStateService gameState)
         {
@@ -281,26 +425,24 @@ namespace EliteInfoPanel.Controls
         {
             Log.Information("🚀 HyperspaceOverlay forced to hidden state");
 
-            // Cancel visibility timer if active
             _visibilityTimer?.Dispose();
             _visibilityTimer = null;
 
-            // Ensure we're on the UI thread
             if (!Dispatcher.CheckAccess())
             {
                 Dispatcher.BeginInvoke(new Action(ForceHidden));
                 return;
             }
 
-            // Hide the overlay
             RootGrid.Visibility = Visibility.Collapsed;
 
-            // Pause all star animations to save resources
-            foreach (var anim in _starAnimations)
+            if (_isRendering)
             {
-                anim.Pause();
+             
+                _isRendering = false;
             }
         }
+
 
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
@@ -361,10 +503,10 @@ namespace EliteInfoPanel.Controls
                         Log.Warning("⚠️ Hyperspace overlay safety timer triggered - forcing overlay to hide");
                         RootGrid.Visibility = Visibility.Collapsed;
 
-                        // Pause all star animations to save resources
+                        // Stop all star animations
                         foreach (var anim in _starAnimations)
                         {
-                            anim.Pause();
+                            anim.Stop();
                         }
                     }
                 }));
@@ -387,15 +529,6 @@ namespace EliteInfoPanel.Controls
                     RootGrid.Visibility = Visibility.Visible;
                     Log.Information("🚀 HyperspaceOverlay now VISIBLE");
 
-                    // Resume all star animations
-                    foreach (var anim in _starAnimations)
-                    {
-                        if (anim.GetCurrentState() != ClockState.Active)
-                        {
-                            anim.Begin();
-                        }
-                    }
-
                     // Ensure progress bar is animating
                     if (JumpProgressBar != null)
                     {
@@ -410,10 +543,10 @@ namespace EliteInfoPanel.Controls
                     RootGrid.Visibility = Visibility.Collapsed;
                     Log.Information("🚀 HyperspaceOverlay now HIDDEN");
 
-                    // Pause all star animations to save resources
+                    // Stop all star animations
                     foreach (var anim in _starAnimations)
                     {
-                        anim.Pause();
+                        anim.Stop();
                     }
                 }
             }
@@ -507,4 +640,28 @@ namespace EliteInfoPanel.Controls
             }
         }
     }
+    public class StarInfo
+    {
+        public Point Position;
+        public Point PreviousPosition;
+        public Vector Velocity;
+        public double Radius;
+        public Color Color;
+    }
+
+    public class VisualHost : FrameworkElement
+    {
+        private readonly VisualCollection _children;
+
+        public VisualHost(Visual visual)
+        {
+            _children = new VisualCollection(this) { visual };
+        }
+
+        protected override int VisualChildrenCount => _children.Count;
+
+        protected override Visual GetVisualChild(int index) => _children[index];
+    }
+
+
 }
