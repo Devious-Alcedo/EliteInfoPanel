@@ -63,8 +63,10 @@ namespace EliteInfoPanel.Core
             get => _legalState;
             private set => SetProperty(ref _legalState, value);
         }
-        public bool ShowCarrierJumpOverlay => FleetCarrierJumpInProgress && IsOnFleetCarrier;
-
+        public bool ShowCarrierJumpOverlay =>
+            FleetCarrierJumpInProgress &&
+            IsOnFleetCarrier &&
+            CarrierJumpCountdownSeconds <= 0;
         private string _lastVisitedSystem;
         private const string RouteProgressFile = "RouteProgress.json";
         private RouteProgressState _routeProgress = new();
@@ -87,11 +89,14 @@ namespace EliteInfoPanel.Core
                 if (CarrierJumpScheduledTime.HasValue)
                 {
                     var timeLeft = CarrierJumpScheduledTime.Value.ToLocalTime() - DateTime.Now;
-                    return (int)Math.Max(0, timeLeft.TotalSeconds);
+                    int result = (int)Math.Max(0, timeLeft.TotalSeconds);
+                    Log.Debug("CarrierJumpCountdownSeconds = {Seconds}", result);
+                    return result;
                 }
                 return 0;
             }
         }
+
 
         private StatusJson _currentStatus;
         private string _commanderName;
@@ -147,11 +152,12 @@ namespace EliteInfoPanel.Core
             get => _fleetCarrierJumpInProgress;
             private set
             {
+                Log.Information("📡 FleetCarrierJumpInProgress changed to {0}", value);
                 if (SetProperty(ref _fleetCarrierJumpInProgress, value))
                     OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // 👈 notify
             }
         }
-
+    
 
         public string LastVisitedSystem
         {
@@ -933,6 +939,8 @@ namespace EliteInfoPanel.Core
             OnPropertyChanged(nameof(CurrentSystem));
             OnPropertyChanged(nameof(Balance));
             OnPropertyChanged(nameof(CurrentStatus));
+            OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // ensure overlay check runs
+
 
         }
 
@@ -1436,10 +1444,13 @@ namespace EliteInfoPanel.Core
                     FleetCarrierJumpTime = latestDeparture;
                     CarrierJumpDestinationSystem = system;
                     CarrierJumpDestinationBody = body;
+                    FleetCarrierJumpInProgress = true;
+                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // ✅ force re-eval
 
                     Log.Information("Recovered scheduled CarrierJump to {System}, {Body} at {Time}",
                         system, body, latestDeparture);
                 }
+
             }
             catch (Exception ex)
             {

@@ -16,7 +16,7 @@ namespace EliteInfoPanel.ViewModels
     {
         #region Private Fields
         private readonly GameStateService _gameState;
-        private DispatcherTimer _carrierCountdownTimer;
+        private System.Timers.Timer _carrierCountdownTimer;
         private SummaryItemViewModel _carrierCountdownItem;
         private string _fuelPanelTitle;
         private bool _showFuelBar;
@@ -544,7 +544,6 @@ namespace EliteInfoPanel.ViewModels
                 _carrierCountdownItem = existing;
                 _carrierCountdownItem.Content = FormatCountdownText(initialCountdown, destination);
 
-                // Only reset color if not red or green
                 if (_carrierCountdownItem.Foreground != Brushes.Red &&
                     _carrierCountdownItem.Foreground != Brushes.LightGreen)
                 {
@@ -555,86 +554,91 @@ namespace EliteInfoPanel.ViewModels
                 Log.Debug("🔁 Reusing existing CarrierJumpCountdown item.");
             }
 
-            // Move to end of list (if not already last)
             if (Items.IndexOf(_carrierCountdownItem) != Items.Count - 1)
             {
                 Items.Remove(_carrierCountdownItem);
                 Items.Add(_carrierCountdownItem);
             }
 
-            Log.Debug("🚀 CarrierJumpCountdown item state:");
+            Log.Debug("🚀 CarrierJumpCountdown item initialized");
             Log.Debug("   - Content: {Content}", _carrierCountdownItem.Content);
             Log.Debug("   - Foreground: {Foreground}", _carrierCountdownItem.Foreground.ToString());
             Log.Debug("   - Pulse: {Pulse}", _carrierCountdownItem.Pulse);
-            Log.Debug("   - Items count (post-add if new): {Count}", Items.Count);
+            Log.Debug("   - Items count: {Count}", Items.Count);
 
             if (_carrierCountdownTimer != null)
                 return;
 
-            _carrierCountdownTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromSeconds(1)
-            };
-
             var targetTime = DateTime.UtcNow.Add(initialCountdown);
 
-            _carrierCountdownTimer.Tick += (s, e) =>
+            _carrierCountdownTimer = new System.Timers.Timer(1000);
+            _carrierCountdownTimer.AutoReset = true;
+
+            _carrierCountdownTimer.Elapsed += (s, e) =>
             {
                 var remaining = targetTime - DateTime.UtcNow;
 
                 if (remaining <= TimeSpan.Zero)
                 {
-                    StopCarrierCountdown();
+                    _carrierCountdownTimer.Stop();
+                    _carrierCountdownTimer.Dispose();
+                    _carrierCountdownTimer = null;
 
-                    var status = _gameState.CurrentStatus;
-                    var station = _gameState.CurrentStationName;
-                    var carrierDest = _gameState.CarrierJumpDestinationSystem;
-
-                    if (status?.Flags.HasFlag(Flag.Docked) == true &&
-                        !string.IsNullOrEmpty(station) &&
-                        !string.IsNullOrEmpty(carrierDest) &&
-                        _gameState.CurrentSystem == carrierDest)
+                    Application.Current.Dispatcher.Invoke(() =>
                     {
-                        App.Current.Dispatcher.Invoke(() =>
+                        StopCarrierCountdown();
+                        Log.Information("Carrier jump countdown reached zero — checking docked state to trigger overlay");
+
+                        var status = _gameState.CurrentStatus;
+                        var station = _gameState.CurrentStationName;
+                        var carrierDest = _gameState.CarrierJumpDestinationSystem;
+
+                        if (status?.Flags.HasFlag(Flag.Docked) == true &&
+                            !string.IsNullOrEmpty(station) &&
+                            !string.IsNullOrEmpty(carrierDest) &&
+                            _gameState.CurrentSystem == carrierDest)
                         {
-                            if (App.Current.MainWindow?.DataContext is MainViewModel mainVm)
+                            if (Application.Current.MainWindow?.DataContext is MainViewModel mainVm)
                             {
+                                Log.Information("✅ Conditions met — triggering IsCarrierJumping");
                                 mainVm.IsCarrierJumping = true;
                             }
-                        });
-                    }
+                        }
+                    });
 
                     return;
                 }
 
-                _carrierCountdownItem.Content = FormatCountdownText(remaining, destination);
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    _carrierCountdownItem.Content = FormatCountdownText(remaining, _gameState.CarrierJumpDestinationSystem);
 
-                // Style logic
-                if (remaining.TotalMinutes <= 2.75)
-                {
-                    if (_carrierCountdownItem.Foreground != Brushes.Red)
+                    // Style logic
+                    if (remaining.TotalMinutes <= 2.75)
                     {
-                        _carrierCountdownItem.Foreground = Brushes.Red;
-                        _carrierCountdownItem.Pulse = true;
+                        if (_carrierCountdownItem.Foreground != Brushes.Red)
+                        {
+                            _carrierCountdownItem.Foreground = Brushes.Red;
+                            _carrierCountdownItem.Pulse = true;
+                        }
                     }
-                }
-                else if (remaining.TotalMinutes <= 10)
-                {
-                    if (_carrierCountdownItem.Foreground != Brushes.Gold)
+                    else if (remaining.TotalMinutes <= 10)
                     {
-                        _carrierCountdownItem.Foreground = Brushes.Gold;
-                        _carrierCountdownItem.Pulse = false;
+                        if (_carrierCountdownItem.Foreground != Brushes.Gold)
+                        {
+                            _carrierCountdownItem.Foreground = Brushes.Gold;
+                            _carrierCountdownItem.Pulse = false;
+                        }
                     }
-                }
-                else
-                {
-                    if (_carrierCountdownItem.Foreground != Brushes.LightGreen)
+                    else
                     {
-                        _carrierCountdownItem.Foreground = Brushes.LightGreen;
-                        _carrierCountdownItem.Pulse = false;
+                        if (_carrierCountdownItem.Foreground != Brushes.LightGreen)
+                        {
+                            _carrierCountdownItem.Foreground = Brushes.LightGreen;
+                            _carrierCountdownItem.Pulse = false;
+                        }
                     }
-                }
-
+                });
             };
 
             _carrierCountdownTimer.Start();

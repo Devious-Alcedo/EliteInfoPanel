@@ -1,6 +1,10 @@
 ﻿using System;
 using System.ComponentModel;
 using System.Formats.Asn1;
+using System.Windows;
+using System.Windows.Interop;
+using System.Windows.Media;
+
 using System.Linq;
 using System.Reflection;
 using System.Windows;
@@ -12,6 +16,7 @@ using EliteInfoPanel.Util;
 using EliteInfoPanel.ViewModels;
 using Serilog;
 using WpfScreenHelper;
+using System.Diagnostics;
 
 namespace EliteInfoPanel
 {
@@ -24,7 +29,12 @@ namespace EliteInfoPanel
         public MainWindow()
         {
             InitializeComponent();
+            //RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
 
+            //CompositionTarget.Rendering += (s, ev) =>
+            //{
+            //    System.Diagnostics.Debug.WriteLine("🔄 WPF redraw...");
+            //};
             // Configure logging
             LoggingConfig.Configure(enableDebugLogging: false);
 
@@ -87,7 +97,17 @@ namespace EliteInfoPanel
         {
             // Apply window mode settings
             ApplyWindowSettings();
-
+//#if DEBUG
+//            CompositionTarget.Rendering += (s, args) =>
+//            {
+//                var visual = PresentationSource.FromVisual(this)?.RootVisual;
+//                if (visual is Visual v)
+//                {
+//                    var dirty = System.Windows.Media.VisualTreeHelper.GetDescendantBounds(v);
+//                    Debug.WriteLine($"[WPF] Redrawing bounds: {dirty}");
+//                }
+//            };
+//#endif
             // Get ViewModel
             if (DataContext is MainViewModel vm)
             {

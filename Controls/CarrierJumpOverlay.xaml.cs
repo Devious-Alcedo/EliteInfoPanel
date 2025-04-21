@@ -10,6 +10,7 @@ using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using EliteInfoPanel.Core;
 using Serilog;
 
@@ -34,6 +35,8 @@ namespace EliteInfoPanel.Controls
         private readonly List<StarInfo> _stars = new();
         private Point _center;
         private bool _isRendering = false;
+        private DispatcherTimer _countdownMonitorTimer;
+
         private readonly Color[] _starColors = new[]
         {
             Color.FromRgb(255, 0, 128),
@@ -62,6 +65,7 @@ namespace EliteInfoPanel.Controls
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
             StopRenderThread();
+            _countdownMonitorTimer?.Stop();
         }
 
         private void OnSizeChanged(object sender, SizeChangedEventArgs e)
@@ -112,30 +116,49 @@ namespace EliteInfoPanel.Controls
 
         private void StartRenderThread()
         {
-            if (_isRendering)
+            if (_renderThread != null && _renderThread.IsAlive)
+            {
+                Log.Warning("CarrierJumpOverlay render thread already running");
                 return;
+            }
 
             _stopRenderThread = false;
-            _isRendering = true;
-
             _renderThread = new Thread(RenderLoop)
             {
                 IsBackground = true,
                 Priority = ThreadPriority.AboveNormal
             };
+
+            Log.Information("Starting CarrierJumpOverlay render thread");
             _renderThread.Start();
         }
 
+
         private void StopRenderThread()
         {
-            if (!_isRendering)
-                return;
+            if (_renderThread == null || !_renderThread.IsAlive) return;
+
+            Log.Information("Stopping CarrierJumpOverlay render thread");
 
             _stopRenderThread = true;
-            _renderThread?.Join();
+
+            if (!_renderThread.Join(500))
+            {
+                try
+                {
+                    _renderThread.Interrupt();
+                    Log.Warning("Render thread join timeout — forcibly interrupting");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error interrupting render thread");
+                }
+            }
+
             _renderThread = null;
-            _isRendering = false;
         }
+
+
 
 
         private void RenderLoop()
@@ -293,8 +316,21 @@ namespace EliteInfoPanel.Controls
         {
             _gameState = gameState;
             _gameState.PropertyChanged += GameState_PropertyChanged;
+
+            _countdownMonitorTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(1)
+            };
+            _countdownMonitorTimer.Tick += (s, e) =>
+            {
+                if (_gameState.ShowCarrierJumpOverlay)
+                    UpdateVisibility(); // This re-checks countdown
+            };
+            _countdownMonitorTimer.Start();
+
             UpdateVisibility();
         }
+
 
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
@@ -304,8 +340,11 @@ namespace EliteInfoPanel.Controls
 
         private void UpdateVisibility()
         {
+            Log.Information("UpdateVisibility: ShowCarrierJumpOverlay={Show}, CountdownSeconds={Countdown}",
+                   _gameState.ShowCarrierJumpOverlay, _gameState.CarrierJumpCountdownSeconds);
             if (_gameState?.ShowCarrierJumpOverlay == true && _gameState.CarrierJumpCountdownSeconds <= 0)
             {
+                Log.Information("Overlay becoming VISIBLE (conditions met)");
                 OverlayGrid.Visibility = Visibility.Visible;
 
                 if (!_isRendering)
@@ -321,6 +360,7 @@ namespace EliteInfoPanel.Controls
             }
             else
             {
+                Log.Information("Overlay HIDDEN — conditions not met");
                 OverlayGrid.Visibility = Visibility.Collapsed;
 
                 if (_isRendering)

@@ -50,7 +50,7 @@ namespace EliteInfoPanel.ViewModels
 
             _pageTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromSeconds(5)
+                Interval = TimeSpan.FromSeconds(8)
             };
             _pageTimer.Tick += PageTimer_Tick;
             _pageTimer.Start();
