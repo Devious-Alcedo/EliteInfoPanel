@@ -267,10 +267,9 @@ namespace EliteInfoPanel.ViewModels
 
             bool destinationInSystem = hasDestination &&
                                        (!hasRoute);
-
             if (destinationInSystem)
             {
-                Title = "Nav Route (In-System Target)";
+                Title = "Nav Route\n(In-System Target)";
             }
             else if (hasRoute && _gameState.TotalRemainingJumps > 0)
             {

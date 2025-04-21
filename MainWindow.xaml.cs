@@ -89,26 +89,12 @@ namespace EliteInfoPanel
             }
         }
 
-        // Find the Window_Loaded method and add the following code:
-
-        // Update the Window_Loaded method in MainWindow.xaml.cs:
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             // Apply window mode settings
             ApplyWindowSettings();
-//#if DEBUG
-//            CompositionTarget.Rendering += (s, args) =>
-//            {
-//                var visual = PresentationSource.FromVisual(this)?.RootVisual;
-//                if (visual is Visual v)
-//                {
-//                    var dirty = System.Windows.Media.VisualTreeHelper.GetDescendantBounds(v);
-//                    Debug.WriteLine($"[WPF] Redrawing bounds: {dirty}");
-//                }
-//            };
-//#endif
-            // Get ViewModel
+
             if (DataContext is MainViewModel vm)
             {
                 // Setup HyperspaceOverlay
@@ -131,16 +117,50 @@ namespace EliteInfoPanel
                     }, null, 1000, Timeout.Infinite);
                 }
 
-                // ✅ Setup CarrierJumpOverlay
+                // Setup CarrierJumpOverlay
                 if (CarrierJumpOverlay != null)
                 {
                     CarrierJumpOverlay.ForceHidden();
                     CarrierJumpOverlay.SetGameState(vm._gameState);
-                }
 
+                    // Watch for ShowCarrierJumpOverlay changes
+                    vm._gameState.PropertyChanged += (s, args) =>
+                    {
+                        if (args.PropertyName == nameof(GameStateService.ShowCarrierJumpOverlay))
+                        {
+                            var show = vm._gameState.ShowCarrierJumpOverlay;
+                            Log.Information("MainWindow detected ShowCarrierJumpOverlay changed to {Value}", show);
+
+                            Dispatcher.Invoke(() => {
+                                if (show)
+                                {
+                                    Log.Information("Explicitly triggering CarrierJumpOverlay visibility update");
+                                    CarrierJumpOverlay.UpdateVisibility();
+                                }
+                            });
+                        }
+                    };
+
+                    // Extra startup check for carrier jump state
+                    var carrierJumpTimer = new System.Threading.Timer((state) =>
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            if (vm._gameState.ShowCarrierJumpOverlay)
+                            {
+                                Log.Information("🚢 Startup timer detected carrier jump should be shown - updating visibility");
+                                CarrierJumpOverlay.UpdateVisibility();
+                            }
+                            else
+                            {
+                                CarrierJumpOverlay.ForceHidden();
+                                Log.Information("🔴 Startup timer verified carrier jump overlay is hidden");
+                            }
+                        });
+                    }, null, 1500, Timeout.Infinite);
+                }
             }
         }
-      
 
         private void ApplyWindowSettings()
         {

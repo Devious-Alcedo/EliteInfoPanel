@@ -90,12 +90,26 @@ namespace EliteInfoPanel.Core
                 {
                     var timeLeft = CarrierJumpScheduledTime.Value.ToLocalTime() - DateTime.Now;
                     int result = (int)Math.Max(0, timeLeft.TotalSeconds);
-                    Log.Debug("CarrierJumpCountdownSeconds = {Seconds}", result);
+
+                    // Store the previous value to detect changes
+                    int previousValue = _lastCarrierJumpCountdown;
+                    _lastCarrierJumpCountdown = result;
+
+                    // If countdown reached zero, notify ShowCarrierJumpOverlay
+                    if (previousValue > 0 && result == 0 && FleetCarrierJumpInProgress && IsOnFleetCarrier)
+                    {
+                        Log.Information("Carrier jump countdown reached zero - triggering overlay notification");
+                        OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
+                    }
+
                     return result;
                 }
                 return 0;
             }
         }
+
+        // Add this field to track changes
+        private int _lastCarrierJumpCountdown = -1;
 
 
         private StatusJson _currentStatus;

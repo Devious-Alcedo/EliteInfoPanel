@@ -338,11 +338,12 @@ namespace EliteInfoPanel.Controls
                 Dispatcher.Invoke(UpdateVisibility);
         }
 
-        private void UpdateVisibility()
+        public void UpdateVisibility()
         {
-            Log.Information("UpdateVisibility: ShowCarrierJumpOverlay={Show}, CountdownSeconds={Countdown}",
-                   _gameState.ShowCarrierJumpOverlay, _gameState.CarrierJumpCountdownSeconds);
-            if (_gameState?.ShowCarrierJumpOverlay == true && _gameState.CarrierJumpCountdownSeconds <= 0)
+            Log.Information("UpdateVisibility: ShowCarrierJumpOverlay={Show}, CountdownSeconds={Countdown}, IsOnFleetCarrier={OnCarrier}",
+                       _gameState.ShowCarrierJumpOverlay, _gameState.CarrierJumpCountdownSeconds, _gameState.IsOnFleetCarrier);
+
+            if (_gameState?.ShowCarrierJumpOverlay == true)
             {
                 Log.Information("Overlay becoming VISIBLE (conditions met)");
                 OverlayGrid.Visibility = Visibility.Visible;
@@ -352,6 +353,7 @@ namespace EliteInfoPanel.Controls
                     InitBitmap();
                     InitStarfield();
                     StartRenderThread();
+                    _isRendering = true;
                 }
 
                 DestinationText.Text = string.IsNullOrEmpty(_gameState.CarrierJumpDestinationSystem)
@@ -366,6 +368,7 @@ namespace EliteInfoPanel.Controls
                 if (_isRendering)
                 {
                     StopRenderThread();
+                    _isRendering = false;
                 }
             }
         }

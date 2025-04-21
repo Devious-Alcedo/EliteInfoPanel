@@ -2,6 +2,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -587,7 +588,11 @@ namespace EliteInfoPanel.ViewModels
                     Application.Current.Dispatcher.Invoke(() =>
                     {
                         StopCarrierCountdown();
-                        Log.Information("Carrier jump countdown reached zero — checking docked state to trigger overlay");
+                        Log.Information("Carrier jump countdown reached zero — notifying GameStateService");
+
+                        // Force a property change notification on CarrierJumpCountdownSeconds
+                        OnPropertyChanged(nameof(_gameState.CarrierJumpCountdownSeconds));
+                        OnPropertyChanged(nameof(_gameState.ShowCarrierJumpOverlay));
 
                         var status = _gameState.CurrentStatus;
                         var station = _gameState.CurrentStationName;
@@ -596,13 +601,19 @@ namespace EliteInfoPanel.ViewModels
                         if (status?.Flags.HasFlag(Flag.Docked) == true &&
                             !string.IsNullOrEmpty(station) &&
                             !string.IsNullOrEmpty(carrierDest) &&
-                            _gameState.CurrentSystem == carrierDest)
+                            _gameState.IsOnFleetCarrier)
                         {
-                            if (Application.Current.MainWindow?.DataContext is MainViewModel mainVm)
-                            {
-                                Log.Information("✅ Conditions met — triggering IsCarrierJumping");
-                                mainVm.IsCarrierJumping = true;
-                            }
+                            Log.Information("✅ Conditions met for carrier jump overlay");
+
+                            // Explicitly set properties to ensure overlay shows
+                            _gameState.GetType()
+                                .GetProperty("CarrierJumpCountdownSeconds", BindingFlags.NonPublic | BindingFlags.Instance)
+                                ?.SetValue(_gameState, 0);
+
+                            // Notify that ShowCarrierJumpOverlay may have changed
+                            _gameState.GetType()
+                                .GetMethod("OnPropertyChanged", BindingFlags.NonPublic | BindingFlags.Instance)
+                                ?.Invoke(_gameState, new object[] { nameof(_gameState.ShowCarrierJumpOverlay) });
                         }
                     });
 
