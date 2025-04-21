@@ -18,7 +18,20 @@ namespace EliteInfoPanel.Controls
         private readonly int _maxVisibilityTimeMs = 25000; // Maximum time overlay can stay visible (25 seconds)
         private readonly Random _random = new Random();
         private readonly List<Ellipse> _stars = new List<Ellipse>();
-        private Storyboard _starfieldAnimation;
+        private readonly List<Storyboard> _starAnimations = new List<Storyboard>();
+        private readonly int _numStars = 200; // Number of stars to create
+        private bool _starfieldInitialized = false;
+
+        // Star color options - blueish-white colors for a realistic space look
+        private readonly Color[] _starColors = new[]
+        {
+            Color.FromRgb(255, 255, 255),    // Pure white
+            Color.FromRgb(230, 240, 255),    // Light blue-white
+            Color.FromRgb(220, 225, 255),    // Pale blue
+            Color.FromRgb(200, 200, 255),    // Light lavender
+            Color.FromRgb(255, 240, 220),    // Warm white (for some contrast)
+            Color.FromRgb(220, 220, 255),    // Pale purple
+        };
 
         // Legal state colors
         private readonly Dictionary<string, SolidColorBrush> _legalStateColors = new Dictionary<string, SolidColorBrush>
@@ -41,33 +54,96 @@ namespace EliteInfoPanel.Controls
             // Force the overlay to be hidden initially
             RootGrid.Visibility = Visibility.Collapsed;
 
-            // Initialize starfield animation if enabled
-            InitializeStarfield();
+            // Setup event handlers
+            this.Loaded += HyperspaceOverlay_Loaded;
+            this.SizeChanged += HyperspaceOverlay_SizeChanged;
 
             Log.Information("🚀 HyperspaceOverlay created - initially hidden");
+        }
+
+        private void HyperspaceOverlay_Loaded(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Initialize starfield if not already done
+                if (!_starfieldInitialized)
+                {
+                    InitializeStarfield();
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error in HyperspaceOverlay_Loaded");
+            }
+        }
+
+        private void HyperspaceOverlay_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            try
+            {
+                // Re-initialize the starfield when the size changes
+                if (RootGrid.Visibility == Visibility.Visible && e.NewSize.Width > 0 && e.NewSize.Height > 0)
+                {
+                    ClearStarfield();
+                    InitializeStarfield();
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error in HyperspaceOverlay_SizeChanged");
+            }
+        }
+
+        private void ClearStarfield()
+        {
+            try
+            {
+                // Stop all animations
+                foreach (var anim in _starAnimations)
+                {
+                    anim.Stop();
+                }
+                _starAnimations.Clear();
+
+                // Clear all stars
+                StarfieldCanvas.Children.Clear();
+                _stars.Clear();
+
+                _starfieldInitialized = false;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error clearing starfield");
+            }
         }
 
         private void InitializeStarfield()
         {
             try
             {
-                // Only proceed if the canvas exists
-                if (StarfieldCanvas == null) return;
-
-                // Create a storyboard for animation
-                _starfieldAnimation = new Storyboard();
-
-                // Create stars
-                for (int i = 0; i < 150; i++)
+                // Only proceed if the canvas exists and has size
+                if (StarfieldCanvas == null || ActualWidth <= 0 || ActualHeight <= 0)
                 {
-                    CreateStar();
+                    Log.Debug("Skipping starfield initialization - canvas not ready");
+                    return;
                 }
 
-                // Start the animation when loaded
-                this.Loaded += (s, e) =>
+                double screenWidth = ActualWidth;
+                double screenHeight = ActualHeight;
+
+                // Clear any existing stars first
+                StarfieldCanvas.Children.Clear();
+                _stars.Clear();
+                _starAnimations.Clear();
+
+                // Create stars - different sizes and speeds
+                for (int i = 0; i < _numStars; i++)
                 {
-                    _starfieldAnimation.Begin();
-                };
+                    CreateStar(screenWidth, screenHeight);
+                }
+
+                _starfieldInitialized = true;
+                Log.Debug("✨ Starfield initialized with {0} stars", _numStars);
             }
             catch (Exception ex)
             {
@@ -75,43 +151,88 @@ namespace EliteInfoPanel.Controls
             }
         }
 
-        private void CreateStar()
+        private void CreateStar(double screenWidth, double screenHeight)
         {
             try
             {
                 // Only proceed if the canvas exists
                 if (StarfieldCanvas == null) return;
 
+                // Determine star properties
+                double starSize = _random.NextDouble() * 2.5 + 0.5;  // Size between 0.5 and 3.0 pixels
+                double initialOpacity = _random.NextDouble() * 0.7 + 0.3;  // Opacity between 0.3 and 1.0
+
+                // Choose a random color from our star colors array
+                Color starColor = _starColors[_random.Next(_starColors.Length)];
+
                 // Create a star (small ellipse)
                 var star = new Ellipse
                 {
-                    Width = _random.Next(1, 4),
-                    Height = _random.Next(1, 4),
-                    Fill = new SolidColorBrush(Colors.White),
-                    Opacity = _random.NextDouble() * 0.8 + 0.2 // Between 0.2 and 1.0
+                    Width = starSize,
+                    Height = starSize,
+                    Fill = new SolidColorBrush(starColor),
+                    Opacity = initialOpacity
                 };
 
                 // Position randomly on canvas
-                Canvas.SetLeft(star, _random.Next(0, (int)StarfieldCanvas.ActualWidth));
-                Canvas.SetTop(star, _random.Next(0, (int)StarfieldCanvas.ActualHeight));
+                Canvas.SetLeft(star, _random.NextDouble() * screenWidth * 1.2); // Some stars start off-screen
+                Canvas.SetTop(star, _random.NextDouble() * screenHeight);
 
                 // Add to canvas and collection
                 StarfieldCanvas.Children.Add(star);
                 _stars.Add(star);
 
-                // Create animation for this star
-                var animation = new DoubleAnimation
+                // Create animation storyboard for this star
+                var storyboard = new Storyboard();
+
+                // Create horizontal movement animation (stars move left)
+                var moveAnimation = new DoubleAnimation
                 {
                     From = Canvas.GetLeft(star),
-                    To = Canvas.GetLeft(star) - 1000, // Move left
-                    Duration = TimeSpan.FromSeconds(_random.Next(3, 10)),
-                    RepeatBehavior = RepeatBehavior.Forever
+                    To = -30, // Move left off screen
+                    Duration = TimeSpan.FromSeconds(2 + (_random.NextDouble() * 5)),
+                    FillBehavior = FillBehavior.Stop
                 };
 
-                Storyboard.SetTarget(animation, star);
-                Storyboard.SetTargetProperty(animation, new PropertyPath("(Canvas.Left)"));
+                Storyboard.SetTarget(moveAnimation, star);
+                Storyboard.SetTargetProperty(moveAnimation, new PropertyPath("(Canvas.Left)"));
+                storyboard.Children.Add(moveAnimation);
 
-                _starfieldAnimation.Children.Add(animation);
+                // Optional: Add a slight twinkle animation for some stars
+                if (_random.NextDouble() > 0.7) // 30% of stars
+                {
+                    var opacityAnimation = new DoubleAnimation
+                    {
+                        From = initialOpacity,
+                        To = initialOpacity * 0.5, // Fade to half brightness
+                        Duration = TimeSpan.FromSeconds(0.5 + (_random.NextDouble() * 1.0)),
+                        AutoReverse = true,
+                        RepeatBehavior = RepeatBehavior.Forever
+                    };
+
+                    Storyboard.SetTarget(opacityAnimation, star);
+                    Storyboard.SetTargetProperty(opacityAnimation, new PropertyPath("Opacity"));
+                    storyboard.Children.Add(opacityAnimation);
+                }
+
+                // Handle completion of the animation (star moves off-screen)
+                storyboard.Completed += (s, e) =>
+                {
+                    // Reset star to right side of screen
+                    Canvas.SetLeft(star, screenWidth + 10);
+                    Canvas.SetTop(star, _random.NextDouble() * screenHeight);
+
+                    // Restart animation after a small delay
+                    storyboard.BeginTime = TimeSpan.FromMilliseconds(_random.Next(0, 300));
+                    storyboard.Begin();
+                };
+
+                // Add to our list of animations
+                _starAnimations.Add(storyboard);
+
+                // Start with a random delay to stagger star movement
+                storyboard.BeginTime = TimeSpan.FromMilliseconds(_random.Next(0, 1500));
+                storyboard.Begin();
             }
             catch (Exception ex)
             {
@@ -160,11 +281,25 @@ namespace EliteInfoPanel.Controls
         {
             Log.Information("🚀 HyperspaceOverlay forced to hidden state");
 
-            // Stop any animations
-            _starfieldAnimation?.Stop();
+            // Cancel visibility timer if active
+            _visibilityTimer?.Dispose();
+            _visibilityTimer = null;
+
+            // Ensure we're on the UI thread
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.BeginInvoke(new Action(ForceHidden));
+                return;
+            }
 
             // Hide the overlay
             RootGrid.Visibility = Visibility.Collapsed;
+
+            // Pause all star animations to save resources
+            foreach (var anim in _starAnimations)
+            {
+                anim.Pause();
+            }
         }
 
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -226,8 +361,11 @@ namespace EliteInfoPanel.Controls
                         Log.Warning("⚠️ Hyperspace overlay safety timer triggered - forcing overlay to hide");
                         RootGrid.Visibility = Visibility.Collapsed;
 
-                        // Stop animations
-                        _starfieldAnimation?.Stop();
+                        // Pause all star animations to save resources
+                        foreach (var anim in _starAnimations)
+                        {
+                            anim.Pause();
+                        }
                     }
                 }));
             }, null, _maxVisibilityTimeMs, Timeout.Infinite); // One-time timer
@@ -240,11 +378,29 @@ namespace EliteInfoPanel.Controls
                 // Use direct Visibility property setting instead of bindings
                 if (_gameState?.IsHyperspaceJumping == true)
                 {
+                    // Make sure starfield is initialized
+                    if (!_starfieldInitialized)
+                    {
+                        InitializeStarfield();
+                    }
+
                     RootGrid.Visibility = Visibility.Visible;
                     Log.Information("🚀 HyperspaceOverlay now VISIBLE");
 
-                    // Start animations
-                    _starfieldAnimation?.Begin();
+                    // Resume all star animations
+                    foreach (var anim in _starAnimations)
+                    {
+                        if (anim.GetCurrentState() != ClockState.Active)
+                        {
+                            anim.Begin();
+                        }
+                    }
+
+                    // Ensure progress bar is animating
+                    if (JumpProgressBar != null)
+                    {
+                        JumpProgressBar.IsIndeterminate = true;
+                    }
 
                     // Start safety timer when showing the overlay
                     StartVisibilityTimer();
@@ -254,8 +410,11 @@ namespace EliteInfoPanel.Controls
                     RootGrid.Visibility = Visibility.Collapsed;
                     Log.Information("🚀 HyperspaceOverlay now HIDDEN");
 
-                    // Stop animations
-                    _starfieldAnimation?.Stop();
+                    // Pause all star animations to save resources
+                    foreach (var anim in _starAnimations)
+                    {
+                        anim.Pause();
+                    }
                 }
             }
             catch (Exception ex)

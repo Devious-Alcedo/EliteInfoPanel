@@ -8,6 +8,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using EliteInfoPanel.Core.EliteInfoPanel.Core;
@@ -1334,15 +1335,34 @@ namespace EliteInfoPanel.Core
                             break;
 
                         case "ReceiveText":
+                            string msg = null;
+
                             if (root.TryGetProperty("Message_Localised", out var msgProp))
                             {
-                                string msg = msgProp.GetString();
+                                msg = msgProp.GetString();
                                 if (msg?.Contains("Docking request granted", StringComparison.OrdinalIgnoreCase) == true)
                                 {
                                     SetDockingStatus();
                                 }
                             }
+
+                            if (msg?.Contains("Entered Channel:", StringComparison.OrdinalIgnoreCase) == true)
+                            {
+                                // Reset hyperspace state if it's still active
+                                if (IsHyperspaceJumping || _isInHyperspace)
+                                {
+                                    Log.Information("🛬 System channel entry detected - clearing hyperspace state");
+                                    IsHyperspaceJumping = false;
+                                    _isInHyperspace = false;
+                                    HyperspaceDestination = null;
+                                    HyperspaceStarClass = null;
+
+                                    // Cancel any existing hyperspace timeout
+                                    _hyperspaceTimeoutCts?.Cancel();
+                                }
+                            }
                             break;
+
                     }
                 }
 
