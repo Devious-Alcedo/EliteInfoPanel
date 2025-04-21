@@ -622,9 +622,12 @@ namespace EliteInfoPanel.ViewModels
 
                 Application.Current.Dispatcher.Invoke(() =>
                 {
+                    // 🛑 Skip if destination is gone (likely jump has completed)
+                    if (_gameState.CarrierJumpDestinationSystem == null)
+                        return;
+
                     _carrierCountdownItem.Content = FormatCountdownText(remaining, _gameState.CarrierJumpDestinationSystem);
 
-                    // Style logic
                     if (remaining.TotalMinutes <= 2.75)
                     {
                         if (_carrierCountdownItem.Foreground != Brushes.Red)
@@ -650,6 +653,7 @@ namespace EliteInfoPanel.ViewModels
                         }
                     }
                 });
+
             };
 
             _carrierCountdownTimer.Start();

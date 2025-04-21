@@ -194,10 +194,18 @@ namespace EliteInfoPanel.Controls
 
                     DrawForks();
 
-                    Dispatcher.Invoke(() =>
+                    Dispatcher.BeginInvoke(new Action(() =>
                     {
-                        _bitmap.WritePixels(new Int32Rect(0, 0, _bitmapWidth, _bitmapHeight), _pixelBuffer, _pixelBufferStride, 0);
-                    });
+                        try
+                        {
+                            _bitmap.WritePixels(new Int32Rect(0, 0, _bitmapWidth, _bitmapHeight), _pixelBuffer, _pixelBufferStride, 0);
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warning(ex, "CarrierJumpOverlay: Failed to write pixels to bitmap");
+                        }
+                    }));
+
                 }
             }
         }
@@ -319,17 +327,19 @@ namespace EliteInfoPanel.Controls
 
             _countdownMonitorTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromSeconds(1)
+                Interval = TimeSpan.FromSeconds(1) // Check every second
             };
+
             _countdownMonitorTimer.Tick += (s, e) =>
             {
                 if (_gameState.ShowCarrierJumpOverlay)
-                    UpdateVisibility(); // This re-checks countdown
+                    UpdateVisibility(); // Re-check visibility conditions
             };
             _countdownMonitorTimer.Start();
 
-            UpdateVisibility();
+            UpdateVisibility(); // Initial check on visibility when the state is set
         }
+
 
 
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -341,7 +351,7 @@ namespace EliteInfoPanel.Controls
         public void UpdateVisibility()
         {
             Log.Information("UpdateVisibility: ShowCarrierJumpOverlay={Show}, CountdownSeconds={Countdown}, IsOnFleetCarrier={OnCarrier}",
-                       _gameState.ShowCarrierJumpOverlay, _gameState.CarrierJumpCountdownSeconds, _gameState.IsOnFleetCarrier);
+                            _gameState.ShowCarrierJumpOverlay, _gameState.CarrierJumpCountdownSeconds, _gameState.IsOnFleetCarrier);
 
             if (_gameState?.ShowCarrierJumpOverlay == true)
             {
@@ -357,21 +367,24 @@ namespace EliteInfoPanel.Controls
                 }
 
                 DestinationText.Text = string.IsNullOrEmpty(_gameState.CarrierJumpDestinationSystem)
-                    ? "???"
-                    : _gameState.CarrierJumpDestinationSystem;
+                    ? "???" // Default if destination is unknown
+                    : _gameState.CarrierJumpDestinationSystem; // Set the actual destination
             }
             else
             {
                 Log.Information("Overlay HIDDEN — conditions not met");
-                OverlayGrid.Visibility = Visibility.Collapsed;
+                OverlayGrid.Visibility = Visibility.Collapsed;  // Hide overlay
 
+                // Stop the render thread if it's running
                 if (_isRendering)
                 {
-                    StopRenderThread();
-                    _isRendering = false;
+                    StopRenderThread(); // Stop the rendering thread
+                    _isRendering = false; // Mark rendering as stopped
                 }
             }
         }
+
+
 
         public void ForceHidden()
         {
