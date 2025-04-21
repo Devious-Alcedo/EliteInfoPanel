@@ -62,6 +62,8 @@ namespace EliteInfoPanel.ViewModels
         #region Private Methods
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
+            //log all flags we receive
+          
             // Expand the properties we listen to
             if (e.PropertyName == nameof(GameStateService.CurrentStatus) ||
                 e.PropertyName == nameof(GameStateService.IsDocking) ||

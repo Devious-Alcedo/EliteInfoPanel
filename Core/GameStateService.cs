@@ -42,6 +42,18 @@ namespace EliteInfoPanel.Core
         #endregion
 
         #region Private Fields
+        private bool _isOnFleetCarrier;
+        public bool IsOnFleetCarrier
+        {
+            get => _isOnFleetCarrier;
+            private set
+            {
+                if (SetProperty(ref _isOnFleetCarrier, value))
+                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // 👈 notify
+            }
+        }
+
+
         private static readonly SolidColorBrush CountdownRedBrush = new SolidColorBrush(Colors.Red);
         private static readonly SolidColorBrush CountdownGoldBrush = new SolidColorBrush(Colors.Gold);
         private static readonly SolidColorBrush CountdownGreenBrush = new SolidColorBrush(Colors.Green);
@@ -51,6 +63,8 @@ namespace EliteInfoPanel.Core
             get => _legalState;
             private set => SetProperty(ref _legalState, value);
         }
+        public bool ShowCarrierJumpOverlay => FleetCarrierJumpInProgress && IsOnFleetCarrier;
+
         private string _lastVisitedSystem;
         private const string RouteProgressFile = "RouteProgress.json";
         private RouteProgressState _routeProgress = new();
@@ -66,6 +80,19 @@ namespace EliteInfoPanel.Core
         private double _maxJumpRange;
         private DateTime? _carrierJumpScheduledTime;
         private bool _fleetCarrierJumpInProgress;
+        public int CarrierJumpCountdownSeconds
+        {
+            get
+            {
+                if (CarrierJumpScheduledTime.HasValue)
+                {
+                    var timeLeft = CarrierJumpScheduledTime.Value.ToLocalTime() - DateTime.Now;
+                    return (int)Math.Max(0, timeLeft.TotalSeconds);
+                }
+                return 0;
+            }
+        }
+
         private StatusJson _currentStatus;
         private string _commanderName;
         private BackpackJson _currentBackpack;
@@ -118,8 +145,13 @@ namespace EliteInfoPanel.Core
         public bool FleetCarrierJumpInProgress
         {
             get => _fleetCarrierJumpInProgress;
-            private set => SetProperty(ref _fleetCarrierJumpInProgress, value);
+            private set
+            {
+                if (SetProperty(ref _fleetCarrierJumpInProgress, value))
+                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // 👈 notify
+            }
         }
+
 
         public string LastVisitedSystem
         {
@@ -713,6 +745,7 @@ namespace EliteInfoPanel.Core
         {
             var newStatus = DeserializeJsonFile<StatusJson>(Path.Combine(gamePath, "Status.json"));
             if (newStatus == null) return false;
+            IsHyperspaceJumping = newStatus.Flags.HasFlag(Flag.FsdJump);
 
             if (CurrentStatus == null || !JsonEquals(CurrentStatus, newStatus))
             {
@@ -866,6 +899,7 @@ namespace EliteInfoPanel.Core
             return false;
         }
 
+       
 
 
         private void LoadAllData()
@@ -1088,15 +1122,18 @@ namespace EliteInfoPanel.Core
                             FleetCarrierJumpArrived = true;
                             FleetCarrierJumpInProgress = false;
 
-                            bool isOnCarrier = root.TryGetProperty("StationType", out var stationTypeProp) &&
-                                               stationTypeProp.GetString() == "FleetCarrier";
+                            IsOnFleetCarrier = root.TryGetProperty("StationType", out var stationTypeProp) &&
+                                stationTypeProp.GetString() == "FleetCarrier";
 
-                            if (isOnCarrier && root.TryGetProperty("StarSystem", out var carrierSystem))
+
+                            if (IsOnFleetCarrier && root.TryGetProperty("StarSystem", out var carrierSystemProp))
                             {
-                                CurrentSystem = carrierSystem.GetString();
-                                Log.Debug("✅ Updated CurrentSystem from CarrierLocation: {System}", CurrentSystem);
+                                var carrierSystem = carrierSystemProp.GetString();
+                                CurrentSystem = carrierSystem;
+                                Log.Debug("✅ Updated CurrentSystem from CarrierLocation: {System}", carrierSystem);
                             }
                             break;
+
 
                         case "DockingGranted":
                             Log.Information("Docking granted by station — setting IsDocking = true");
@@ -1152,42 +1189,7 @@ namespace EliteInfoPanel.Core
 
                             break;
 
-                        case "StartJump":
-                            if (root.TryGetProperty("JumpType", out var jumpType))
-                            {
-                                string jumpTypeString = jumpType.GetString();
-                                if (jumpTypeString == "Hyperspace")
-                                {
-                                    Log.Information("🚀 Hyperspace jump initiated");
-
-                                    if (root.TryGetProperty("StarSystem", out var starSystem))
-                                        HyperspaceDestination = starSystem.GetString();
-
-                                    if (root.TryGetProperty("StarClass", out var starClass))
-                                        HyperspaceStarClass = starClass.GetString();
-
-                                    _isInHyperspace = true;
-                                    IsHyperspaceJumping = true;
-
-                                    // Start safety timeout
-                                    EnsureHyperspaceTimeout();
-                                }
-                                else if (jumpTypeString == "Supercruise")
-                                {
-                                    Log.Debug("Supercruise initiated");
-
-                                    // Clear hyperspace state if it was set
-                                    if (IsHyperspaceJumping || _isInHyperspace)
-                                    {
-                                        Log.Warning("⚠️ Hyperspace flag was still active when entering Supercruise - resetting");
-                                        IsHyperspaceJumping = false;
-                                        _isInHyperspace = false;
-                                        HyperspaceDestination = null;
-                                        HyperspaceStarClass = null;
-                                    }
-                                }
-                            }
-                            break;
+                       
 
                         case "CarrierJumpCancelled":
                             // Only process this if a jump was actually scheduled
@@ -1210,6 +1212,9 @@ namespace EliteInfoPanel.Core
                             if (root.TryGetProperty("StationName", out var stationProp))
                             {
                                 CurrentStationName = stationProp.GetString();
+                                IsOnFleetCarrier = root.TryGetProperty("StationType", out stationTypeProp) &&
+                                   stationTypeProp.GetString() == "FleetCarrier";
+
                                 Log.Debug("Docked at station: {Station}", CurrentStationName);
                             }
                             else
@@ -1241,37 +1246,37 @@ namespace EliteInfoPanel.Core
                             CurrentStationName = null;
                             break;
 
-                        case "FSDJump":
-                            Log.Information("✅ Hyperspace jump completed");
+                        //case "FSDJump":
+                        //    Log.Information("✅ Hyperspace jump completed");
 
-                            // Clear hyperspace state - we've arrived
-                            IsHyperspaceJumping = false;
-                            _isInHyperspace = false;
-                            HyperspaceDestination = null;
-                            HyperspaceStarClass = null;
+                        //    // Clear hyperspace state - we've arrived
+                        //    IsHyperspaceJumping = false;
+                        //    _isInHyperspace = false;
+                        //    HyperspaceDestination = null;
+                        //    HyperspaceStarClass = null;
 
-                            if (root.TryGetProperty("StarSystem", out JsonElement systemElement))
-                            {
-                                string currentSystem = systemElement.GetString();
+                        //    if (root.TryGetProperty("StarSystem", out JsonElement systemElement))
+                        //    {
+                        //        string currentSystem = systemElement.GetString();
 
-                                if (!string.Equals(LastVisitedSystem, currentSystem, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    LastVisitedSystem = currentSystem;
-                                }
+                        //        if (!string.Equals(LastVisitedSystem, currentSystem, StringComparison.OrdinalIgnoreCase))
+                        //        {
+                        //            LastVisitedSystem = currentSystem;
+                        //        }
 
-                                CurrentSystem = currentSystem;
+                        //        CurrentSystem = currentSystem;
 
-                                // Track and persist progress
-                                if (!_routeProgress.CompletedSystems.Contains(CurrentSystem))
-                                {
-                                    _routeProgress.CompletedSystems.Add(CurrentSystem);
-                                    _routeProgress.LastKnownSystem = CurrentSystem;
-                                    SaveRouteProgress();
-                                }
+                        //        // Track and persist progress
+                        //        if (!_routeProgress.CompletedSystems.Contains(CurrentSystem))
+                        //        {
+                        //            _routeProgress.CompletedSystems.Add(CurrentSystem);
+                        //            _routeProgress.LastKnownSystem = CurrentSystem;
+                        //            SaveRouteProgress();
+                        //        }
 
-                                PruneCompletedRouteSystems();
-                            }
-                            break;
+                        //        PruneCompletedRouteSystems();
+                        //    }
+                        //    break;
 
                         case "SupercruiseEntry":
                             Log.Debug("Entered supercruise");
@@ -1279,8 +1284,7 @@ namespace EliteInfoPanel.Core
                             if (IsHyperspaceJumping || _isInHyperspace)
                             {
                                 Log.Warning("⚠️ Hyperspace state was still active during {Event} - resetting", eventType);
-                                IsHyperspaceJumping = false;
-                                _isInHyperspace = false;
+                             
                                 HyperspaceDestination = null;
                                 HyperspaceStarClass = null;
                             }
@@ -1291,8 +1295,7 @@ namespace EliteInfoPanel.Core
                             if (IsHyperspaceJumping || _isInHyperspace)
                             {
                                 Log.Warning("⚠️ Hyperspace state was still active during {Event} - resetting", eventType);
-                                IsHyperspaceJumping = false;
-                                _isInHyperspace = false;
+                               
                                 HyperspaceDestination = null;
                                 HyperspaceStarClass = null;
                             }
@@ -1316,8 +1319,7 @@ namespace EliteInfoPanel.Core
                             if (IsHyperspaceJumping || _isInHyperspace)
                             {
                                 Log.Warning("⚠️ Hyperspace state was still active during {Event} - resetting", eventType);
-                                IsHyperspaceJumping = false;
-                                _isInHyperspace = false;
+                               
                                 HyperspaceDestination = null;
                                 HyperspaceStarClass = null;
                             }
@@ -1346,21 +1348,7 @@ namespace EliteInfoPanel.Core
                                 }
                             }
 
-                            if (msg?.Contains("Entered Channel:", StringComparison.OrdinalIgnoreCase) == true)
-                            {
-                                // Reset hyperspace state if it's still active
-                                if (IsHyperspaceJumping || _isInHyperspace)
-                                {
-                                    Log.Information("🛬 System channel entry detected - clearing hyperspace state");
-                                    IsHyperspaceJumping = false;
-                                    _isInHyperspace = false;
-                                    HyperspaceDestination = null;
-                                    HyperspaceStarClass = null;
-
-                                    // Cancel any existing hyperspace timeout
-                                    _hyperspaceTimeoutCts?.Cancel();
-                                }
-                            }
+                          
                             break;
 
                     }

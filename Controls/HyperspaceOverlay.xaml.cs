@@ -30,8 +30,7 @@ namespace EliteInfoPanel.Controls
         private static extern bool SetProcessDPIAware();
 
         private GameStateService _gameState;
-        private System.Threading.Timer _visibilityTimer;
-        private readonly int _maxVisibilityTimeMs = 25000; // Maximum time overlay can stay visible (25 seconds)
+
         private readonly Random _random = new Random();
         private readonly int _numStars = 200; // Number of stars
         private bool _starfieldInitialized = false;
@@ -107,10 +106,7 @@ namespace EliteInfoPanel.Controls
                 _hwnd = helper.Handle;
 
                 // Initialize starfield if not already done
-                if (!_starfieldInitialized)
-                {
-                    InitializeStarfield();
-                }
+              
             }
             catch (Exception ex)
             {
@@ -264,46 +260,29 @@ namespace EliteInfoPanel.Controls
 
         private void StartRenderThread()
         {
-            // Make sure old thread is stopped
-            StopRendering();
+            if (_isRendering) return;
 
             _stopRenderThread = false;
             _isRendering = true;
 
-            // Create and start new thread
             _renderThread = new Thread(RenderThreadProc)
             {
                 IsBackground = true,
-                Priority = ThreadPriority.AboveNormal,
-                Name = "HyperspaceRenderer"
+                Priority = ThreadPriority.AboveNormal
             };
             _renderThread.Start();
-
-            Log.Debug("Started render thread");
         }
 
         private void StopRendering()
         {
-            if (_renderThread != null && _renderThread.IsAlive)
-            {
-                _stopRenderThread = true;
+            if (!_isRendering) return;
 
-                // Wait for thread to exit
-                if (!_renderThread.Join(500))
-                {
-                    try
-                    {
-                        _renderThread.Abort();
-                    }
-                    catch { /* Ignore abort errors */ }
-                }
-
-                _renderThread = null;
-                _isRendering = false;
-
-                Log.Debug("Stopped render thread");
-            }
+            _stopRenderThread = true;
+            _renderThread?.Join();
+            _renderThread = null;
+            _isRendering = false;
         }
+
 
         private void RenderThreadProc()
         {
@@ -568,8 +547,7 @@ namespace EliteInfoPanel.Controls
         {
             Log.Information("🚀 HyperspaceOverlay forced to hidden state");
 
-            _visibilityTimer?.Dispose();
-            _visibilityTimer = null;
+           
 
             if (!Dispatcher.CheckAccess())
             {
@@ -627,28 +605,7 @@ namespace EliteInfoPanel.Controls
             }
         }
 
-        private void StartVisibilityTimer()
-        {
-            // Cancel any existing timer
-            _visibilityTimer?.Dispose();
-
-            // Create a new timer that will force-hide the overlay after the maximum time
-            _visibilityTimer = new System.Threading.Timer((state) =>
-            {
-                Dispatcher.BeginInvoke(new Action(() =>
-                {
-                    if (RootGrid.Visibility == Visibility.Visible)
-                    {
-                        Log.Warning("⚠️ Hyperspace overlay safety timer triggered - forcing overlay to hide");
-                        RootGrid.Visibility = Visibility.Collapsed;
-
-                        // Stop rendering thread
-                        StopRendering();
-                    }
-                }));
-            }, null, _maxVisibilityTimeMs, Timeout.Infinite); // One-time timer
-        }
-
+     
         private void UpdateVisibility()
         {
             try
@@ -676,8 +633,8 @@ namespace EliteInfoPanel.Controls
                         JumpProgressBar.IsIndeterminate = true;
                     }
 
-                    // Start safety timer when showing the overlay
-                    StartVisibilityTimer();
+                  
+                  
                 }
                 else
                 {

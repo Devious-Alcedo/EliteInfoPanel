@@ -2,8 +2,10 @@
 using System.ComponentModel;
 using System.Formats.Asn1;
 using System.Linq;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Input;
+using EliteInfoPanel.Controls;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Dialogs;
 using EliteInfoPanel.Util;
@@ -38,11 +40,11 @@ namespace EliteInfoPanel
 
             // Initialize the GameStateService
             var gamePath = EliteDangerousPaths.GetSavedGamesPath();
-            var gameState = new GameStateService(gamePath);
+            _gameState = new GameStateService(gamePath);
 
             // Create and set ViewModel
             var settings = SettingsManager.Load();
-            _viewModel = new MainViewModel(gameState, settings.UseFloatingWindow);
+            _viewModel = new MainViewModel(_gameState, settings.UseFloatingWindow);
 
             _viewModel.SetMainGrid(MainGrid);
             DataContext = _viewModel;
@@ -86,29 +88,39 @@ namespace EliteInfoPanel
             // Apply window mode settings
             ApplyWindowSettings();
 
-            // Initialize the HyperspaceOverlay with the GameStateService from MainViewModel
-            if (HyperspaceOverlay != null && DataContext is MainViewModel vm)
+            // Get ViewModel
+            if (DataContext is MainViewModel vm)
             {
-                // Force the overlay to be hidden first
-                HyperspaceOverlay.ForceHidden();
-
-                // Then set up the GameState
-                HyperspaceOverlay.SetGameState(vm._gameState);
-
-                // Use a timer to ensure it's in the correct state after all initial processing
-                var startupTimer = new System.Threading.Timer((state) =>
+                // Setup HyperspaceOverlay
+                if (HyperspaceOverlay != null)
                 {
-                    Dispatcher.Invoke(() =>
+                    HyperspaceOverlay.ForceHidden();
+                    HyperspaceOverlay.SetGameState(vm._gameState);
+
+                    // Extra startup check
+                    var startupTimer = new System.Threading.Timer((state) =>
                     {
-                        if (!vm._gameState.IsHyperspaceJumping)
+                        Dispatcher.Invoke(() =>
                         {
-                            HyperspaceOverlay.ForceHidden();
-                            Log.Information("🔴 Startup timer verified hyperspace overlay is hidden");
-                        }
-                    });
-                }, null, 1000, Timeout.Infinite); // One-time check after 1 second
+                            if (!vm._gameState.IsHyperspaceJumping)
+                            {
+                                HyperspaceOverlay.ForceHidden();
+                                Log.Information("🔴 Startup timer verified hyperspace overlay is hidden");
+                            }
+                        });
+                    }, null, 1000, Timeout.Infinite);
+                }
+
+                // ✅ Setup CarrierJumpOverlay
+                if (CarrierJumpOverlay != null)
+                {
+                    CarrierJumpOverlay.ForceHidden();
+                    CarrierJumpOverlay.SetGameState(vm._gameState);
+                }
+
             }
         }
+      
 
         private void ApplyWindowSettings()
         {
@@ -223,9 +235,25 @@ namespace EliteInfoPanel
             Width = Math.Max(Width, 400);
             Height = Math.Max(Height, 300);
         }
+        private void TestCarrierJump_Click(object sender, RoutedEventArgs e)
+        {
+            _gameState.GetType().GetProperty("IsOnFleetCarrier")?.SetValue(_gameState, true);
+            _gameState.GetType().GetProperty("FleetCarrierJumpInProgress")?.SetValue(_gameState, true);
+            _gameState.GetType().GetProperty("CarrierJumpDestinationSystem")?.SetValue(_gameState, "Simulated System");
+            _gameState.GetType().GetProperty("CarrierJumpDestinationBody")?.SetValue(_gameState, "Simulated Body");
+
+            _gameState.GetType().GetMethod("OnPropertyChanged", BindingFlags.NonPublic | BindingFlags.Instance)
+                ?.Invoke(_gameState, new object[] { "ShowCarrierJumpOverlay" });
+          Log.Information("Simulated carrier jump initiated.");
+        }
 
         private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if (e.Key == Key.F11)
+            {
+                TestCarrierJump_Click(this, null);
+            }
+            base.OnKeyDown(e);
             if (e.Key == Key.F12)
             {
                 OpenCurrentLogFile();
