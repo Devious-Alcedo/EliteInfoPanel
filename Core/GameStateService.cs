@@ -32,7 +32,7 @@ namespace EliteInfoPanel.Core
         private static readonly SolidColorBrush CountdownRedBrush = new SolidColorBrush(Colors.Red);
 
         private string _carrierJumpDestinationBody;
-
+        private bool _isCarrierJumping = false;
         private string _carrierJumpDestinationSystem;
 
         private DateTime? _carrierJumpScheduledTime;
@@ -175,15 +175,21 @@ namespace EliteInfoPanel.Core
                     var timeLeft = CarrierJumpScheduledTime.Value.ToLocalTime() - DateTime.Now;
                     int result = (int)Math.Max(0, timeLeft.TotalSeconds);
 
+                    // Explicitly set JumpArrived to false when countdown starts
+                    if (_lastCarrierJumpCountdown > 0 && result == _lastCarrierJumpCountdown)
+                    {
+                        JumpArrived = false;
+                    }
+
                     // Store the previous value to detect changes
                     int previousValue = _lastCarrierJumpCountdown;
                     _lastCarrierJumpCountdown = result;
 
-                    // Log when countdown reaches zero
-                    if (previousValue > 0 && result == 0 && FleetCarrierJumpInProgress && IsOnFleetCarrier && !JumpArrived)
+                    // If countdown reached zero, notify ShowCarrierJumpOverlay
+                    if (previousValue > 0 && result == 0 && FleetCarrierJumpInProgress && IsOnFleetCarrier)
                     {
                         Log.Information("Carrier jump countdown reached zero - triggering overlay notification");
-                        OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // Ensure overlay is visible
+                        OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
                     }
 
                     return result;
@@ -191,6 +197,7 @@ namespace EliteInfoPanel.Core
                 return 0;
             }
         }
+
 
 
         public string CarrierJumpDestinationBody
@@ -576,17 +583,8 @@ namespace EliteInfoPanel.Core
                    ItemListsEqual(bp1.Data, bp2.Data);
         }
 
-        private void CarrierJumpCompleted()
-        {
-            // Set the jump to completed
-            JumpArrived = true;
+       
 
-            // Mark the jump as finished
-            FleetCarrierJumpInProgress = false;
-
-            // Ensure the overlay gets hidden
-            OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
-        }
         private T DeserializeJsonFile<T>(string filePath) where T : class
         {
             for (int attempt = 0; attempt < 5; attempt++)
@@ -1043,7 +1041,19 @@ namespace EliteInfoPanel.Core
                                 UserShipId = userShipId;
                             }
                             break;
-
+                        case "ShipLocker":
+                            // Check if the carrier jump was initiated and then completed
+                            if (_isCarrierJumping)
+                            {
+                                Log.Information("Carrier jump completed - carrier has arrived");
+                                CarrierJumpDestinationSystem = null;
+                                // Reset the flag and trigger overlay logic
+                                _isCarrierJumping = false;
+                                _jumpArrived = true;
+                                // Here you can trigger the carrier jump overlay completion
+                                OnCarrierJumpComplete();
+                            }
+                            break;
                         case "Loadout":
                             var loadout = JsonSerializer.Deserialize<LoadoutJson>(line);
                             if (loadout != null)
@@ -1153,9 +1163,9 @@ namespace EliteInfoPanel.Core
                                 Log.Information("Carrier jump completed, player docked at fleet carrier.");
 
                                 // Mark the jump as completed
-                                CarrierJumpDestinationSystem = null;
-                            
-                                CarrierJumpCompleted();
+                                _isCarrierJumping = true;
+                                Log.Information("Carrier jump started");
+
                             }
                             break;
 
@@ -1376,6 +1386,17 @@ namespace EliteInfoPanel.Core
                 Log.Warning(ex, "Error processing journal file");
             }
         }
+        private void OnCarrierJumpComplete()
+        {
+            // Set the flag to indicate the jump has completed
+            FleetCarrierJumpInProgress = false;
+            JumpArrived = true;
+
+            // Ensure the overlay is triggered
+            OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // This will re-evaluate the ShowCarrierJumpOverlay property
+            Log.Information("Carrier jump completed, overlay should be shown now.");
+        }
+
 
         private void ProcessLegalStateEvent(JsonElement root, string eventType)
         {
