@@ -11,6 +11,12 @@
           HorizontalAlignment="Stretch"
           VerticalAlignment="Stretch"
           Visibility="Collapsed">
+
+        <!-- Optional animated starfield - uncommenting will enable basic animation -->
+        <Canvas x:Name="StarfieldCanvas" Opacity="0.5">
+            <!-- Stars will be generated in code -->
+        </Canvas>
+
         <StackPanel HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     Orientation="Vertical"
@@ -26,6 +32,13 @@
                        Text="Star Class: Unknown"
                        Foreground="#40FFFFFF"
                        FontSize="28"
+                       FontWeight="Light"
+                       TextAlignment="Center"
+                       Margin="0,0,0,20" />
+            <TextBlock x:Name="LegalStateText"
+                       Text="Legal Status: Clean"
+                       Foreground="#40FFFFFF"
+                       FontSize="24"
                        FontWeight="Light"
                        TextAlignment="Center"
                        Margin="0,0,0,40" />

@@ -44,7 +44,12 @@ namespace EliteInfoPanel.Core
         private static readonly SolidColorBrush CountdownRedBrush = new SolidColorBrush(Colors.Red);
         private static readonly SolidColorBrush CountdownGoldBrush = new SolidColorBrush(Colors.Gold);
         private static readonly SolidColorBrush CountdownGreenBrush = new SolidColorBrush(Colors.Green);
-
+        private string _legalState = "Clean";
+        public string LegalState
+        {
+            get => _legalState;
+            private set => SetProperty(ref _legalState, value);
+        }
         private string _lastVisitedSystem;
         private const string RouteProgressFile = "RouteProgress.json";
         private RouteProgressState _routeProgress = new();
@@ -442,7 +447,87 @@ namespace EliteInfoPanel.Core
                 }
             }, token);
         }
+        private void ProcessLegalStateEvent(JsonElement root, string eventType)
+        {
+            try
+            {
+                // Different events have different ways to get the legal status
+                switch (eventType)
+                {
+                    case "Status":
+                        // Status.json flag for legal status
+                        if (root.TryGetProperty("LegalState", out var legalStateProp))
+                        {
+                            LegalState = legalStateProp.GetString() ?? "Clean";
+                            Log.Debug("Legal state from Status.json: {0}", LegalState);
+                        }
+                        break;
 
+                    case "Docked":
+                        // When docked, reset to "Clean" unless explicitly told otherwise
+                        if (root.TryGetProperty("Wanted", out var wantedProp) && wantedProp.GetBoolean())
+                        {
+                            LegalState = "Wanted";
+                        }
+                        else
+                        {
+                            LegalState = "Clean";
+                        }
+                        break;
+
+                    case "FactionKillBond":
+                    case "Bounty":
+                        // These are activities against wanted ships
+                        LegalState = "Clean"; // Reaffirm we're clean
+                        break;
+
+                    case "CommitCrime":
+                        // Process different crime types
+                        if (root.TryGetProperty("CrimeType", out var crimeTypeProp))
+                        {
+                            string crimeType = crimeTypeProp.GetString();
+                            switch (crimeType?.ToLower())
+                            {
+                                case "assault":
+                                case "murder":
+                                case "piracy":
+                                    LegalState = "Wanted";
+                                    break;
+                                case "speeding":
+                                    LegalState = "Speeding";
+                                    break;
+                                case "illegalcargo":
+                                    LegalState = "IllegalCargo";
+                                    break;
+                                default:
+                                    LegalState = "Wanted"; // Default for other crimes
+                                    break;
+                            }
+                            Log.Debug("Legal state changed due to crime: {0}", LegalState);
+                        }
+                        break;
+
+                    case "FactionAllianceChanged":
+                        if (root.TryGetProperty("Status", out var statusProp))
+                        {
+                            string status = statusProp.GetString();
+                            if (status?.ToLower() == "hostile")
+                            {
+                                LegalState = "Hostile";
+                            }
+                            else if (status?.ToLower() == "allied")
+                            {
+                                LegalState = "Allied";
+                            }
+                        }
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error processing legal state from event {0}", eventType);
+            }
+        }
         private void SetupFileWatcher(string fileName, Func<bool> loadMethod)
         {
             try
@@ -976,6 +1061,10 @@ namespace EliteInfoPanel.Core
                             }
                             break;
 
+                        case "Status":
+                            // Process legal state from Status events
+                            ProcessLegalStateEvent(root, "Status");
+                            break;
 
                         case "CarrierCancelJump":
                             FleetCarrierJumpTime = null;
@@ -1126,10 +1215,21 @@ namespace EliteInfoPanel.Core
                             {
                                 CurrentStationName = null;
                             }
-
+                            ProcessLegalStateEvent(root, "Docked");
                             IsDocking = false; // Immediately clear docking state
                             break;
+                        case "CommitCrime":
+                            ProcessLegalStateEvent(root, "CommitCrime");
+                            break;
 
+                        case "FactionKillBond":
+                        case "Bounty":
+                            ProcessLegalStateEvent(root, eventType);
+                            break;
+
+                        case "FactionAllianceChanged":
+                            ProcessLegalStateEvent(root, "FactionAllianceChanged");
+                            break;
                         // Optional, if you ever see "DockingCancelled"
                         case "DockingCancelled":
                             IsDocking = false; // Immediately clear docking state
