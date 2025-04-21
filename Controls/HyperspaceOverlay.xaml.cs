@@ -174,7 +174,7 @@ namespace EliteInfoPanel.Controls
                 }
 
                 // Reduce bitmap size for better performance (scaling factor)
-                double scaleFactor = 1.5;
+                double scaleFactor = 1.0;
                 _bitmapWidth = Math.Max(1, (int)(ActualWidth / scaleFactor));
                 _bitmapHeight = Math.Max(1, (int)(ActualHeight / scaleFactor));
 
