@@ -628,7 +628,7 @@ namespace EliteInfoPanel.ViewModels
 
                     _carrierCountdownItem.Content = FormatCountdownText(remaining, _gameState.CarrierJumpDestinationSystem);
 
-                    if (remaining.TotalMinutes <= 2.75)
+                    if (remaining.TotalMinutes <= 3.0)
                     {
                         if (_carrierCountdownItem.Foreground != Brushes.Red)
                         {

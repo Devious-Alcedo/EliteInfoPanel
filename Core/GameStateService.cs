@@ -175,29 +175,21 @@ namespace EliteInfoPanel.Core
                     var timeLeft = CarrierJumpScheduledTime.Value.ToLocalTime() - DateTime.Now;
                     int result = (int)Math.Max(0, timeLeft.TotalSeconds);
 
-                    // Explicitly set JumpArrived to false when countdown starts
-                    if (_lastCarrierJumpCountdown > 0 && result == _lastCarrierJumpCountdown)
+                    // When countdown reaches zero, set jump in progress
+                    if (_lastCarrierJumpCountdown > 0 && result == 0 && !JumpArrived)
                     {
-                        JumpArrived = false;
-                    }
-
-                    // Store the previous value to detect changes
-                    int previousValue = _lastCarrierJumpCountdown;
-                    _lastCarrierJumpCountdown = result;
-
-                    // If countdown reached zero, notify ShowCarrierJumpOverlay
-                    if (previousValue > 0 && result == 0 && FleetCarrierJumpInProgress && IsOnFleetCarrier)
-                    {
-                        Log.Information("Carrier jump countdown reached zero - triggering overlay notification");
+                        Log.Information("Carrier jump countdown reached zero - preparing for jump");
+                        // Don't need to set this to false since we're just starting the jump
+                        // JumpArrived = false; 
                         OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
                     }
 
+                    _lastCarrierJumpCountdown = result;
                     return result;
                 }
                 return 0;
             }
         }
-
 
 
         public string CarrierJumpDestinationBody
@@ -427,8 +419,16 @@ namespace EliteInfoPanel.Core
             get
             {
                 bool result = FleetCarrierJumpInProgress && IsOnFleetCarrier && CarrierJumpCountdownSeconds <= 0 && !JumpArrived;
-                Log.Information("ShowCarrierJumpOverlay: FleetCarrierJumpInProgress={0}, IsOnFleetCarrier={1}, CountdownSeconds={2}, JumpArrived={3}, Result={4}",
-                    FleetCarrierJumpInProgress, IsOnFleetCarrier, CarrierJumpCountdownSeconds, JumpArrived, result);
+
+                if (FleetCarrierJumpInProgress && CarrierJumpCountdownSeconds <= 0)
+                {
+                    // Only log when relevant (not every second when nothing is happening)
+                    Log.Information("ShowCarrierJumpOverlay calculation: FleetCarrierJumpInProgress={0}, IsOnFleetCarrier={1}, " +
+                                    "CountdownSeconds={2}, JumpArrived={3}, Result={4}, StationName={5}",
+                        FleetCarrierJumpInProgress, IsOnFleetCarrier, CarrierJumpCountdownSeconds,
+                        JumpArrived, result, CurrentStationName);
+                }
+
                 return result;
             }
         }
@@ -1157,19 +1157,45 @@ namespace EliteInfoPanel.Core
                             break;
 
                         case "CarrierJump":
-                            if (root.TryGetProperty("Docked", out var dockedProperty) && dockedProperty.GetBoolean())
+                            // This event fires when a carrier completes its jump
+                            // The player is automatically docked at the carrier after the jump
+                            if (root.TryGetProperty("Docked", out var dockedProperty) &&
+                                dockedProperty.GetBoolean() &&
+                                root.TryGetProperty("StationType", out var jumpStationTypeProp) &&
+                                string.Equals(jumpStationTypeProp.GetString(), "FleetCarrier", StringComparison.OrdinalIgnoreCase))
                             {
-                                // Carrier jump completed, the player has arrived
-                                Log.Information("Carrier jump completed, player docked at fleet carrier.");
+                                Log.Information("CarrierJump event detected - Player docked on fleet carrier that has completed jump");
 
-                                // Mark the jump as completed
-                                _isCarrierJumping = true;
-                                Log.Information("Carrier jump started");
+                                // Set state to indicate we're on a fleet carrier
+                                IsOnFleetCarrier = true;
 
+                                // Carrier jump is in progress but has just completed the physical jump
+                                // We keep FleetCarrierJumpInProgress true to show the overlay 
+                                FleetCarrierJumpInProgress = true;
+
+                                // Critical: Set JumpArrived to false to allow the overlay to show
+                                JumpArrived = false;
+
+                                // Log current state for troubleshooting
+                                Log.Information("Carrier state after jump: IsOnCarrier={0}, JumpInProgress={1}, CountdownSeconds={2}, JumpArrived={3}",
+                                    IsOnFleetCarrier, FleetCarrierJumpInProgress, CarrierJumpCountdownSeconds, JumpArrived);
+
+                                // Notify UI that overlay properties have changed
+                                OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
+
+                                // Setup a delayed task to reset the state after the overlay has been shown
+                                Task.Run(async () => {
+                                    await Task.Delay(10000); // Allow 10 seconds for overlay to show
+
+                                    // Then reset states to prevent showing overlay again
+                                    JumpArrived = true;
+                                    FleetCarrierJumpInProgress = false;
+                                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
+
+                                    Log.Information("Carrier jump state auto-reset after delay");
+                                });
                             }
                             break;
-
-
                         case "FSDTarget":
                             if (root.TryGetProperty("RemainingJumpsInRoute", out var jumpsProp))
                                 RemainingJumps = jumpsProp.GetInt32();
@@ -1229,20 +1255,36 @@ namespace EliteInfoPanel.Core
                             break;
 
                         case "Docked":
-                            if (root.TryGetProperty("StationName", out var stationProp))
+                            // When docked, reset to "Clean" unless explicitly told otherwise
+                            if (root.TryGetProperty("Wanted", out var wantedProp) && wantedProp.GetBoolean())
                             {
-                                CurrentStationName = stationProp.GetString();
-                                IsOnFleetCarrier = root.TryGetProperty("StationType", out stationTypeProp) &&
-                                   stationTypeProp.GetString() == "FleetCarrier";
-
-                                Log.Debug("Docked at station: {Station}", CurrentStationName);
+                                LegalState = "Wanted";
                             }
                             else
                             {
-                                CurrentStationName = null;
+                                LegalState = "Clean";
                             }
-                            ProcessLegalStateEvent(root, "Docked");
-                            IsDocking = false; // Immediately clear docking state
+                            if (root.TryGetProperty("StationName", out var stationProp))
+                            {
+                                CurrentStationName = stationProp.GetString();
+
+                                // Check specifically for Fleet Carrier station type
+                                bool isCarrier = false;
+                                if (root.TryGetProperty("StationType", out var dockStationTypeProp)) // Changed variable name here
+                                {
+                                    string stationType = dockStationTypeProp.GetString();
+                                    isCarrier = string.Equals(stationType, "FleetCarrier", StringComparison.OrdinalIgnoreCase);
+
+                                    Log.Information("Docked at station: {Station}, StationType: {Type}, IsCarrier: {IsCarrier}",
+                                        CurrentStationName, stationType, isCarrier);
+                                }
+
+                                // Only set if true or if we're sure it's not a carrier
+                                if (isCarrier || dockStationTypeProp.ValueKind != JsonValueKind.Undefined) // Changed reference here
+                                {
+                                    IsOnFleetCarrier = isCarrier;
+                                }
+                            }
                             break;
                         case "CommitCrime":
                             ProcessLegalStateEvent(root, "CommitCrime");
