@@ -61,7 +61,7 @@ namespace EliteInfoPanel.Core
 
         private bool _firstLoadCompleted = false;
 
-        private bool _fleetCarrierJumpArrived;
+       
 
         private bool _fleetCarrierJumpInProgress;
 
@@ -175,22 +175,30 @@ namespace EliteInfoPanel.Core
                     var timeLeft = CarrierJumpScheduledTime.Value.ToLocalTime() - DateTime.Now;
                     int result = (int)Math.Max(0, timeLeft.TotalSeconds);
 
-                    // When countdown reaches zero, set jump in progress
-                    if (_lastCarrierJumpCountdown > 0 && result == 0 && !JumpArrived)
+                    // Store previous value for comparison
+                    int previousValue = _lastCarrierJumpCountdown;
+
+                    // Update the stored value
+                    _lastCarrierJumpCountdown = result;
+
+                    // Check transition from positive to zero without calling OnPropertyChanged here
+                    if (previousValue > 0 && result == 0 && !JumpArrived)
                     {
                         Log.Information("Carrier jump countdown reached zero - preparing for jump");
-                        // Don't need to set this to false since we're just starting the jump
-                        // JumpArrived = false; 
-                        OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
+
+                        // Instead of triggering property change here, set a field that will be checked
+                        _jumpCountdownJustReachedZero = true;
+
+                        // We can safely notify about properties other than ShowCarrierJumpOverlay
+                        FleetCarrierJumpInProgress = true;
                     }
 
-                    _lastCarrierJumpCountdown = result;
                     return result;
                 }
                 return 0;
             }
         }
-
+        private bool _jumpCountdownJustReachedZero = false;
 
         public string CarrierJumpDestinationBody
         {
@@ -289,11 +297,7 @@ namespace EliteInfoPanel.Core
 
         public bool FirstLoadCompleted => _firstLoadCompleted;
 
-        public bool FleetCarrierJumpArrived
-        {
-            get => _fleetCarrierJumpArrived;
-            private set => SetProperty(ref _fleetCarrierJumpArrived, value);
-        }
+      
 
         public bool FleetCarrierJumpInProgress
         {
@@ -418,13 +422,22 @@ namespace EliteInfoPanel.Core
         {
             get
             {
-                bool result = FleetCarrierJumpInProgress && IsOnFleetCarrier && CarrierJumpCountdownSeconds <= 0 && !JumpArrived;
+                // Check our standard conditions
+                bool result = FleetCarrierJumpInProgress && IsOnFleetCarrier &&
+                              CarrierJumpCountdownSeconds <= 0 && !JumpArrived;
 
+                // Clear the flag if it was set (important to avoid recursion)
+                if (_jumpCountdownJustReachedZero)
+                {
+                    _jumpCountdownJustReachedZero = false;
+                }
+
+                // Only log when relevant (for performance)
                 if (FleetCarrierJumpInProgress && CarrierJumpCountdownSeconds <= 0)
                 {
-                    // Only log when relevant (not every second when nothing is happening)
-                    Log.Information("ShowCarrierJumpOverlay calculation: FleetCarrierJumpInProgress={0}, IsOnFleetCarrier={1}, " +
-                                    "CountdownSeconds={2}, JumpArrived={3}, Result={4}, StationName={5}",
+                    Log.Information("ShowCarrierJumpOverlay calculation: FleetCarrierJumpInProgress={0}, " +
+                                    "IsOnFleetCarrier={1}, CountdownSeconds={2}, JumpArrived={3}, " +
+                                    "Result={4}, StationName={5}",
                         FleetCarrierJumpInProgress, IsOnFleetCarrier, CarrierJumpCountdownSeconds,
                         JumpArrived, result, CurrentStationName);
                 }
@@ -504,10 +517,7 @@ namespace EliteInfoPanel.Core
             }
         }
 
-        public void ResetFleetCarrierJumpFlag()
-        {
-            FleetCarrierJumpArrived = false;
-        }
+ 
 
         public void ResetRouteActivity()
         {
@@ -1051,7 +1061,7 @@ namespace EliteInfoPanel.Core
                                 _isCarrierJumping = false;
                                 _jumpArrived = true;
                                 // Here you can trigger the carrier jump overlay completion
-                                OnCarrierJumpComplete();
+                                //OnCarrierJumpComplete();
                             }
                             break;
                         case "Loadout":
@@ -1145,7 +1155,7 @@ namespace EliteInfoPanel.Core
                                     if (root.TryGetProperty("Body", out var bodyName))
                                         CarrierJumpDestinationBody = bodyName.GetString();
 
-                                    FleetCarrierJumpArrived = false;
+                                    JumpArrived = false;
                                     FleetCarrierJumpInProgress = true;
                                     Log.Debug($"Carrier jump scheduled for {departureTime:u}");
                                 }
@@ -1174,7 +1184,7 @@ namespace EliteInfoPanel.Core
                                 FleetCarrierJumpInProgress = true;
 
                                 // Critical: Set JumpArrived to false to allow the overlay to show
-                                JumpArrived = false;
+                                JumpArrived = true;
 
                                 // Log current state for troubleshooting
                                 Log.Information("Carrier state after jump: IsOnCarrier={0}, JumpInProgress={1}, CountdownSeconds={2}, JumpArrived={3}",
@@ -1184,16 +1194,7 @@ namespace EliteInfoPanel.Core
                                 OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
 
                                 // Setup a delayed task to reset the state after the overlay has been shown
-                                Task.Run(async () => {
-                                    await Task.Delay(10000); // Allow 10 seconds for overlay to show
-
-                                    // Then reset states to prevent showing overlay again
-                                    JumpArrived = true;
-                                    FleetCarrierJumpInProgress = false;
-                                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
-
-                                    Log.Information("Carrier jump state auto-reset after delay");
-                                });
+                          
                             }
                             break;
                         case "FSDTarget":
