@@ -44,7 +44,7 @@ namespace EliteInfoPanel.ViewModels
         public BackpackViewModel BackpackCard { get; }
 
         public CargoViewModel CargoCard { get; }
-
+        public ColonizationViewModel ColonizationCard { get; }
         public RelayCommand CloseCommand { get; } = new RelayCommand(_ => Application.Current.Shutdown());
 
         public FlagsViewModel FlagsCard { get; }
@@ -92,7 +92,7 @@ namespace EliteInfoPanel.ViewModels
             RouteCard = new RouteViewModel(gameState) { Title = "Nav Route" };
             ModulesCard = new ModulesViewModel(gameState) { Title = "Ship Modules" };
             FlagsCard = new FlagsViewModel(gameState) { Title = "Status Flags" };
-
+            ColonizationCard = new ColonizationViewModel(gameState) { Title = "Colonization Project" };
             // Add cards to collection
             Cards.Add(SummaryCard);
             Cards.Add(CargoCard);
@@ -100,6 +100,7 @@ namespace EliteInfoPanel.ViewModels
             Cards.Add(RouteCard);
             Cards.Add(ModulesCard);
             Cards.Add(FlagsCard);
+            Cards.Add(ColonizationCard);
 
             // Subscribe to PropertyChanged events from GameStateService
             _gameState.PropertyChanged += GameState_PropertyChanged;
@@ -150,7 +151,7 @@ namespace EliteInfoPanel.ViewModels
                 {
                     // Refresh visibility first
                     RefreshCardVisibility(false);
-
+                    UpdateColonizationCardVisibility();
                     if (forceRebuild)
                     {
                         // Force recreate all cards to apply new font sizes
@@ -377,7 +378,27 @@ namespace EliteInfoPanel.ViewModels
             // Force layout update
             _mainGrid.UpdateLayout();
         }
+        private void UpdateColonizationCardVisibility()
+        {
+            try
+            {
+                // Check if the colonization data exists and is active
+                bool hasActiveColonization = _gameState.CurrentColonization != null &&
+                                            !_gameState.CurrentColonization.ConstructionComplete &&
+                                            !_gameState.CurrentColonization.ConstructionFailed;
 
+                // Only update visibility if it's changed
+                if (ColonizationCard.IsVisible != hasActiveColonization)
+                {
+                    ColonizationCard.IsVisible = hasActiveColonization;
+                    Log.Debug("ColonizationCard visibility set to {Visible}", hasActiveColonization);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error updating colonization card visibility");
+            }
+        }
         private void EnsureCorrectCardsVisible()
         {
             // Make sure we're on the UI thread

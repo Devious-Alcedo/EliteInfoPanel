@@ -38,7 +38,7 @@ namespace EliteInfoPanel.ViewModels
 
             if (!NoisyProperties.Contains(propertyName))
             {
-                Log.Information("📦 Property changed: {Property} = {Value}", propertyName, value);
+                Log.Debug("📦 Property changed: {Property} = {Value}", propertyName, value);
             }
 
             OnPropertyChanged(propertyName);

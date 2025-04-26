@@ -26,9 +26,9 @@ namespace EliteInfoPanel.Core
         private const string RouteProgressFile = "RouteProgress.json";
 
         private static readonly SolidColorBrush CountdownGoldBrush = new SolidColorBrush(Colors.Gold);
-
+  
         private static readonly SolidColorBrush CountdownGreenBrush = new SolidColorBrush(Colors.Green);
-
+        private ColonizationData _currentColonization;
         private static readonly SolidColorBrush CountdownRedBrush = new SolidColorBrush(Colors.Red);
 
         private string _carrierJumpDestinationBody;
@@ -165,7 +165,11 @@ namespace EliteInfoPanel.Core
         #region Public Properties
 
         public long? Balance => CurrentStatus?.Balance;
-
+        public ColonizationData CurrentColonization
+        {
+            get => _currentColonization;
+            private set => SetProperty(ref _currentColonization, value);
+        }
         public int CarrierJumpCountdownSeconds
         {
             get
@@ -186,11 +190,15 @@ namespace EliteInfoPanel.Core
                     {
                         Log.Information("Carrier jump countdown reached zero - preparing for jump");
 
-                        // Instead of triggering property change here, set a field that will be checked
+                        // Instead of triggering property change here, set a flag to avoid recursion
                         _jumpCountdownJustReachedZero = true;
 
                         // We can safely notify about properties other than ShowCarrierJumpOverlay
-                        FleetCarrierJumpInProgress = true;
+                        // For example, mark that the carrier jump is ready to execute
+                        if (IsOnFleetCarrier)
+                        {
+                            FleetCarrierJumpInProgress = true;
+                        }
                     }
 
                     return result;
@@ -422,27 +430,43 @@ namespace EliteInfoPanel.Core
         {
             get
             {
-                // Check our standard conditions
+                // Standard conditions check
                 bool result = FleetCarrierJumpInProgress && IsOnFleetCarrier &&
                               CarrierJumpCountdownSeconds <= 0 && !JumpArrived;
 
-                // Clear the flag if it was set (important to avoid recursion)
-                if (_jumpCountdownJustReachedZero)
+                // Only log in specific cases to avoid spam
+                if (FleetCarrierJumpInProgress && (IsOnFleetCarrier || _jumpCountdownJustReachedZero))
                 {
-                    _jumpCountdownJustReachedZero = false;
-                }
+                    // Reset our special flag if it was set
+                    if (_jumpCountdownJustReachedZero)
+                    {
+                        _jumpCountdownJustReachedZero = false;
+                    }
 
-                // Only log when relevant (for performance)
-                if (FleetCarrierJumpInProgress && CarrierJumpCountdownSeconds <= 0)
-                {
                     Log.Information("ShowCarrierJumpOverlay calculation: FleetCarrierJumpInProgress={0}, " +
-                                    "IsOnFleetCarrier={1}, CountdownSeconds={2}, JumpArrived={3}, " +
-                                    "Result={4}, StationName={5}",
+                                   "IsOnFleetCarrier={1}, CountdownSeconds={2}, JumpArrived={3}, " +
+                                   "Result={4}, StationName={5}",
                         FleetCarrierJumpInProgress, IsOnFleetCarrier, CarrierJumpCountdownSeconds,
                         JumpArrived, result, CurrentStationName);
                 }
 
                 return result;
+            }
+        }
+        public void ResetFleetCarrierJumpState()
+        {
+            if (FleetCarrierJumpInProgress &&
+                (!IsOnFleetCarrier || JumpArrived || CarrierJumpScheduledTime?.ToLocalTime() < DateTime.Now.AddMinutes(-5)))
+            {
+                Log.Information("Resetting stale carrier jump state - JumpInProgress={0}, OnCarrier={1}, JumpArrived={2}",
+                    FleetCarrierJumpInProgress, IsOnFleetCarrier, JumpArrived);
+
+                FleetCarrierJumpInProgress = false;
+                CarrierJumpScheduledTime = null;
+                CarrierJumpDestinationSystem = null;
+                CarrierJumpDestinationBody = null;
+                _lastCarrierJumpCountdown = -1;
+                JumpArrived = false;
             }
         }
 
@@ -1100,14 +1124,76 @@ namespace EliteInfoPanel.Core
                             OnPropertyChanged(nameof(CarrierJumpDestinationSystem));
                             OnPropertyChanged(nameof(FleetCarrierJumpTime));
                             break;
+                      
 
+
+                        break;
+                        case "ColonisationConstructionDepot":
+                            try
+                            {
+                                Log.Information("Processing colonization construction depot event");
+
+                                var colonizationData = new ColonizationData
+                                {
+                                    LastUpdated = DateTime.UtcNow
+                                };
+
+                                if (root.TryGetProperty("MarketID", out var marketIdProp))
+                                    colonizationData.MarketID = marketIdProp.GetInt64();
+
+                                if (root.TryGetProperty("ConstructionProgress", out var progressProp))
+                                    colonizationData.ConstructionProgress = progressProp.GetDouble();
+
+                                if (root.TryGetProperty("ConstructionComplete", out var completeProp))
+                                    colonizationData.ConstructionComplete = completeProp.GetBoolean();
+
+                                if (root.TryGetProperty("ConstructionFailed", out var failedProp))
+                                    colonizationData.ConstructionFailed = failedProp.GetBoolean();
+
+                                if (root.TryGetProperty("ResourcesRequired", out var resourcesProp))
+                                {
+                                    foreach (var resource in resourcesProp.EnumerateArray())
+                                    {
+                                        var resourceItem = new ColonizationResource();
+
+                                        if (resource.TryGetProperty("Name", out var nameProp))
+                                            resourceItem.Name = nameProp.GetString();
+
+                                        if (resource.TryGetProperty("Name_Localised", out var nameLocProp))
+                                            resourceItem.Name_Localised = nameLocProp.GetString();
+
+                                        if (resource.TryGetProperty("RequiredAmount", out var reqProp))
+                                            resourceItem.RequiredAmount = reqProp.GetInt32();
+
+                                        if (resource.TryGetProperty("ProvidedAmount", out var provProp))
+                                            resourceItem.ProvidedAmount = provProp.GetInt32();
+
+                                        if (resource.TryGetProperty("Payment", out var payProp))
+                                            resourceItem.Payment = payProp.GetInt32();
+
+                                        colonizationData.ResourcesRequired.Add(resourceItem);
+                                    }
+                                }
+
+                                CurrentColonization = colonizationData;
+                                Log.Information("Colonization data updated: Progress={Progress:P2}, Resources={Count}",
+                                    colonizationData.ConstructionProgress,
+                                    colonizationData.ResourcesRequired?.Count ?? 0);
+                            }
+                            catch (Exception ex)
+                            {
+                                Log.Error(ex, "Error processing colonization event");
+                            }
+
+                            break;
                         case "CarrierLocation":
                             Log.Debug("CarrierLocation seen — clearing any jump state");
 
-                           
+                            FleetCarrierJumpInProgress = false;
+                            JumpArrived = true;
 
                             bool isOnCarrier = false;
-
+                            
                             if (root.TryGetProperty("OnFoot", out var onFootProp) && !onFootProp.GetBoolean() &&
                                 root.TryGetProperty("Docked", out var dockedProp) && dockedProp.GetBoolean() &&
                                 root.TryGetProperty("StationType", out var stationTypeProp))
@@ -1168,7 +1254,6 @@ namespace EliteInfoPanel.Core
 
                         case "CarrierJump":
                             // This event fires when a carrier completes its jump
-                            // The player is automatically docked at the carrier after the jump
                             if (root.TryGetProperty("Docked", out var dockedProperty) &&
                                 dockedProperty.GetBoolean() &&
                                 root.TryGetProperty("StationType", out var jumpStationTypeProp) &&
@@ -1179,22 +1264,22 @@ namespace EliteInfoPanel.Core
                                 // Set state to indicate we're on a fleet carrier
                                 IsOnFleetCarrier = true;
 
-                                // Carrier jump is in progress but has just completed the physical jump
-                                // We keep FleetCarrierJumpInProgress true to show the overlay 
-                                FleetCarrierJumpInProgress = true;
-
-                                // Critical: Set JumpArrived to false to allow the overlay to show
+                                // Mark the jump as complete
                                 JumpArrived = true;
 
-                                // Log current state for troubleshooting
-                                Log.Information("Carrier state after jump: IsOnCarrier={0}, JumpInProgress={1}, CountdownSeconds={2}, JumpArrived={3}",
-                                    IsOnFleetCarrier, FleetCarrierJumpInProgress, CarrierJumpCountdownSeconds, JumpArrived);
+                                // Schedule cleanup of jump state after overlay has been shown
+                                Task.Delay(10000).ContinueWith(_ => {
+                                    if (FleetCarrierJumpInProgress && JumpArrived)
+                                    {
+                                        FleetCarrierJumpInProgress = false;
+                                        CarrierJumpDestinationSystem = null;
+                                        OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
+                                        Log.Information("Clearing carrier jump state after overlay display period");
+                                    }
+                                });
 
-                                // Notify UI that overlay properties have changed
+                                // Force update of overlay status
                                 OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
-
-                                // Setup a delayed task to reset the state after the overlay has been shown
-                          
                             }
                             break;
                         case "FSDTarget":
@@ -1234,7 +1319,14 @@ namespace EliteInfoPanel.Core
                                 }
                             }
                             break;
-
+                        case "Music":
+                            if (root.TryGetProperty("MusicTrack", out var musicTrackProp) &&
+                                musicTrackProp.GetString() == "DockingComputer")
+                            {
+                                Log.Information("Docking computer music detected - setting IsDocking = true");
+                                SetDockingStatus();
+                            }
+                            break;
 
 
 

@@ -355,7 +355,7 @@ namespace EliteInfoPanel.ViewModels
                     _gameState.ResetRouteActivity();
                 }
 
-                Log.Information("RouteViewModel: Updating route - CurrentSystem={CurrentSystem}, LastFsdTargetSystem={Target}, RemainingJumps={Jumps}, HasDestination={HasDest}",
+                Log.Debug("RouteViewModel: Updating route - CurrentSystem={CurrentSystem}, LastFsdTargetSystem={Target}, RemainingJumps={Jumps}, HasDestination={HasDest}",
      _gameState.CurrentSystem,
      _gameState.LastFsdTargetSystem,
      _gameState.RemainingJumps,
