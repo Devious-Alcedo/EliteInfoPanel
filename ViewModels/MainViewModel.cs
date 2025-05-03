@@ -113,9 +113,6 @@ namespace EliteInfoPanel.ViewModels
             // Initial update based on current state
             UpdateLoadingState();
 
-            // Initialize card visibilities
-            SetInitialCardVisibility();
-
             // Apply initial font size
             double scale = SettingsManager.Load().UseFloatingWindow
                 ? SettingsManager.Load().FloatingFontScale
@@ -127,13 +124,37 @@ namespace EliteInfoPanel.ViewModels
             {
                 card.FontSize = baseFontSize;
             }
-            FlagVisualHelper.LogAllMetadata();
-            // Add a flag to indicate initialization is complete
-            Application.Current.Dispatcher.BeginInvoke(new Action(() => {
-                _initializationComplete = true;
-                // Notify all cards that they can now find MainViewModel
-                RefreshLayout(true);
-            }), DispatcherPriority.Background);
+
+            // Check if game state is already loaded
+            if (_gameState.FirstLoadCompleted)
+            {
+                // Data already loaded, initialize UI immediately
+                Log.Information("MainViewModel: GameState already loaded, initializing UI immediately");
+                InitializeUI();
+            }
+            else
+            {
+                // Wait for data to be loaded
+                Log.Information("MainViewModel: Waiting for GameState to complete loading");
+                _gameState.FirstLoadCompletedEvent += () => {
+                    Log.Information("MainViewModel: GameState loading completed, now initializing UI");
+                    InitializeUI();
+                };
+            }
+        }
+
+        private void InitializeUI()
+        {
+            // Set the initialization flag
+            _initializationComplete = true;
+
+            // Initialize all cards
+            SetInitialCardVisibility();
+
+            // Force a layout refresh
+            RefreshLayout(true);
+
+            Log.Information("MainViewModel: UI initialization completed");
         }
 
         // Add this field to MainViewModel

@@ -884,40 +884,51 @@ namespace EliteInfoPanel.Core
 
         private void LoadAllData()
         {
-            Task statusTask = Task.Run(() => LoadStatusData());
-            Task routeTask = Task.Run(() => LoadNavRouteData());
-            Task cargoTask = Task.Run(() => LoadCargoData());
-            Task backpackTask = Task.Run(() => LoadBackpackData());
-            Task materialsTask = Task.Run(() => LoadMaterialsData());
-            Task loadoutTask = Task.Run(() => LoadLoadoutData());
+            // Wrap this in a try-catch to ensure we don't crash the application
+            try
+            {
+                Log.Information("GameStateService: Beginning initial load of all data");
 
-            Task.WaitAll(statusTask, routeTask, cargoTask, backpackTask, materialsTask, loadoutTask);
+                Task statusTask = Task.Run(() => LoadStatusData());
+                Task routeTask = Task.Run(() => LoadNavRouteData());
+                Task cargoTask = Task.Run(() => LoadCargoData());
+                Task backpackTask = Task.Run(() => LoadBackpackData());
+                Task materialsTask = Task.Run(() => LoadMaterialsData());
+                Task loadoutTask = Task.Run(() => LoadLoadoutData());
 
-            latestJournalPath = Directory.GetFiles(gamePath, "Journal.*.log")
-                .OrderByDescending(File.GetLastWriteTime)
-                .FirstOrDefault();
-            _firstLoadCompleted = true;
-            Log.Information("✅ First journal scan completed");
+                Task.WaitAll(statusTask, routeTask, cargoTask, backpackTask, materialsTask, loadoutTask);
 
-            FirstLoadCompletedEvent?.Invoke(); // 🔔 raise the event here
+                latestJournalPath = Directory.GetFiles(gamePath, "Journal.*.log")
+                    .OrderByDescending(File.GetLastWriteTime)
+                    .FirstOrDefault();
 
+                LoadRouteProgress();
 
-            LoadRouteProgress();
+                Task.Run(async () => await ProcessJournalAsync()).Wait();
 
-            Task.Run(async () => await ProcessJournalAsync()).Wait();
-            OnPropertyChanged(nameof(CurrentLoadout));
-            OnPropertyChanged(nameof(CurrentCargo));
-            OnPropertyChanged(nameof(CurrentRoute));
-            OnPropertyChanged(nameof(CommanderName));
-            OnPropertyChanged(nameof(ShipName));
-            OnPropertyChanged(nameof(CurrentSystem));
-            OnPropertyChanged(nameof(Balance));
-            OnPropertyChanged(nameof(CurrentStatus));
-            OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // ensure overlay check runs
+                // Explicitly notify properties that are important for initialization
+                OnPropertyChanged(nameof(CurrentLoadout));
+                OnPropertyChanged(nameof(CurrentCargo));
+                OnPropertyChanged(nameof(CurrentRoute));
+                OnPropertyChanged(nameof(CommanderName));
+                OnPropertyChanged(nameof(ShipName));
+                OnPropertyChanged(nameof(CurrentSystem));
+                OnPropertyChanged(nameof(Balance));
+                OnPropertyChanged(nameof(CurrentStatus));
 
+                // Mark initialization as complete
+                _firstLoadCompleted = true;
+                Log.Information("✅ GameStateService: First load completed");
 
+                // Notify subscribers
+                FirstLoadCompletedEvent?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "GameStateService: Error during initial data load");
+                throw; // Re-throw to ensure the application handles this error
+            }
         }
-
         private bool LoadBackpackData()
         {
             var oldBackpack = CurrentBackpack;
