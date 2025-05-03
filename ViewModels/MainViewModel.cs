@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
 using MaterialDesignThemes.Wpf;
@@ -93,6 +94,7 @@ namespace EliteInfoPanel.ViewModels
             ModulesCard = new ModulesViewModel(gameState) { Title = "Ship Modules" };
             FlagsCard = new FlagsViewModel(gameState) { Title = "Status Flags" };
             ColonizationCard = new ColonizationViewModel(gameState) { Title = "Colonization Project" };
+
             // Add cards to collection
             Cards.Add(SummaryCard);
             Cards.Add(CargoCard);
@@ -125,7 +127,17 @@ namespace EliteInfoPanel.ViewModels
             {
                 card.FontSize = baseFontSize;
             }
+
+            // Add a flag to indicate initialization is complete
+            Application.Current.Dispatcher.BeginInvoke(new Action(() => {
+                _initializationComplete = true;
+                // Notify all cards that they can now find MainViewModel
+                RefreshLayout(true);
+            }), DispatcherPriority.Background);
         }
+
+        // Add this field to MainViewModel
+        private bool _initializationComplete = false;     
         #endregion
 
         #region Public Methods
@@ -138,7 +150,11 @@ namespace EliteInfoPanel.ViewModels
         public void RefreshLayout(bool forceRebuild = false)
         {
             Log.Information("MainViewModel: RefreshLayout called - forceRebuild={0}", forceRebuild);
-
+            if (!_initializationComplete && !forceRebuild)
+            {
+                Log.Debug("RefreshLayout called before initialization complete, deferring");
+                return;
+            }
             if (_layoutChangePending && !forceRebuild)
                 return; // Avoid redundant refreshes
 

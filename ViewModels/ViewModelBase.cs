@@ -117,7 +117,7 @@ namespace EliteInfoPanel.ViewModels
                 }
                 catch (Exception ex)
                 {
-                    Serilog.Log.Error(ex, "Error executing action on UI thread");
+                    Log.Error(ex, "Error executing action on UI thread");
                 }
             }
             else
@@ -130,7 +130,7 @@ namespace EliteInfoPanel.ViewModels
                 }
                 catch (Exception ex)
                 {
-                    Serilog.Log.Error(ex, "Error dispatching action to UI thread");
+                    Log.Error(ex, "Error dispatching action to UI thread");
                 }
             }
         }

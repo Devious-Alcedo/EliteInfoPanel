@@ -50,34 +50,43 @@ namespace EliteInfoPanel.ViewModels
 
         private void NotifyCardVisibilityChanged()
         {
-            try
-            {
-                // Find the MainViewModel
-                if (Application.Current?.MainWindow?.DataContext is MainViewModel mainVm)
+            // Use UI thread safety
+            RunOnUIThread(() => {
+                try
                 {
-                    Log.Debug("{CardType}: Notifying MainViewModel about visibility change", this.GetType().Name);
-                    mainVm.RefreshLayout(false);
-                }
-                else
-                {
-                    Log.Warning("{CardType}: Cannot notify MainViewModel - not found", this.GetType().Name);
+                    // Find the MainViewModel
+                    if (Application.Current?.MainWindow?.DataContext is MainViewModel mainVm)
+                    {
+                        Log.Debug("{CardType}: Notifying MainViewModel about visibility change", this.GetType().Name);
+                        mainVm.RefreshLayout(false);
+                    }
+                    else
+                    {
+                        Log.Warning("{CardType}: Cannot notify MainViewModel - not found", this.GetType().Name);
 
-                    // Schedule a retry after a short delay
-                    Application.Current?.Dispatcher.BeginInvoke(new Action(() => {
-                        if (Application.Current?.MainWindow?.DataContext is MainViewModel mainVmRetry)
-                        {
-                            Log.Debug("{CardType}: Successfully found MainViewModel on retry", this.GetType().Name);
-                            mainVmRetry.RefreshLayout(false);
-                        }
-                    }), System.Windows.Threading.DispatcherPriority.Background);
+                        // Schedule a retry after a short delay
+                        Application.Current?.Dispatcher.BeginInvoke(new Action(() => {
+                            try
+                            {
+                                if (Application.Current?.MainWindow?.DataContext is MainViewModel mainVmRetry)
+                                {
+                                    Log.Debug("{CardType}: Successfully found MainViewModel on retry", this.GetType().Name);
+                                    mainVmRetry.RefreshLayout(false);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Log.Error(ex, "Error in NotifyCardVisibilityChanged retry");
+                            }
+                        }), System.Windows.Threading.DispatcherPriority.Background);
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error in NotifyCardVisibilityChanged");
-            }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error in NotifyCardVisibilityChanged");
+                }
+            });
         }
-
         protected CardViewModel(string title)
         {
             _title = title;

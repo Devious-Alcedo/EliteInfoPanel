@@ -80,50 +80,44 @@ namespace EliteInfoPanel.ViewModels
             if (_gameState.CurrentStatus == null)
                 return;
 
-            if (!System.Windows.Application.Current.Dispatcher.CheckAccess())
-            {
-                System.Windows.Application.Current.Dispatcher.Invoke(UpdateFlags);
-                return;
-            }
-
-            try
-            {
-                // Log raw flag values for diagnostic purposes
-                uint currentStatusFlags = (uint)_gameState.CurrentStatus.Flags;
-                Log.Information("Updating flags - Raw flags value: 0x{RawFlags:X8}", currentStatusFlags);
-
-                // Force update if raw status flags have changed
-                bool flagsValueChanged = currentStatusFlags != _lastStatusFlags;
-                if (flagsValueChanged)
+            RunOnUIThread(() => {
+                try
                 {
-                    Log.Information("Status flags raw value changed: {OldValue:X8} -> {NewValue:X8}",
-                        _lastStatusFlags, currentStatusFlags);
+                    // Log raw flag values for diagnostic purposes
+                    uint currentStatusFlags = (uint)_gameState.CurrentStatus.Flags;
+                    Log.Information("Updating flags - Raw flags value: 0x{RawFlags:X8}", currentStatusFlags);
 
-                    // Log which individual flags changed
-                    Flag oldFlags = (Flag)_lastStatusFlags;
-                    Flag newFlags = _gameState.CurrentStatus.Flags;
+                    // Force update if raw status flags have changed
+                    bool flagsValueChanged = currentStatusFlags != _lastStatusFlags;
+                    if (flagsValueChanged)
+                    {
+                        Log.Information("Status flags raw value changed: {OldValue:X8} -> {NewValue:X8}",
+                            _lastStatusFlags, currentStatusFlags);
 
-                    var addedFlags = Enum.GetValues(typeof(Flag))
-                        .Cast<Flag>()
-                        .Where(f => f != Flag.None && !oldFlags.HasFlag(f) && newFlags.HasFlag(f))
-                        .ToList();
+                        // Log which individual flags changed
+                        Flag oldFlags = (Flag)_lastStatusFlags;
+                        Flag newFlags = _gameState.CurrentStatus.Flags;
 
-                    var removedFlags = Enum.GetValues(typeof(Flag))
-                        .Cast<Flag>()
-                        .Where(f => f != Flag.None && oldFlags.HasFlag(f) && !newFlags.HasFlag(f))
-                        .ToList();
+                        var addedFlags = Enum.GetValues(typeof(Flag))
+                            .Cast<Flag>()
+                            .Where(f => f != Flag.None && !oldFlags.HasFlag(f) && newFlags.HasFlag(f))
+                            .ToList();
 
-                    if (addedFlags.Any())
-                        Log.Information("Flags added: {Flags}", string.Join(", ", addedFlags));
+                        var removedFlags = Enum.GetValues(typeof(Flag))
+                            .Cast<Flag>()
+                            .Where(f => f != Flag.None && oldFlags.HasFlag(f) && !newFlags.HasFlag(f))
+                            .ToList();
 
-                    if (removedFlags.Any())
-                        Log.Information("Flags removed: {Flags}", string.Join(", ", removedFlags));
+                        if (addedFlags.Any())
+                            Log.Information("Flags added: {Flags}", string.Join(", ", addedFlags));
 
-                    _lastStatusFlags = currentStatusFlags;
-                }
+                        if (removedFlags.Any())
+                            Log.Information("Flags removed: {Flags}", string.Join(", ", removedFlags));
 
-                // Force update if hyperspace state changed
-                bool hyperspaceChanged = _gameState.IsHyperspaceJumping != _lastHyperspaceState;
+                        _lastStatusFlags = currentStatusFlags;
+                    }
+                    // Force update if hyperspace state changed
+                    bool hyperspaceChanged = _gameState.IsHyperspaceJumping != _lastHyperspaceState;
                 if (hyperspaceChanged)
                 {
                     _lastHyperspaceState = _gameState.IsHyperspaceJumping;
@@ -160,50 +154,53 @@ namespace EliteInfoPanel.ViewModels
                 // Update our last active flags
                 _lastActiveFlags = new HashSet<Flag>(activeFlags);
 
-                // Clear and rebuild the Items collection
-                Items.Clear();
+                    // Clear and rebuild the Items collection
+                    Items.Clear();
 
-                // Check if we have any visible flags defined
-                if (visibleFlags == null || visibleFlags.Count == 0)
-                {
-                    Log.Debug("No visible flags defined in settings");
-                    return;
+                    // Get all active flags
+                     activeFlags = GetActiveFlags();
+
+                    // Get the user's ordered visible flags from current settings
+                     settings = SettingsManager.Load();
+                     visibleFlags = settings.DisplayOptions.VisibleFlags;
+
+                    // Always reload visible flags to respect order from options window
+                    _lastVisibleFlags = visibleFlags != null ? visibleFlags.ToList() : new List<Flag>();
+
+                    // Add flags in the user-defined order, but only if active
+                    foreach (var flag in visibleFlags)
+                    {
+                        // Handle special synthetic flags
+                        if (flag == Flag.HudInCombatMode && !_gameState.CurrentStatus.Flags.HasFlag(Flag.HudInAnalysisMode))
+                        {
+                            Log.Debug("Adding synthetic flag: HudInCombatMode");
+                            AddFlagToItems(flag);
+                        }
+                        else if (flag == Flag.Docking &&
+                         !_gameState.CurrentStatus.Flags.HasFlag(Flag.Docked) &&
+                         _gameState.IsDocking)
+                        {
+                            Log.Debug("Adding synthetic flag: Docking");
+                            AddFlagToItems(flag);
+                        }
+                        // Only add the flag if it's active in the game
+                        else if (activeFlags.Contains(flag))
+                        {
+                            Log.Debug("Adding standard flag: {Flag}", flag);
+                            AddFlagToItems(flag);
+                        }
+                    }
+
+                    // Hide the card if no flags are being displayed
+                    IsVisible = Items.Count > 0;
+
+                    Log.Debug("Updated Flags Display: {Count} flags shown", Items.Count);
                 }
-
-                // Add flags in the user-defined order, but only if active
-                foreach (var flag in visibleFlags)
+                catch (Exception ex)
                 {
-                    // Handle special synthetic flags
-                    if (flag == Flag.HudInCombatMode && !_gameState.CurrentStatus.Flags.HasFlag(Flag.HudInAnalysisMode))
-                    {
-                        Log.Debug("Adding synthetic flag: HudInCombatMode");
-                        AddFlagToItems(flag);
-                    }
-                    else if (flag == Flag.Docking &&
-           !_gameState.CurrentStatus.Flags.HasFlag(Flag.Docked) &&
-           _gameState.IsDocking)
-                    {
-                        Log.Debug("Adding synthetic flag: Docking");
-                        AddFlagToItems(flag);
-                    }
-
-                    // Only add the flag if it's active in the game
-                    else if (activeFlags.Contains(flag))
-                    {
-                        Log.Debug("Adding standard flag: {Flag}", flag);
-                        AddFlagToItems(flag);
-                    }
+                    Log.Error(ex, "Error updating flags");
                 }
-
-                // Hide the card if no flags are being displayed
-                IsVisible = Items.Count > 0;
-
-                Log.Debug("Updated Flags Display: {Count} flags shown", Items.Count);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error updating flags");
-            }
+            });
         }
 
         private HashSet<Flag> GetActiveFlags()

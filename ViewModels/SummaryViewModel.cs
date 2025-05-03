@@ -167,12 +167,8 @@ namespace EliteInfoPanel.ViewModels
         {
             try
             {
-                // Make sure we're on the UI thread
-                if (!System.Windows.Application.Current.Dispatcher.CheckAccess())
-                {
-                    System.Windows.Application.Current.Dispatcher.Invoke(RemoveNonCustomItems);
-                    return;
-                }
+                // We don't need to check for UI thread here because this is only called from
+                // InitializeAllItems which is already ensuring we're on the UI thread
 
                 Log.Debug("🧹 Running RemoveNonCustomItems...");
 
@@ -265,38 +261,33 @@ namespace EliteInfoPanel.ViewModels
         {
             try
             {
-                // Make sure we're on the UI thread
-                if (!System.Windows.Application.Current.Dispatcher.CheckAccess())
+                RunOnUIThread(() =>
                 {
-                    System.Windows.Application.Current.Dispatcher.Invoke(InitializeAllItems);
-                    return;
-                }
+                    Log.Information("SummaryViewModel: InitializeAllItems called");
+                    RemoveNonCustomItems();
 
-                Log.Information("SummaryViewModel: InitializeAllItems called");
-                RemoveNonCustomItems();
+                    // Even if CurrentStatus is null, still try to update the other items
+                    // that might have data available
+                    UpdateCommanderItem();
+                    UpdateSquadronItem();
+                    UpdateShipItem();
+                    UpdateBalanceItem();
+                    UpdateSystemItem();
 
-                // Even if CurrentStatus is null, still try to update the other items
-                // that might have data available
+                    // These are more dependent on CurrentStatus, so check before calling
+                    if (_gameState.CurrentStatus != null)
+                    {
+                        UpdateFuelInfo();
+                        UpdateCarrierCountdown();
+                    }
 
-                UpdateCommanderItem();
-                UpdateSquadronItem();
-                UpdateShipItem();
-                UpdateBalanceItem();
-                UpdateSystemItem();
-
-                // These are more dependent on CurrentStatus, so check before calling
-                if (_gameState.CurrentStatus != null)
-                {
-                    UpdateFuelInfo();
-                    UpdateCarrierCountdown();
-                }
-
-                // Log final state
-                Log.Debug("📋 Final Summary Items after initialization: {Count} items", Items.Count);
-                foreach (var item in Items)
-                {
-                    Log.Debug("  - Tag: {Tag}, Content: {Content}", item.Tag, item.Content);
-                }
+                    // Log final state
+                    Log.Debug("📋 Final Summary Items after initialization: {Count} items", Items.Count);
+                    foreach (var item in Items)
+                    {
+                        Log.Debug("  - Tag: {Tag}, Content: {Content}", item.Tag, item.Content);
+                    }
+                });
             }
             catch (Exception ex)
             {
