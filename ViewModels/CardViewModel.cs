@@ -50,15 +50,31 @@ namespace EliteInfoPanel.ViewModels
 
         private void NotifyCardVisibilityChanged()
         {
-            // Find the MainViewModel
-            if (Application.Current?.MainWindow?.DataContext is MainViewModel mainVm)
+            try
             {
-                Log.Debug("{CardType}: Notifying MainViewModel about visibility change", this.GetType().Name);
-                mainVm.RefreshLayout(false);
+                // Find the MainViewModel
+                if (Application.Current?.MainWindow?.DataContext is MainViewModel mainVm)
+                {
+                    Log.Debug("{CardType}: Notifying MainViewModel about visibility change", this.GetType().Name);
+                    mainVm.RefreshLayout(false);
+                }
+                else
+                {
+                    Log.Warning("{CardType}: Cannot notify MainViewModel - not found", this.GetType().Name);
+
+                    // Schedule a retry after a short delay
+                    Application.Current?.Dispatcher.BeginInvoke(new Action(() => {
+                        if (Application.Current?.MainWindow?.DataContext is MainViewModel mainVmRetry)
+                        {
+                            Log.Debug("{CardType}: Successfully found MainViewModel on retry", this.GetType().Name);
+                            mainVmRetry.RefreshLayout(false);
+                        }
+                    }), System.Windows.Threading.DispatcherPriority.Background);
+                }
             }
-            else
+            catch (Exception ex)
             {
-                Log.Warning("{CardType}: Cannot notify MainViewModel - not found", this.GetType().Name);
+                Log.Error(ex, "Error in NotifyCardVisibilityChanged");
             }
         }
 

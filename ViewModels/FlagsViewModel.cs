@@ -88,14 +88,38 @@ namespace EliteInfoPanel.ViewModels
 
             try
             {
-                // Force update if raw status flags have changed
+                // Log raw flag values for diagnostic purposes
                 uint currentStatusFlags = (uint)_gameState.CurrentStatus.Flags;
+                Log.Information("Updating flags - Raw flags value: 0x{RawFlags:X8}", currentStatusFlags);
+
+                // Force update if raw status flags have changed
                 bool flagsValueChanged = currentStatusFlags != _lastStatusFlags;
                 if (flagsValueChanged)
                 {
-                    _lastStatusFlags = currentStatusFlags;
-                    Log.Debug("Status flags raw value changed: {OldValue} -> {NewValue}",
+                    Log.Information("Status flags raw value changed: {OldValue:X8} -> {NewValue:X8}",
                         _lastStatusFlags, currentStatusFlags);
+
+                    // Log which individual flags changed
+                    Flag oldFlags = (Flag)_lastStatusFlags;
+                    Flag newFlags = _gameState.CurrentStatus.Flags;
+
+                    var addedFlags = Enum.GetValues(typeof(Flag))
+                        .Cast<Flag>()
+                        .Where(f => f != Flag.None && !oldFlags.HasFlag(f) && newFlags.HasFlag(f))
+                        .ToList();
+
+                    var removedFlags = Enum.GetValues(typeof(Flag))
+                        .Cast<Flag>()
+                        .Where(f => f != Flag.None && oldFlags.HasFlag(f) && !newFlags.HasFlag(f))
+                        .ToList();
+
+                    if (addedFlags.Any())
+                        Log.Information("Flags added: {Flags}", string.Join(", ", addedFlags));
+
+                    if (removedFlags.Any())
+                        Log.Information("Flags removed: {Flags}", string.Join(", ", removedFlags));
+
+                    _lastStatusFlags = currentStatusFlags;
                 }
 
                 // Force update if hyperspace state changed

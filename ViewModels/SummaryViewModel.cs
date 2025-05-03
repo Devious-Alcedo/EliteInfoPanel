@@ -165,33 +165,40 @@ namespace EliteInfoPanel.ViewModels
 
         private void RemoveNonCustomItems()
         {
-            Log.Debug("🧹 Running RemoveNonCustomItems...");
-
-            for (int i = Items.Count - 1; i >= 0; i--)
+            try
             {
-                var item = Items[i];
-                Log.Debug("🔍 Inspecting item at index {Index}: Tag = {Tag}, Content = {Content}", i, item.Tag, item.Content);
-
-                if (item.Tag == "CarrierJumpCountdown")
+                // Make sure we're on the UI thread
+                if (!System.Windows.Application.Current.Dispatcher.CheckAccess())
                 {
-                    Log.Debug("✅ Keeping CarrierJumpCountdown item");
-                    continue;
+                    System.Windows.Application.Current.Dispatcher.Invoke(RemoveNonCustomItems);
+                    return;
                 }
 
-                Log.Debug("❌ Removing item with Tag = {Tag}", item.Tag);
-                Items.RemoveAt(i);
-            }
+                Log.Debug("🧹 Running RemoveNonCustomItems...");
 
-            Log.Debug("📦 Items after cleanup: {Count}", Items.Count);
-        }
-        private void OnLoadoutUpdated()
-        {
-            if (!_initialized)
+                for (int i = Items.Count - 1; i >= 0; i--)
+                {
+                    var item = Items[i];
+                    Log.Debug("🔍 Inspecting item at index {Index}: Tag = {Tag}, Content = {Content}", i, item.Tag, item.Content);
+
+                    if (item.Tag == "CarrierJumpCountdown")
+                    {
+                        Log.Debug("✅ Keeping CarrierJumpCountdown item");
+                        continue;
+                    }
+
+                    Log.Debug("❌ Removing item with Tag = {Tag}", item.Tag);
+                    Items.RemoveAt(i);
+                }
+
+                Log.Debug("📦 Items after cleanup: {Count}", Items.Count);
+            }
+            catch (Exception ex)
             {
-                Log.Information("📦 SummaryViewModel received LoadoutUpdated event — checking readiness...");
-               
+                Log.Error(ex, "Error in RemoveNonCustomItems");
             }
         }
+
 
 
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -258,6 +265,13 @@ namespace EliteInfoPanel.ViewModels
         {
             try
             {
+                // Make sure we're on the UI thread
+                if (!System.Windows.Application.Current.Dispatcher.CheckAccess())
+                {
+                    System.Windows.Application.Current.Dispatcher.Invoke(InitializeAllItems);
+                    return;
+                }
+
                 Log.Information("SummaryViewModel: InitializeAllItems called");
                 RemoveNonCustomItems();
 

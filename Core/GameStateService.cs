@@ -472,25 +472,54 @@ namespace EliteInfoPanel.Core
         }
 
         // Add this to GameStateService.cs
+        // In ShowCarrierJumpOverlay
         public bool ShowCarrierJumpOverlay
         {
             get
             {
-                // Additional check for just-reached-zero condition
-                bool result = (FleetCarrierJumpInProgress || _jumpCountdownJustReachedZero) &&
-                             IsOnFleetCarrier &&
-                             CarrierJumpCountdownSeconds <= 0 &&
-                             !JumpArrived;
-
-                // Clear the flag after checking
-                if (_jumpCountdownJustReachedZero)
+                try
                 {
-                    _jumpCountdownJustReachedZero = false;
+                    // Log more details about the state for debugging
+                    Log.Debug("ShowCarrierJumpOverlay details: FleetCarrierJumpInProgress={0}, " +
+                             "IsOnFleetCarrier={1}, CarrierJumpScheduledTime={2}, JumpArrived={3}, " +
+                             "CarrierJumpDestinationSystem={4}",
+                             FleetCarrierJumpInProgress,
+                             IsOnFleetCarrier,
+                             CarrierJumpScheduledTime?.ToString() ?? "null",
+                             JumpArrived,
+                             CarrierJumpDestinationSystem ?? "null");
+
+                    // Updated logic with extra safety checks
+                    bool result = FleetCarrierJumpInProgress &&
+                                 IsOnFleetCarrier &&
+                                 !string.IsNullOrEmpty(CarrierJumpDestinationSystem) &&
+                                 (CarrierJumpCountdownSeconds <= 0) &&
+                                 !JumpArrived;
+
+                    // Additional logging for when conditions should be true
+                    if (FleetCarrierJumpInProgress && IsOnFleetCarrier && !JumpArrived)
+                    {
+                        Log.Information("ShowCarrierJumpOverlay calculation (detailed): " +
+                                       "FleetCarrierJumpInProgress={0}, IsOnFleetCarrier={1}, " +
+                                       "CountdownSeconds={2}, JumpArrived={3}, " +
+                                       "CarrierJumpDestSystem={4}, CurrentStationName={5}, " +
+                                       "Result={6}",
+                            FleetCarrierJumpInProgress,
+                            IsOnFleetCarrier,
+                            CarrierJumpCountdownSeconds,
+                            JumpArrived,
+                            CarrierJumpDestinationSystem ?? "(null)",
+                            CurrentStationName ?? "(null)",
+                            result);
+                    }
+
+                    return result;
                 }
-
-                // Logging code...
-
-                return result;
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error in ShowCarrierJumpOverlay getter");
+                    return false;
+                }
             }
         }
         public void ResetFleetCarrierJumpState()
@@ -1099,6 +1128,36 @@ namespace EliteInfoPanel.Core
 
             if (changed)
             {
+                // Log the flag values for debugging
+                if (CurrentStatus?.Flags != null)
+                {
+                    uint rawFlags = (uint)CurrentStatus.Flags;
+                    Log.Information("Raw Status Flags value: 0x{RawFlags:X8} ({RawFlags})",
+                        rawFlags, rawFlags);
+
+                    // Log individual flags that are set
+                    Log.Information("Active flags: {Flags}",
+                        Enum.GetValues(typeof(Flag))
+                            .Cast<Flag>()
+                            .Where(f => f != Flag.None && CurrentStatus.Flags.HasFlag(f))
+                            .Select(f => f.ToString())
+                            .ToList());
+
+                    // Log Flags2 if available
+                    if (CurrentStatus.Flags2 != 0)
+                    {
+                        Log.Information("Raw Status Flags2 value: 0x{RawFlags2:X8} ({RawFlags2})",
+                            CurrentStatus.Flags2, CurrentStatus.Flags2);
+
+                        // If Flags2 is defined as an enum, you could also log individual flags
+                        // Similar to the above code for Flags
+                    }
+                }
+                else
+                {
+                    Log.Warning("Status.json loaded but Flags property is null");
+                }
+
                 // Check hyperspace status
                 IsHyperspaceJumping = CurrentStatus?.Flags.HasFlag(Flag.FsdJump) ?? false;
 
