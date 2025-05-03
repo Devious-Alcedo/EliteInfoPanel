@@ -625,13 +625,14 @@ namespace EliteInfoPanel.Core
                 // Refresh the timer but don't create a new one
                 try
                 {
-                    _dockingCts.CancelAfter(10000);
+                    // Extended docking timer to 30 seconds from 10 seconds
+                    _dockingCts.CancelAfter(30000);
                 }
                 catch (ObjectDisposedException)
                 {
                     // Create a new CTS if the previous one was disposed
                     _dockingCts = new CancellationTokenSource();
-                    _dockingCts.CancelAfter(10000);
+                    _dockingCts.CancelAfter(30000);
                 }
                 return;
             }
@@ -656,10 +657,12 @@ namespace EliteInfoPanel.Core
             {
                 try
                 {
-                    await Task.Delay(10000, token); // Wait 10 seconds or until cancelled
+                    // Increased timeout from 10 to 30 seconds
+                    await Task.Delay(30000, token); // Wait 30 seconds or until cancelled
                     if (!token.IsCancellationRequested)
                     {
                         IsDocking = false;
+                        Log.Information("Docking timer expired, IsDocking = false");
                     }
                 }
                 catch (TaskCanceledException)
