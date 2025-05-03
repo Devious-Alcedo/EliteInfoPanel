@@ -86,7 +86,9 @@ namespace EliteInfoPanel.ViewModels
                     // Log raw flag values for diagnostic purposes
                     uint currentStatusFlags = (uint)_gameState.CurrentStatus.Flags;
                     Log.Information("Updating flags - Raw flags value: 0x{RawFlags:X8}", currentStatusFlags);
-
+                    Log.Information("🚩 Setting FlagsCard visibility: {Visible} (Items count: {Count})",
+    Items.Count > 0, Items.Count);
+                    IsVisible = Items.Count > 0;
                     // Force update if raw status flags have changed
                     bool flagsValueChanged = currentStatusFlags != _lastStatusFlags;
                     if (flagsValueChanged)
@@ -209,23 +211,32 @@ namespace EliteInfoPanel.ViewModels
             if (status == null)
                 return new HashSet<Flag>();
 
+            // Add direct logging of all flags for debugging
+            Log.Information("🚩 Raw flag status: 0x{RawFlags:X8}", (uint)status.Flags);
+
             // Get all active standard flags
             var activeFlags = Enum.GetValues(typeof(Flag))
                 .Cast<Flag>()
                 .Where(flag => status.Flags.HasFlag(flag) && flag != Flag.None)
                 .ToHashSet();
 
+            Log.Information("🚩 Active standard flags: {Flags}",
+                string.Join(", ", activeFlags.Select(f => f.ToString())));
+
             // Add synthetic flags if active
             if (!status.Flags.HasFlag(Flag.HudInAnalysisMode))
             {
                 activeFlags.Add(SyntheticFlags.HudInCombatMode);
+                Log.Information("🚩 Added synthetic flag: HudInCombatMode");
             }
 
-            if (status.Flags.HasFlag(Flag.Docked) && _gameState.IsDocking)
+            if (!status.Flags.HasFlag(Flag.Docked) && _gameState.IsDocking)
             {
                 activeFlags.Add(SyntheticFlags.Docking);
+                Log.Information("🚩 Added synthetic flag: Docking");
             }
 
+            Log.Information("🚩 Total active flags: {Count}", activeFlags.Count);
             return activeFlags;
         }
 
@@ -255,12 +266,22 @@ namespace EliteInfoPanel.ViewModels
             if (!FlagVisualHelper.TryGetMetadata(flag, out var meta))
             {
                 meta = ("Flag", flag.ToString().Replace("_", " "), Brushes.Gray);
+                Log.Warning("No visual metadata found for flag: {Flag}", flag);
             }
+
+            Log.Debug("Adding flag to UI: {Flag} with icon {Icon} and color {Color}",
+                flag, meta.Icon, meta.Color.ToString());
+
+            // Add the explicit logging to see if this method is being called
+            Log.Information("🚩 Adding flag to Items collection: {Flag}", flag);
 
             Items.Add(new FlagItemViewModel(flag, meta.Tooltip, meta.Icon, flag.ToString(), meta.Color)
             {
                 FontSize = (int)this.FontSize
             });
+
+            // Log the current count
+            Log.Information("🚩 Items collection now has {Count} items", Items.Count);
         }
         #endregion
     }

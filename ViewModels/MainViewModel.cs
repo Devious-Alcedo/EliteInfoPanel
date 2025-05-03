@@ -159,7 +159,8 @@ namespace EliteInfoPanel.ViewModels
                 return; // Avoid redundant refreshes
 
             _layoutChangePending = true;
-
+            Log.Information("FlagsViewModel state: IsVisible={Visible}, ItemsCount={Count}",
+                FlagsCard.IsVisible, FlagsCard.Items.Count);
             // Use dispatcher to batch layout updates and avoid multiple refreshes in same frame
             Application.Current.Dispatcher.BeginInvoke((Action)(() =>
             {
