@@ -965,20 +965,85 @@ namespace EliteInfoPanel.Core
                 Log.Warning(ex, "Failed to load RouteProgress.json");
             }
         }
+        // Improved file loading method for GameStateService.cs
+        private T LoadJsonFile<T>(string fileName, T currentValue, Func<T, T, bool> comparer = null) where T : class, new()
+        {
+            string filePath = Path.Combine(gamePath, fileName);
 
+            try
+            {
+                if (!File.Exists(filePath))
+                {
+                    Log.Debug("File not found: {FilePath}", filePath);
+                    return currentValue;
+                }
+
+                // Use FileShare.ReadWrite to safely access files that might be written by the game
+                using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                if (stream.Length == 0)
+                {
+                    Log.Debug("File is empty: {FilePath}", filePath);
+                    return currentValue;
+                }
+
+                using var reader = new StreamReader(stream);
+                string json = reader.ReadToEnd();
+
+                if (string.IsNullOrWhiteSpace(json))
+                {
+                    Log.Debug("File contains no data: {FilePath}", filePath);
+                    return currentValue;
+                }
+
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var newValue = JsonSerializer.Deserialize<T>(json, options) ?? new T();
+
+                // If no custom comparer provided, just check if values are different
+                bool hasChanged = comparer != null
+                    ? !comparer(currentValue, newValue)
+                    : !JsonEquals(currentValue, newValue);
+
+                if (hasChanged)
+                {
+                    Log.Debug("File {FileName} has changed, updating data", fileName);
+                    return newValue;
+                }
+
+                return currentValue;
+            }
+            catch (IOException ex)
+            {
+                Log.Warning(ex, "IOException reading {FilePath}", filePath);
+                return currentValue;
+            }
+            catch (JsonException ex)
+            {
+                Log.Warning(ex, "JSON parsing error in {FilePath}", filePath);
+                return currentValue;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Unexpected error reading {FilePath}", filePath);
+                return currentValue;
+            }
+        }
         private bool LoadStatusData()
         {
-            var newStatus = DeserializeJsonFile<StatusJson>(Path.Combine(gamePath, "Status.json"));
-            if (newStatus == null) return false;
-       //     IsHyperspaceJumping = newStatus.Flags.HasFlag(Flag.FsdJump);
+            var oldStatus = CurrentStatus;
+            CurrentStatus = LoadJsonFile("Status.json", CurrentStatus);
 
-            if (CurrentStatus == null || !JsonEquals(CurrentStatus, newStatus))
+            bool changed = !ReferenceEquals(oldStatus, CurrentStatus);
+
+            if (changed)
             {
-                CurrentStatus = newStatus;
-                return true;
+                // Process any derived state from status
+                IsHyperspaceJumping = CurrentStatus?.Flags.HasFlag(Flag.FsdJump) ?? false;
+
+                // Notify dependent properties
+                OnPropertyChanged(nameof(Balance));
             }
 
-            return false;
+            return changed;
         }
 
         private bool MaterialsEqual(FCMaterialsJson mat1, FCMaterialsJson mat2)
