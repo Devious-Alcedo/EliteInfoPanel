@@ -12,49 +12,50 @@
         <TextBlock Text="{Binding Title}" 
                    Style="{StaticResource CardTitleStyle}"/>
 
-        <!-- Flags container -->
-        <WrapPanel Orientation="Horizontal">
-            <ItemsControl ItemsSource="{Binding Items}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <WrapPanel IsItemsHost="True" />
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
+        <!-- Flags container with scroll viewer for many flags -->
+        <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="400">
+            <WrapPanel Orientation="Horizontal">
+                <ItemsControl ItemsSource="{Binding Items}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel IsItemsHost="True" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
 
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Border Background="#33FFFFFF"
-        BorderBrush="{DynamicResource PrimaryHueMidBrush}"
-        BorderThickness="1"
-        Margin="4"
-        CornerRadius="6"
-        Padding="8"
-        MinWidth="120"
-        MinHeight="40"
-        HorizontalAlignment="Left"
-        VerticalAlignment="Top">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="#33FFFFFF"
+                                    BorderBrush="{DynamicResource PrimaryHueMidBrush}"
+                                    BorderThickness="1"
+                                    Margin="4"
+                                    CornerRadius="6"
+                                    Padding="8,4"
+                                    MinWidth="120"
+                                    MaxWidth="180"
+                                    MinHeight="30"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Top"
+                                    ToolTip="{Binding Tooltip}">
 
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <materialDesign:PackIcon Kind="{Binding IconKind}"
+                                                             Width="24" Height="24"
+                                                             Foreground="{Binding IconColor}" 
+                                                             Margin="0,0,8,0"/>
 
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                           <materialDesign:PackIcon Kind="{Binding IconKind}"
-                         Width="24" Height="24"
-                         Foreground="{Binding IconColor}" 
-                         Margin="0,0,8,0"/>
-
-
-                                <TextBlock Text="{Binding DisplayText}" 
-           VerticalAlignment="Center" 
-           Foreground="White" 
-           FontSize="{Binding FontSize}"
-           FontWeight="Medium"
-           TextTrimming="CharacterEllipsis"
-           TextWrapping="Wrap"/>
-
-                            </StackPanel>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </WrapPanel>
+                                    <TextBlock Text="{Binding DisplayText}" 
+                                               VerticalAlignment="Center" 
+                                               Foreground="White" 
+                                               FontSize="{Binding FontSize}"
+                                               FontWeight="Medium"
+                                               TextTrimming="CharacterEllipsis"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </WrapPanel>
+        </ScrollViewer>
     </StackPanel>
 </UserControl>

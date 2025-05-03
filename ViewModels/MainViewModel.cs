@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
 using MaterialDesignThemes.Wpf;
@@ -93,6 +94,7 @@ namespace EliteInfoPanel.ViewModels
             ModulesCard = new ModulesViewModel(gameState) { Title = "Ship Modules" };
             FlagsCard = new FlagsViewModel(gameState) { Title = "Status Flags" };
             ColonizationCard = new ColonizationViewModel(gameState) { Title = "Colonization Project" };
+
             // Add cards to collection
             Cards.Add(SummaryCard);
             Cards.Add(CargoCard);
@@ -111,9 +113,6 @@ namespace EliteInfoPanel.ViewModels
             // Initial update based on current state
             UpdateLoadingState();
 
-            // Initialize card visibilities
-            SetInitialCardVisibility();
-
             // Apply initial font size
             double scale = SettingsManager.Load().UseFloatingWindow
                 ? SettingsManager.Load().FloatingFontScale
@@ -125,7 +124,41 @@ namespace EliteInfoPanel.ViewModels
             {
                 card.FontSize = baseFontSize;
             }
+
+            // Check if game state is already loaded
+            if (_gameState.FirstLoadCompleted)
+            {
+                // Data already loaded, initialize UI immediately
+                Log.Information("MainViewModel: GameState already loaded, initializing UI immediately");
+                InitializeUI();
+            }
+            else
+            {
+                // Wait for data to be loaded
+                Log.Information("MainViewModel: Waiting for GameState to complete loading");
+                _gameState.FirstLoadCompletedEvent += () => {
+                    Log.Information("MainViewModel: GameState loading completed, now initializing UI");
+                    InitializeUI();
+                };
+            }
         }
+
+        private void InitializeUI()
+        {
+            // Set the initialization flag
+            _initializationComplete = true;
+
+            // Initialize all cards
+            SetInitialCardVisibility();
+
+            // Force a layout refresh
+            RefreshLayout(true);
+
+            Log.Information("MainViewModel: UI initialization completed");
+        }
+
+        // Add this field to MainViewModel
+        private bool _initializationComplete = false;     
         #endregion
 
         #region Public Methods
@@ -138,12 +171,17 @@ namespace EliteInfoPanel.ViewModels
         public void RefreshLayout(bool forceRebuild = false)
         {
             Log.Information("MainViewModel: RefreshLayout called - forceRebuild={0}", forceRebuild);
-
+            if (!_initializationComplete && !forceRebuild)
+            {
+                Log.Debug("RefreshLayout called before initialization complete, deferring");
+                return;
+            }
             if (_layoutChangePending && !forceRebuild)
                 return; // Avoid redundant refreshes
 
             _layoutChangePending = true;
-
+            Log.Information("FlagsViewModel state: IsVisible={Visible}, ItemsCount={Count}",
+                FlagsCard.IsVisible, FlagsCard.Items.Count);
             // Use dispatcher to batch layout updates and avoid multiple refreshes in same frame
             Application.Current.Dispatcher.BeginInvoke((Action)(() =>
             {
@@ -231,6 +269,11 @@ namespace EliteInfoPanel.ViewModels
                 case nameof(GameStateService.FleetCarrierJumpInProgress):
                 case nameof(GameStateService.CarrierJumpDestinationSystem):
                     UpdateCarrierJumpState();
+                    if (SummaryCard != null)
+                    {
+                        // This tells the summary card to update its state
+                        SummaryCard.Initialize();
+                    }
                     break;
 
                 case nameof(GameStateService.IsHyperspaceJumping):

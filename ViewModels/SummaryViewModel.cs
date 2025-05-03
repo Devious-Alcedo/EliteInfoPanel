@@ -165,33 +165,36 @@ namespace EliteInfoPanel.ViewModels
 
         private void RemoveNonCustomItems()
         {
-            Log.Debug("🧹 Running RemoveNonCustomItems...");
-
-            for (int i = Items.Count - 1; i >= 0; i--)
+            try
             {
-                var item = Items[i];
-                Log.Debug("🔍 Inspecting item at index {Index}: Tag = {Tag}, Content = {Content}", i, item.Tag, item.Content);
+                // We don't need to check for UI thread here because this is only called from
+                // InitializeAllItems which is already ensuring we're on the UI thread
 
-                if (item.Tag == "CarrierJumpCountdown")
+                Log.Debug("🧹 Running RemoveNonCustomItems...");
+
+                for (int i = Items.Count - 1; i >= 0; i--)
                 {
-                    Log.Debug("✅ Keeping CarrierJumpCountdown item");
-                    continue;
+                    var item = Items[i];
+                    Log.Debug("🔍 Inspecting item at index {Index}: Tag = {Tag}, Content = {Content}", i, item.Tag, item.Content);
+
+                    if (item.Tag == "CarrierJumpCountdown")
+                    {
+                        Log.Debug("✅ Keeping CarrierJumpCountdown item");
+                        continue;
+                    }
+
+                    Log.Debug("❌ Removing item with Tag = {Tag}", item.Tag);
+                    Items.RemoveAt(i);
                 }
 
-                Log.Debug("❌ Removing item with Tag = {Tag}", item.Tag);
-                Items.RemoveAt(i);
+                Log.Debug("📦 Items after cleanup: {Count}", Items.Count);
             }
-
-            Log.Debug("📦 Items after cleanup: {Count}", Items.Count);
-        }
-        private void OnLoadoutUpdated()
-        {
-            if (!_initialized)
+            catch (Exception ex)
             {
-                Log.Information("📦 SummaryViewModel received LoadoutUpdated event — checking readiness...");
-               
+                Log.Error(ex, "Error in RemoveNonCustomItems");
             }
         }
+
 
 
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -258,31 +261,33 @@ namespace EliteInfoPanel.ViewModels
         {
             try
             {
-                Log.Information("SummaryViewModel: InitializeAllItems called");
-                RemoveNonCustomItems();
-
-                // Even if CurrentStatus is null, still try to update the other items
-                // that might have data available
-
-                UpdateCommanderItem();
-                UpdateSquadronItem();
-                UpdateShipItem();
-                UpdateBalanceItem();
-                UpdateSystemItem();
-
-                // These are more dependent on CurrentStatus, so check before calling
-                if (_gameState.CurrentStatus != null)
+                RunOnUIThread(() =>
                 {
-                    UpdateFuelInfo();
-                    UpdateCarrierCountdown();
-                }
+                    Log.Information("SummaryViewModel: InitializeAllItems called");
+                    RemoveNonCustomItems();
 
-                // Log final state
-                Log.Debug("📋 Final Summary Items after initialization: {Count} items", Items.Count);
-                foreach (var item in Items)
-                {
-                    Log.Debug("  - Tag: {Tag}, Content: {Content}", item.Tag, item.Content);
-                }
+                    // Even if CurrentStatus is null, still try to update the other items
+                    // that might have data available
+                    UpdateCommanderItem();
+                    UpdateSquadronItem();
+                    UpdateShipItem();
+                    UpdateBalanceItem();
+                    UpdateSystemItem();
+
+                    // These are more dependent on CurrentStatus, so check before calling
+                    if (_gameState.CurrentStatus != null)
+                    {
+                        UpdateFuelInfo();
+                        UpdateCarrierCountdown();
+                    }
+
+                    // Log final state
+                    Log.Debug("📋 Final Summary Items after initialization: {Count} items", Items.Count);
+                    foreach (var item in Items)
+                    {
+                        Log.Debug("  - Tag: {Tag}, Content: {Content}", item.Tag, item.Content);
+                    }
+                });
             }
             catch (Exception ex)
             {
