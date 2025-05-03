@@ -234,11 +234,10 @@ namespace EliteInfoPanel.Core
                     {
                         Log.Information("Carrier jump countdown reached zero - preparing for jump");
 
-                        // Instead of triggering property change here, set a flag to avoid recursion
+                        // Use a flag to indicate the countdown just reached zero
                         _jumpCountdownJustReachedZero = true;
 
-                        // We can safely notify about properties other than ShowCarrierJumpOverlay
-                        // For example, mark that the carrier jump is ready to execute
+                        // Make sure FleetCarrierJumpInProgress is true
                         if (IsOnFleetCarrier)
                         {
                             FleetCarrierJumpInProgress = true;
@@ -250,7 +249,10 @@ namespace EliteInfoPanel.Core
                 return 0;
             }
         }
+
+        // Add this field to track the special condition
         private bool _jumpCountdownJustReachedZero = false;
+    
 
         public string CarrierJumpDestinationBody
         {
@@ -474,25 +476,19 @@ namespace EliteInfoPanel.Core
         {
             get
             {
-                // Standard conditions check
-                bool result = FleetCarrierJumpInProgress && IsOnFleetCarrier &&
-                              CarrierJumpCountdownSeconds <= 0 && !JumpArrived;
+                // Additional check for just-reached-zero condition
+                bool result = (FleetCarrierJumpInProgress || _jumpCountdownJustReachedZero) &&
+                             IsOnFleetCarrier &&
+                             CarrierJumpCountdownSeconds <= 0 &&
+                             !JumpArrived;
 
-                // Only log in specific cases to avoid spam
-                if (FleetCarrierJumpInProgress && (IsOnFleetCarrier || _jumpCountdownJustReachedZero))
+                // Clear the flag after checking
+                if (_jumpCountdownJustReachedZero)
                 {
-                    // Reset our special flag if it was set
-                    if (_jumpCountdownJustReachedZero)
-                    {
-                        _jumpCountdownJustReachedZero = false;
-                    }
-
-                    Log.Information("ShowCarrierJumpOverlay calculation: FleetCarrierJumpInProgress={0}, " +
-                                   "IsOnFleetCarrier={1}, CountdownSeconds={2}, JumpArrived={3}, " +
-                                   "Result={4}, StationName={5}",
-                        FleetCarrierJumpInProgress, IsOnFleetCarrier, CarrierJumpCountdownSeconds,
-                        JumpArrived, result, CurrentStationName);
+                    _jumpCountdownJustReachedZero = false;
                 }
+
+                // Logging code...
 
                 return result;
             }
@@ -1416,7 +1412,7 @@ namespace EliteInfoPanel.Core
                                                 Log.Information("Clearing carrier jump state after overlay display period");
                                             }
                                         });
-
+                                     
                                         // Force update of overlay status
                                         OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
                                     }
