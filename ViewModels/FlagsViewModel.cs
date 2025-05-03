@@ -79,7 +79,32 @@ namespace EliteInfoPanel.ViewModels
         {
             if (_gameState.CurrentStatus == null)
                 return;
+            var settings = SettingsManager.Load();
+            var visibleFlags = settings.DisplayOptions.VisibleFlags;
 
+            // Add debug logging
+            Log.Information("🚩 Visible flags from settings: {Count}",
+                visibleFlags?.Count ?? 0);
+
+            if (visibleFlags == null || visibleFlags.Count == 0)
+            {
+                Log.Warning("🚩 No visible flags defined in settings! Using default flags.");
+
+                // Use a default set of flags if none are defined in settings
+                visibleFlags = new List<Flag>
+    {
+        Flag.Docked,
+        Flag.LandingGearDown,
+        Flag.ShieldsUp,
+        Flag.Supercruise,
+        Flag.FlightAssistOff,
+        Flag.HardpointsDeployed,
+        Flag.CargoScoopDeployed,
+        Flag.SilentRunning,
+        SyntheticFlags.HudInCombatMode,
+        SyntheticFlags.Docking
+    };
+            }
             RunOnUIThread(() => {
                 try
                 {

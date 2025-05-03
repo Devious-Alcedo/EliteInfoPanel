@@ -127,7 +127,7 @@ namespace EliteInfoPanel.ViewModels
             {
                 card.FontSize = baseFontSize;
             }
-
+            FlagVisualHelper.LogAllMetadata();
             // Add a flag to indicate initialization is complete
             Application.Current.Dispatcher.BeginInvoke(new Action(() => {
                 _initializationComplete = true;

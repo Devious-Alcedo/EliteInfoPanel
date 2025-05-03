@@ -1,4 +1,5 @@
 ﻿using EliteInfoPanel.Core;
+using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -54,7 +55,26 @@ namespace EliteInfoPanel.Util
         {
             return FlagVisuals.TryGetValue(flag, out meta);
         }
+        // Add this debugging method to FlagVisualHelper
+        public static void LogAllMetadata()
+        {
+            Log.Information("🚩 Flag metadata check:");
 
+            foreach (var flag in Enum.GetValues(typeof(Flag)).Cast<Flag>().Where(f => f != Flag.None))
+            {
+                bool hasMetadata = TryGetMetadata(flag, out var meta);
+                Log.Information("🚩 Flag: {Flag}, Has Metadata: {HasMetadata}, Icon: {Icon}, Color: {Color}",
+                    flag, hasMetadata, hasMetadata ? meta.Icon : "None", hasMetadata ? meta.Color : "None");
+            }
+
+            // Also check synthetic flags
+            foreach (var flag in SyntheticFlags.All)
+            {
+                bool hasMetadata = TryGetMetadata(flag, out var meta);
+                Log.Information("🚩 Synthetic Flag: {Flag}, Has Metadata: {HasMetadata}, Icon: {Icon}, Color: {Color}",
+                    flag, hasMetadata, hasMetadata ? meta.Icon : "None", hasMetadata ? meta.Color : "None");
+            }
+        }
 
     }
 
