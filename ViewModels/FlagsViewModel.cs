@@ -4,7 +4,6 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows.Media;
-using System.Xml.Linq;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
 using MaterialDesignThemes.Wpf;
@@ -76,78 +75,77 @@ namespace EliteInfoPanel.ViewModels
             }
         }
         #endregion
-        // Add this field declaration at the class level in FlagsViewModel
-        private List<Flag> _defaultVisibleFlags = new List<Flag>
-{
-    Flag.Docked,
-    Flag.LandingGearDown,
-    Flag.ShieldsUp,
-    Flag.Supercruise,
-    Flag.FlightAssistOff,
-    Flag.HardpointsDeployed,
-    Flag.LightsOn,            // Added LightsOn
-    Flag.NightVision,         // Added NightVision
-    Flag.CargoScoopDeployed,
-    Flag.SilentRunning,
-    SyntheticFlags.HudInCombatMode,
-    SyntheticFlags.Docking
-};
 
-        // And similarly for Flags2
-  
-        #region Private Methods
-        private void InitializeDefaultFlags()
-        {
-            // Primary flags to display by default
-            _defaultVisibleFlags = new List<Flag>
+        #region Private Fields Declaration
+        private List<Flag> _defaultVisibleFlags = new List<Flag>
         {
             Flag.Docked,
-            Flag.Landed,
             Flag.LandingGearDown,
             Flag.ShieldsUp,
             Flag.Supercruise,
             Flag.FlightAssistOff,
             Flag.HardpointsDeployed,
-            Flag.InWing,
-            Flag.LightsOn,
+            Flag.LightsOn,            // Added LightsOn
+            Flag.NightVision,         // Added NightVision
             Flag.CargoScoopDeployed,
             Flag.SilentRunning,
-            Flag.ScoopingFuel,
-            Flag.FsdMassLocked,
-            Flag.FsdCharging,
-            Flag.FsdCooldown,
-            Flag.LowFuel,
-            Flag.Overheating,
-            Flag.IsInDanger,
-            Flag.BeingInterdicted,
-            Flag.NightVision,
-            Flag.FsdJump,
             SyntheticFlags.HudInCombatMode,
             SyntheticFlags.Docking
         };
+        #endregion
+
+        #region Private Methods
+        private void InitializeDefaultFlags()
+        {
+            // Primary flags to display by default
+            _defaultVisibleFlags = new List<Flag>
+            {
+                Flag.Docked,
+                Flag.Landed,
+                Flag.LandingGearDown,
+                Flag.ShieldsUp,
+                Flag.Supercruise,
+                Flag.FlightAssistOff,
+                Flag.HardpointsDeployed,
+                Flag.InWing,
+                Flag.LightsOn,
+                Flag.CargoScoopDeployed,
+                Flag.SilentRunning,
+                Flag.ScoopingFuel,
+                Flag.FsdMassLocked,
+                Flag.FsdCharging,
+                Flag.FsdCooldown,
+                Flag.LowFuel,
+                Flag.Overheating,
+                Flag.IsInDanger,
+                Flag.BeingInterdicted,
+                Flag.NightVision,
+                Flag.FsdJump,
+                SyntheticFlags.HudInCombatMode,
+                SyntheticFlags.Docking
+            };
 
             // Flags2 to display by default
             _defaultVisibleFlags2 = new List<Flags2>
-        {
-            Flags2.OnFoot,
-            Flags2.InTaxi,
-            Flags2.InMulticrew,
-            Flags2.AimDownSight,
-            Flags2.LowOxygen,
-            Flags2.LowHealth,
-            Flags2.Cold,
-            Flags2.Hot,
-            Flags2.VeryCold,
-            Flags2.VeryHot,
-            Flags2.GlideMode,
-            Flags2.BreathableAtmosphere,
-            Flags2.FsdHyperdriveCharging
-        };
+            {
+                Flags2.OnFoot,
+                Flags2.InTaxi,
+                Flags2.InMulticrew,
+                Flags2.AimDownSight,
+                Flags2.LowOxygen,
+                Flags2.LowHealth,
+                Flags2.Cold,
+                Flags2.Hot,
+                Flags2.VeryCold,
+                Flags2.VeryHot,
+                Flags2.GlideMode,
+                Flags2.BreathableAtmosphere,
+                Flags2.FsdHyperdriveCharging
+            };
         }
+
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            //log all flags we receive
-          
             // Expand the properties we listen to
             if (e.PropertyName == nameof(GameStateService.CurrentStatus) ||
                 e.PropertyName == nameof(GameStateService.IsDocking) ||
@@ -284,23 +282,24 @@ namespace EliteInfoPanel.ViewModels
                 }
             });
         }
+
         private List<Flag> GetDefaultFlags()
         {
             return new List<Flag>
-    {
-        Flag.Docked,
-        Flag.LandingGearDown,
-        Flag.ShieldsUp,
-        Flag.Supercruise,
-        Flag.FlightAssistOff,
-        Flag.HardpointsDeployed,
-        Flag.CargoScoopDeployed,
-        Flag.SilentRunning,
-        Flag.LightsOn,
-        Flag.NightVision,
-        SyntheticFlags.HudInCombatMode,
-        SyntheticFlags.Docking
-    };
+            {
+                Flag.Docked,
+                Flag.LandingGearDown,
+                Flag.ShieldsUp,
+                Flag.Supercruise,
+                Flag.FlightAssistOff,
+                Flag.HardpointsDeployed,
+                Flag.CargoScoopDeployed,
+                Flag.SilentRunning,
+                Flag.LightsOn,
+                Flag.NightVision,
+                SyntheticFlags.HudInCombatMode,
+                SyntheticFlags.Docking
+            };
         }
 
         private void AddFlagToItems(Flag flag)
