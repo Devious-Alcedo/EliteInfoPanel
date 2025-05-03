@@ -231,6 +231,11 @@ namespace EliteInfoPanel.ViewModels
                 case nameof(GameStateService.FleetCarrierJumpInProgress):
                 case nameof(GameStateService.CarrierJumpDestinationSystem):
                     UpdateCarrierJumpState();
+                    if (SummaryCard != null)
+                    {
+                        // This tells the summary card to update its state
+                        SummaryCard.Initialize();
+                    }
                     break;
 
                 case nameof(GameStateService.IsHyperspaceJumping):
