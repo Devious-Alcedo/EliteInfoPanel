@@ -463,35 +463,45 @@ namespace EliteInfoPanel.ViewModels
         {
             try
             {
+                // Debug log to see what values we're working with
+                Log.Information("UpdateShipItem called with values: ShipName={ShipName}, ShipLocalised={ShipLocalised}, " +
+                         "UserShipName={UserShipName}, UserShipId={UserShipId}",
+                         _gameState.ShipName,
+                         _gameState.ShipLocalised,
+                         _gameState.UserShipName,
+                         _gameState.UserShipId);
+
                 if (string.IsNullOrEmpty(_gameState.ShipName))
                     return;
 
-                // Get the ship type (from localized name or helper)
-                string shipType = !string.IsNullOrEmpty(_gameState.ShipLocalised)
+                string shipDisplayName = !string.IsNullOrEmpty(_gameState.ShipLocalised)
                     ? _gameState.ShipLocalised
                     : ShipNameHelper.GetLocalisedName(_gameState.ShipName);
 
-                // Format the display text to clearly show type, name, and ID
-                var shipTextBuilder = new StringBuilder(shipType);
+                // Build the full text with all ship information
+                var fullShipText = new StringBuilder();
+                fullShipText.Append(shipDisplayName);
 
-                // Add ship name if available
+                // Add user ship name if available
                 if (!string.IsNullOrEmpty(_gameState.UserShipName))
                 {
-                    shipTextBuilder.Append($" - \"{_gameState.UserShipName}\"");
+                    fullShipText.Append(" \"").Append(_gameState.UserShipName).Append("\"");
                 }
 
                 // Add ship ID if available
                 if (!string.IsNullOrEmpty(_gameState.UserShipId))
                 {
-                    shipTextBuilder.Append($" [{_gameState.UserShipId}]");
+                    fullShipText.Append(" [").Append(_gameState.UserShipId).Append("]");
                 }
 
-                string shipText = shipTextBuilder.ToString();
+                string shipText = fullShipText.ToString();
+                Log.Debug("Final ship text: {ShipText}", shipText);
 
                 var item = FindItemByTag("Ship");
                 if (item != null)
                 {
                     item.Content = shipText;
+                    Log.Debug("Updated existing Ship item");
                 }
                 else
                 {
@@ -503,9 +513,8 @@ namespace EliteInfoPanel.ViewModels
                     {
                         FontSize = (int)this.FontSize
                     });
+                    Log.Debug("Added new Ship item");
                 }
-
-                Log.Debug("Updated ship item: {ShipText}", shipText);
             }
             catch (Exception ex)
             {

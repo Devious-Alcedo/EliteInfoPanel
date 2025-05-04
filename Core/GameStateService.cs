@@ -40,7 +40,10 @@ namespace EliteInfoPanel.Core
         private int _cqcRank;
         private int _exobiologistRank;
         private int _mercenaryRank;
-
+        private readonly string ColonizationDataFile = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "EliteInfoPanel",
+            "ColonizationData.json");
         public int CombatRank
         {
             get => _combatRank;
@@ -219,7 +222,14 @@ namespace EliteInfoPanel.Core
         public ColonizationData CurrentColonization
         {
             get => _currentColonization;
-            private set => SetProperty(ref _currentColonization, value);
+            private set
+            {
+                if (SetProperty(ref _currentColonization, value))
+                {
+                    // Save the data whenever it's updated
+                    SaveColonizationData();
+                }
+            }
         }
         /// <summary>
         /// Begins a batch update operation that defers property change notifications
@@ -264,7 +274,78 @@ namespace EliteInfoPanel.Core
 
             _pendingNotifications.Clear();
         }
+        private void SaveColonizationData()
+        {
+            try
+            {
+                if (CurrentColonization == null)
+                    return;
 
+                // Ensure directory exists
+                Directory.CreateDirectory(Path.GetDirectoryName(ColonizationDataFile));
+
+                // Serialize and save
+                string json = JsonSerializer.Serialize(CurrentColonization, new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                });
+                File.WriteAllText(ColonizationDataFile, json);
+
+                Log.Information("Saved colonization data to file: Progress={Progress:P2}, Resources={Count}",
+                    CurrentColonization.ConstructionProgress,
+                    CurrentColonization.ResourcesRequired?.Count ?? 0);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error saving colonization data");
+            }
+        }
+
+        private void LoadPersistedColonizationData()
+        {
+            try
+            {
+                if (!File.Exists(ColonizationDataFile))
+                {
+                    Log.Information("No persisted colonization data file found");
+                    return;
+                }
+
+                string json = File.ReadAllText(ColonizationDataFile);
+                if (string.IsNullOrWhiteSpace(json))
+                {
+                    Log.Warning("Colonization data file is empty");
+                    return;
+                }
+
+                var data = JsonSerializer.Deserialize<ColonizationData>(json);
+                if (data == null)
+                {
+                    Log.Warning("Failed to deserialize colonization data");
+                    return;
+                }
+
+                // Only use the data if it's still active (not complete or failed)
+                if (!data.ConstructionComplete && !data.ConstructionFailed)
+                {
+                    CurrentColonization = data;
+                    Log.Information("Loaded persisted colonization data: Progress={Progress:P2}, Resources={Count}, LastUpdated={LastUpdated}",
+                        data.ConstructionProgress,
+                        data.ResourcesRequired?.Count ?? 0,
+                        data.LastUpdated);
+                }
+                else
+                {
+                    Log.Information("Persisted colonization data is no longer active (Complete={Complete}, Failed={Failed})",
+                        data.ConstructionComplete,
+                        data.ConstructionFailed);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error loading persisted colonization data");
+            }
+        }
         public int CarrierJumpCountdownSeconds
         {
             get
@@ -924,7 +1005,7 @@ namespace EliteInfoPanel.Core
                 Task loadoutTask = Task.Run(() => LoadLoadoutData());
 
                 Task.WaitAll(statusTask, routeTask, cargoTask, backpackTask, materialsTask, loadoutTask);
-
+                LoadPersistedColonizationData();
                 latestJournalPath = Directory.GetFiles(gamePath, "Journal.*.log")
                     .OrderByDescending(File.GetLastWriteTime)
                     .FirstOrDefault();
@@ -1323,10 +1404,15 @@ namespace EliteInfoPanel.Core
                                         string shipType = setShipTypeProperty.GetString();
                                         int shipId = setShipIdProperty.GetInt32();
 
-                                        string userShipName = root.TryGetProperty("UserShipName", out var nameProp) ? nameProp.GetString() : null;
-                                        string userShipId = root.TryGetProperty("UserShipId", out var idProp) ? idProp.GetString() : null;
+                                        // Ensure we're using GetString() not just checking existence
+                                        string userShipName = root.TryGetProperty("UserShipName", out var nameProp) ?
+                                            nameProp.GetString() : null;
 
-                                        Log.Debug("Received ship name info for {Ship}: {UserShipName} [{UserShipId}]", shipType, userShipName, userShipId);
+                                        string userShipId = root.TryGetProperty("UserShipId", out var idProp) ?
+                                            idProp.GetString() : null;
+
+                                        Log.Debug("Received ship name info for {Ship}: {UserShipName} [{UserShipId}]",
+                                            shipType, userShipName, userShipId);
 
                                         ShipName = shipType;
                                         UserShipName = userShipName;
@@ -1335,7 +1421,6 @@ namespace EliteInfoPanel.Core
                                     break;
                                 #endregion
 
-                                #region 🚀 Ship / Loadout Events
                                 case "LoadGame":
                                     if (root.TryGetProperty("Ship", out var shipProperty))
                                     {
@@ -1345,6 +1430,19 @@ namespace EliteInfoPanel.Core
                                     if (root.TryGetProperty("Ship_Localised", out var shipLocalisedProperty))
                                     {
                                         ShipLocalised = shipLocalisedProperty.GetString();
+                                    }
+
+                                    // Add these lines to also load ship name and ID during LoadGame
+                                    if (root.TryGetProperty("ShipName", out var shipNameProperty))
+                                    {
+                                        UserShipName = shipNameProperty.GetString();
+                                        Log.Debug("Loaded ShipName during LoadGame: {ShipName}", UserShipName);
+                                    }
+
+                                    if (root.TryGetProperty("ShipIdent", out var shipIdentProperty))
+                                    {
+                                        UserShipId = shipIdentProperty.GetString();
+                                        Log.Debug("Loaded ShipIdent during LoadGame: {ShipIdent}", UserShipId);
                                     }
                                     break;
 
@@ -1377,7 +1475,17 @@ namespace EliteInfoPanel.Core
                                                 InferClassAndRatingFromItem(module);
                                             }
                                         }
+                                        if (!string.IsNullOrEmpty(loadout.ShipName))
+                                        {
+                                            UserShipName = loadout.ShipName;
+                                            Log.Debug("Updated UserShipName from Loadout: {ShipName}", UserShipName);
+                                        }
 
+                                        if (!string.IsNullOrEmpty(loadout.ShipIdent))
+                                        {
+                                            UserShipId = loadout.ShipIdent;
+                                            Log.Debug("Updated UserShipId from Loadout: {ShipIdent}", UserShipId);
+                                        }
                                         CurrentLoadout = loadout;
 
                                         OnPropertyChanged(nameof(CurrentLoadout));
@@ -1695,25 +1803,51 @@ namespace EliteInfoPanel.Core
                                     {
                                         Log.Information("Processing colonization construction depot event");
 
+                                        // Log the raw event data to help diagnose issues
+                                        Log.Debug("Raw ColonisationConstructionDepot event: {EventData}", line);
+
                                         var colonizationData = new ColonizationData
                                         {
                                             LastUpdated = DateTime.UtcNow
                                         };
 
                                         if (root.TryGetProperty("MarketID", out var marketIdProp))
+                                        {
                                             colonizationData.MarketID = marketIdProp.GetInt64();
+                                            Log.Debug("MarketID: {MarketID}", colonizationData.MarketID);
+                                        }
 
                                         if (root.TryGetProperty("ConstructionProgress", out var progressProp))
+                                        {
                                             colonizationData.ConstructionProgress = progressProp.GetDouble();
+                                            Log.Debug("ConstructionProgress: {Progress}", colonizationData.ConstructionProgress);
+                                        }
 
                                         if (root.TryGetProperty("ConstructionComplete", out var completeProp))
+                                        {
                                             colonizationData.ConstructionComplete = completeProp.GetBoolean();
+                                            Log.Debug("ConstructionComplete: {Complete}", colonizationData.ConstructionComplete);
+                                        }
 
                                         if (root.TryGetProperty("ConstructionFailed", out var failedProp))
-                                            colonizationData.ConstructionFailed = failedProp.GetBoolean();
-
-                                        if (root.TryGetProperty("ResourcesRequired", out var resourcesProp))
                                         {
+                                            colonizationData.ConstructionFailed = failedProp.GetBoolean();
+                                            Log.Debug("ConstructionFailed: {Failed}", colonizationData.ConstructionFailed);
+                                        }
+
+                                        // Check for null or empty resources array
+                                        if (!root.TryGetProperty("ResourcesRequired", out var resourcesProp) ||
+                                            resourcesProp.ValueKind != JsonValueKind.Array ||
+                                            resourcesProp.GetArrayLength() == 0)
+                                        {
+                                            Log.Warning("No ResourcesRequired array found or it's empty - creating empty list");
+                                            colonizationData.ResourcesRequired = new List<ColonizationResource>();
+                                        }
+                                        else
+                                        {
+                                            // Process resources array
+                                            Log.Debug("Found ResourcesRequired array with {Count} items", resourcesProp.GetArrayLength());
+
                                             foreach (var resource in resourcesProp.EnumerateArray())
                                             {
                                                 var resourceItem = new ColonizationResource();
@@ -1733,14 +1867,30 @@ namespace EliteInfoPanel.Core
                                                 if (resource.TryGetProperty("Payment", out var payProp))
                                                     resourceItem.Payment = payProp.GetInt32();
 
+                                                Log.Debug("Adding resource: {Name}, Required: {Required}, Provided: {Provided}, Payment: {Payment}",
+                                                    resourceItem.Name_Localised ?? resourceItem.Name,
+                                                    resourceItem.RequiredAmount,
+                                                    resourceItem.ProvidedAmount,
+                                                    resourceItem.Payment);
+
                                                 colonizationData.ResourcesRequired.Add(resourceItem);
                                             }
                                         }
 
-                                        CurrentColonization = colonizationData;
-                                        Log.Information("Colonization data updated: Progress={Progress:P2}, Resources={Count}",
+                                        // Log colonization data before assigning
+                                        Log.Information("Colonization data built: Progress={Progress:P2}, Resources={Count}",
                                             colonizationData.ConstructionProgress,
                                             colonizationData.ResourcesRequired?.Count ?? 0);
+
+                                        if (colonizationData.ResourcesRequired?.Count > 0 || colonizationData.ConstructionProgress > 0)
+                                        {
+                                            CurrentColonization = colonizationData;
+                                            Log.Information("Colonization data assigned to CurrentColonization");
+                                        }
+                                        else
+                                        {
+                                            Log.Warning("Colonization data appears empty (no resources and zero progress) - not updating CurrentColonization");
+                                        }
                                     }
                                     catch (Exception ex)
                                     {
@@ -2138,6 +2288,6 @@ namespace EliteInfoPanel.Core
             }
         }
 
-        #endregion Private Methods
+      
     }
 }
