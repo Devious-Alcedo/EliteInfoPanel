@@ -62,14 +62,14 @@ namespace EliteInfoPanel.ViewModels
             // Update flags if game state is already loaded
             if (_gameState.FirstLoadCompleted)
             {
-                Log.Information("FlagsViewModel: GameState already loaded, updating flags immediately");
+                Log.Debug("FlagsViewModel: GameState already loaded, updating flags immediately");
                 UpdateFlags();
             }
             else
             {
-                Log.Information("FlagsViewModel: Waiting for GameState to complete loading");
+                Log.Debug("FlagsViewModel: Waiting for GameState to complete loading");
                 _gameState.FirstLoadCompletedEvent += () => {
-                    Log.Information("FlagsViewModel: GameState loading completed, now updating flags");
+                    Log.Debug("FlagsViewModel: GameState loading completed, now updating flags");
                     UpdateFlags();
                 };
             }
@@ -172,7 +172,7 @@ namespace EliteInfoPanel.ViewModels
                     // Log the raw flags values for debugging
                     uint currentStatusFlags = (uint)_gameState.CurrentStatus.Flags;
                     int flags2Value = _gameState.CurrentStatus.Flags2;
-                    Log.Information("Updating flags - Raw Flags value: 0x{RawFlags:X8}, Flags2: {Flags2}",
+                    Log.Debug("Updating flags - Raw Flags value: 0x{RawFlags:X8}, Flags2: {Flags2}",
                         currentStatusFlags, flags2Value);
 
                     // Use default flags if none defined
@@ -218,11 +218,11 @@ namespace EliteInfoPanel.ViewModels
                     }
 
                     // Log active flags for debugging
-                    Log.Information("Current active flags: {ActiveFlags}",
+                    Log.Debug("Current active flags: {ActiveFlags}",
                         string.Join(", ", activeFlags.Select(f => f.ToString())));
-                    Log.Information("Current active Flags2: {ActiveFlags2}",
+                    Log.Debug("Current active Flags2: {ActiveFlags2}",
                         string.Join(", ", activeFlags2.Select(f => f.ToString())));
-                    Log.Information("Visible flags set in settings: {VisibleFlags}",
+                    Log.Debug("Visible flags set in settings: {VisibleFlags}",
                         string.Join(", ", visibleFlags.Select(f => f.ToString())));
 
                     // Clear items and rebuild
@@ -272,9 +272,9 @@ namespace EliteInfoPanel.ViewModels
 
                     // Update visibility based on items count
                     bool hasFlags = Items.Count > 0;
-                    Log.Information("Setting FlagsCard visibility: {Visible} (Items count: {Count})",
+                    Log.Debug("Setting FlagsCard visibility: {Visible} (Items count: {Count})",
                         hasFlags, Items.Count);
-                    IsVisible = hasFlags;
+                    SetContextVisibility(hasFlags && SettingsManager.Load().ShowFlags);
                 }
                 catch (Exception ex)
                 {
@@ -327,7 +327,7 @@ namespace EliteInfoPanel.ViewModels
                 Items.Add(flagItem);
 
                 // Log success
-                Log.Information("Added flag to Items: {Flag}", flag);
+                Log.Debug("Added flag to Items: {Flag}", flag);
             }
             catch (Exception ex)
             {
@@ -360,7 +360,7 @@ namespace EliteInfoPanel.ViewModels
                 Items.Add(flagItem);
 
                 // Log success
-                Log.Information("Added Flags2 to Items: {Flag}", flag);
+                Log.Debug("Added Flags2 to Items: {Flag}", flag);
             }
             catch (Exception ex)
             {

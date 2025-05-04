@@ -2,9 +2,12 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Windows;
 using System.Windows.Media;
+using EliteInfoPanel.Controls;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Core.Models;
+using EliteInfoPanel.Util;
 using MaterialDesignThemes.Wpf;
 using Serilog;
 
@@ -97,7 +100,7 @@ namespace EliteInfoPanel.ViewModels
         private bool _isConstructionComplete;
         private string _sortBy = "Missing";
         private bool _showCompleted = true;
-
+        public RelayCommand OpenInNewWindowCommand { get; }
         public ObservableCollection<ColonizationItemViewModel> Items { get; } = new ObservableCollection<ColonizationItemViewModel>();
 
         public double ProgressPercentage
@@ -161,7 +164,7 @@ namespace EliteInfoPanel.ViewModels
             {
                 if (SetProperty(ref _showCompleted, value))
                 {
-                    UpdateColonizationData();
+                    UpdateColonizationDataInternal();
                 }
             }
         }
@@ -186,7 +189,12 @@ namespace EliteInfoPanel.ViewModels
         public RelayCommand SortByName { get; }
         public RelayCommand SortByValue { get; }
         public RelayCommand ToggleShowCompleted { get; }
-
+        private bool _isInMainWindow = true; // Default to true for the main window
+        public bool IsInMainWindow
+        {
+            get => _isInMainWindow;
+            set => SetProperty(ref _isInMainWindow, value);
+        }
         public ColonizationViewModel(GameStateService gameState) : base("Colonization Project")
         {
             _gameState = gameState ?? throw new ArgumentNullException(nameof(gameState));
@@ -199,62 +207,154 @@ namespace EliteInfoPanel.ViewModels
 
             // Subscribe to property changes
             _gameState.PropertyChanged += GameState_PropertyChanged;
+            OpenInNewWindowCommand = new RelayCommand(_ => OpenInNewWindow());
 
             // Initial update
-            UpdateColonizationData();
+            UpdateColonizationDataInternal();
         }
+      private void OpenInNewWindow()
+        {
+            // Load settings
+            var settings = SettingsManager.Load();
 
+            // Create a new instance of the viewmodel with IsInMainWindow=false
+            var popupViewModel = new ColonizationViewModel(_gameState)
+            {
+                IsInMainWindow = false
+            };
+
+            // Copy the current state to the new viewmodel
+            popupViewModel.SortBy = this.SortBy;
+            popupViewModel.ShowCompleted = this.ShowCompleted;
+
+            // Create a new window
+            var window = new Window
+            {
+                Title = "Colonization Project",
+                Width = settings.ColonizationWindowWidth,
+                Height = settings.ColonizationWindowHeight,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = settings.ColonizationWindowLeft,
+                Top = settings.ColonizationWindowTop,
+                Background = new SolidColorBrush(Color.FromArgb(255, 30, 30, 30)),
+                Content = new ColonizationCard { DataContext = popupViewModel }
+            };
+
+            // Add event handlers to save position
+            window.LocationChanged += (s, e) => {
+                if (window.WindowState == WindowState.Normal)
+                {
+                    settings.ColonizationWindowLeft = window.Left;
+                    settings.ColonizationWindowTop = window.Top;
+                    SettingsManager.Save(settings);
+                }
+            };
+
+            window.SizeChanged += (s, e) => {
+                if (window.WindowState == WindowState.Normal)
+                {
+                    settings.ColonizationWindowWidth = window.Width;
+                    settings.ColonizationWindowHeight = window.Height;
+                    SettingsManager.Save(settings);
+                }
+            };
+
+            // Ensure window is within screen bounds
+            EnsureWindowIsVisible(window, settings);
+
+            // Show the window
+            window.Show();
+        }
+        private void EnsureWindowIsVisible(Window window, AppSettings settings)
+        {
+            // Get screen information
+            var screens = WpfScreenHelper.Screen.AllScreens;
+            var screenBounds = WpfScreenHelper.Screen.AllScreens.First().Bounds;
+
+
+
+            // Check if window position is valid
+            bool isPositionValid = false;
+            foreach (var screen in screens)
+            {
+                var bounds = screen.Bounds;
+                if (settings.ColonizationWindowLeft >= bounds.Left &&
+                    settings.ColonizationWindowTop >= bounds.Top &&
+                    settings.ColonizationWindowLeft + settings.ColonizationWindowWidth <= bounds.Right &&
+                    settings.ColonizationWindowTop + settings.ColonizationWindowHeight <= bounds.Bottom)
+                {
+                    isPositionValid = true;
+                    break;
+                }
+            }
+
+            // If position is invalid, center on primary screen
+            if (!isPositionValid)
+            {
+                window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+
+                // After window is loaded, save the new position
+                window.Loaded += (s, e) => {
+                    settings.ColonizationWindowLeft = window.Left;
+                    settings.ColonizationWindowTop = window.Top;
+                    settings.ColonizationWindowWidth = window.Width;
+                    settings.ColonizationWindowHeight = window.Height;
+                    SettingsManager.Save(settings);
+                };
+            }
+        }
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(GameStateService.CurrentColonization))
             {
-                UpdateColonizationData();
+                UpdateColonizationDataInternal();
             }
         }
 
-        private void UpdateColonizationData()
+        private void UpdateColonizationDataInternal()
         {
             try
             {
+                // First evaluate if we should be visible based on data
+                var colonizationData = _gameState.CurrentColonization;
+                bool hasActiveData = colonizationData != null && !colonizationData.ConstructionComplete;
+
+                // Only update _contextVisible, not IsVisible directly
+                SetContextVisibility(hasActiveData);
+
+                // If no data, just clear items and stop
+                if (!hasActiveData)
+                {
+                    RunOnUIThread(() => Items.Clear());
+                    return;
+                }
+
+                // Now update all the data properties
                 RunOnUIThread(() =>
                 {
-                    var colonizationData = _gameState.CurrentColonization;
-                    HasActiveColonization = colonizationData != null && !colonizationData.ConstructionComplete;
+                    HasActiveColonization = hasActiveData;
 
-                    // Update visibility
-                    IsVisible = HasActiveColonization;
-
-                    if (!HasActiveColonization)
-                    {
-                        Items.Clear();
-                        return;
-                    }
-
-                    // Update top-level properties
+                    // Update properties
                     ProgressPercentage = colonizationData.ConstructionProgress;
                     LastUpdated = colonizationData.LastUpdated;
                     IsConstructionComplete = colonizationData.ConstructionComplete;
                     CompletedItems = colonizationData.CompletedResources;
                     TotalItems = colonizationData.TotalResources;
-
                     CompletionText = $"Overall: {colonizationData.CompletionPercentage:N1}% Complete ({CompletedItems}/{TotalItems} resources)";
-
-                    // Update title with completion percentage
                     Title = $"Colonization Project ({colonizationData.CompletionPercentage:N1}%)";
 
-                    // Clear and rebuild items list
+                    // Update items
                     Items.Clear();
 
-                    // Filter based on ShowCompleted setting
+                    // Filter and sort
                     var resources = colonizationData.ResourcesRequired;
                     if (!ShowCompleted)
                     {
                         resources = resources.Where(r => !r.IsComplete).ToList();
                     }
-
-                    // Apply sorting
                     resources = SortResources(resources);
 
+                    // Add all items at once
                     foreach (var resource in resources)
                     {
                         Items.Add(new ColonizationItemViewModel
@@ -280,7 +380,6 @@ namespace EliteInfoPanel.ViewModels
                 Log.Error(ex, "Error updating colonization data");
             }
         }
-
         private List<ColonizationResource> SortResources(List<ColonizationResource> resources)
         {
             switch (SortBy)
@@ -300,7 +399,7 @@ namespace EliteInfoPanel.ViewModels
 
         private void UpdateSort()
         {
-            UpdateColonizationData();
+            UpdateColonizationDataInternal();
         }
     }
 }

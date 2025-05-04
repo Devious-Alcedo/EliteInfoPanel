@@ -39,6 +39,20 @@ namespace EliteInfoPanel.Util
                 double ratio = System.Convert.ToDouble(values[0]);
                 double totalWidth = System.Convert.ToDouble(values[1]);
 
+                // If we have a ProgressBar with Maximum=100, normalize the value
+                // to a ratio between 0 and 1
+                if (values.Length >= 3 && values[2] != null)
+                {
+                    double maximum = System.Convert.ToDouble(values[2]);
+                    if (maximum > 0)
+                        ratio = ratio / maximum;
+                }
+                else if (ratio > 1.0)
+                {
+                    // If no Maximum is provided but ratio > 1, assume it's a percentage
+                    ratio = ratio / 100.0;
+                }
+
                 // Ensure ratio is between 0 and 1
                 ratio = Math.Max(0.0, Math.Min(1.0, ratio));
 

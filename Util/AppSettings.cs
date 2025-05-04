@@ -11,6 +11,18 @@ namespace EliteInfoPanel.Util
         public string? LastOptionsScreenId { get; set; }
         public string? SelectedScreenId { get; set; }
         public Rect? SelectedScreenBounds { get; set; }
+        public bool ShowSummary { get; set; }
+        public bool ShowFlags { get; set; }
+        public bool ShowCargo { get; set; }
+        public double ColonizationWindowWidth { get; set; } = 500;
+        public double ColonizationWindowHeight { get; set; } = 600;
+        public double ColonizationWindowLeft { get; set; } = 100;
+        public double ColonizationWindowTop { get; set; } = 100;
+        public bool ShowBackpack { get; set; }
+        public bool ShowRoute { get; set; }
+         
+        public bool ShowModules { get; set; } 
+        public bool ShowColonisation { get; set; }
 
         // Floating window properties
         public bool UseFloatingWindow { get; set; } = false;

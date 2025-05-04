@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -265,6 +266,7 @@ namespace EliteInfoPanel.ViewModels
 
         private void InitializeAllItems()
         {
+            SetContextVisibility(SettingsManager.Load().ShowSummary);
             try
             {
                 RunOnUIThread(() =>
@@ -461,6 +463,14 @@ namespace EliteInfoPanel.ViewModels
         {
             try
             {
+                // Debug log to see what values we're working with
+                Log.Information("UpdateShipItem called with values: ShipName={ShipName}, ShipLocalised={ShipLocalised}, " +
+                         "UserShipName={UserShipName}, UserShipId={UserShipId}",
+                         _gameState.ShipName,
+                         _gameState.ShipLocalised,
+                         _gameState.UserShipName,
+                         _gameState.UserShipId);
+
                 if (string.IsNullOrEmpty(_gameState.ShipName))
                     return;
 
@@ -468,23 +478,30 @@ namespace EliteInfoPanel.ViewModels
                     ? _gameState.ShipLocalised
                     : ShipNameHelper.GetLocalisedName(_gameState.ShipName);
 
-                string shipText = shipDisplayName;
+                // Build the full text with all ship information
+                var fullShipText = new StringBuilder();
+                fullShipText.Append(shipDisplayName);
 
-                if (!string.IsNullOrEmpty(_gameState.UserShipName) || !string.IsNullOrEmpty(_gameState.UserShipId))
+                // Add user ship name if available
+                if (!string.IsNullOrEmpty(_gameState.UserShipName))
                 {
-                    shipText += " - ";
-
-                    if (!string.IsNullOrEmpty(_gameState.UserShipName))
-                        shipText += _gameState.UserShipName;
-
-                    if (!string.IsNullOrEmpty(_gameState.UserShipId))
-                        shipText += $" [{_gameState.UserShipId}]";
+                    fullShipText.Append(" \"").Append(_gameState.UserShipName).Append("\"");
                 }
+
+                // Add ship ID if available
+                if (!string.IsNullOrEmpty(_gameState.UserShipId))
+                {
+                    fullShipText.Append(" [").Append(_gameState.UserShipId).Append("]");
+                }
+
+                string shipText = fullShipText.ToString();
+                Log.Debug("Final ship text: {ShipText}", shipText);
 
                 var item = FindItemByTag("Ship");
                 if (item != null)
                 {
                     item.Content = shipText;
+                    Log.Debug("Updated existing Ship item");
                 }
                 else
                 {
@@ -496,6 +513,7 @@ namespace EliteInfoPanel.ViewModels
                     {
                         FontSize = (int)this.FontSize
                     });
+                    Log.Debug("Added new Ship item");
                 }
             }
             catch (Exception ex)
@@ -503,7 +521,6 @@ namespace EliteInfoPanel.ViewModels
                 Log.Error(ex, "Error updating Ship item");
             }
         }
-
         private void UpdateBalanceItem()
         {
             try

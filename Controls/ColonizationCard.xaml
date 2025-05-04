@@ -26,6 +26,7 @@
                                     <MultiBinding Converter="{StaticResource ProgressToWidthMultiConverter}">
                                         <Binding Path="Value" RelativeSource="{RelativeSource TemplatedParent}" />
                                         <Binding Path="ActualWidth" RelativeSource="{RelativeSource TemplatedParent}" />
+                                        <Binding Path="Maximum" RelativeSource="{RelativeSource TemplatedParent}" />
                                     </MultiBinding>
                                 </Rectangle.Width>
                             </Rectangle>
@@ -40,48 +41,47 @@
     </UserControl.Resources>
 
     <DockPanel>
-        <!-- Card Title -->
-        <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+        <!-- Card Title (standalone) -->
+        <TextBlock Text="{Binding Title}" 
+                   Style="{StaticResource CardTitleStyle}"
+                   DockPanel.Dock="Top" 
+                   Margin="0,0,0,8"/>
 
-            <TextBlock Text="{Binding Title}" 
-                       Style="{StaticResource CardTitleStyle}"
-                       Grid.Column="0" />
-
-            <!-- Sort options -->
-            <StackPanel Orientation="Horizontal" Grid.Column="1" HorizontalAlignment="Right">
-                <Button Style="{StaticResource MaterialDesignFlatButton}"
-                        Command="{Binding ToggleShowCompleted}"
-                        ToolTip="Toggle showing completed items"
-                        Margin="3,0">
-                    <materialDesign:PackIcon Kind="EyeCheck" 
-                                         Width="20" 
-                                         Height="20" 
-                                         Foreground="White"/>
-                </Button>
-                <Button Style="{StaticResource MaterialDesignFlatButton}"
-                        Command="{Binding SortByMissing}" 
-                        ToolTip="Sort by missing amount"
-                        Margin="3,0">
-                    <materialDesign:PackIcon Kind="SortNumericDescending" Width="20" Height="20" />
-                </Button>
-                <Button Style="{StaticResource MaterialDesignFlatButton}"
-                        Command="{Binding SortByName}" 
-                        ToolTip="Sort by name"
-                        Margin="3,0">
-                    <materialDesign:PackIcon Kind="SortAlphabeticalAscending" Width="20" Height="20" />
-                </Button>
-                <Button Style="{StaticResource MaterialDesignFlatButton}"
-                        Command="{Binding SortByValue}" 
-                        ToolTip="Sort by value"
-                        Margin="3,0">
-                    <materialDesign:PackIcon Kind="CashMultiple" Width="20" Height="20" />
-                </Button>
-            </StackPanel>
-        </Grid>
+        <!-- Sort options as a separate row below the title -->
+        <StackPanel DockPanel.Dock="Top" 
+                    Orientation="Horizontal" 
+                    HorizontalAlignment="Right"
+                    Margin="0,0,0,8">
+            <Button Style="{StaticResource MaterialDesignFlatButton}"
+                    Command="{Binding ToggleShowCompleted}"
+                    ToolTip="Toggle showing completed items"
+                    Margin="3,0">
+                <materialDesign:PackIcon Kind="EyeCheck" 
+                                      Width="20" 
+                                      Height="20" 
+                                      Foreground="White"/>
+            </Button>
+            <Button Style="{StaticResource MaterialDesignFlatButton}"
+                    Command="{Binding SortByMissing}" 
+                    ToolTip="Sort by missing amount"
+                    Margin="3,0">
+                <materialDesign:PackIcon Kind="SortNumericDescending" Width="20" Height="20" />
+            </Button>
+            <Button Style="{StaticResource MaterialDesignFlatButton}"
+                    Command="{Binding SortByName}" 
+                    ToolTip="Sort by name"
+                    Margin="3,0">
+                <materialDesign:PackIcon Kind="SortAlphabeticalAscending" Width="20" Height="20" />
+            </Button>
+            <!-- Open in New Window button - Only visible when not already in a popup window -->
+            <Button Style="{StaticResource MaterialDesignFlatButton}"
+        Command="{Binding OpenInNewWindowCommand}" 
+        ToolTip="Open in separate window"
+        Margin="3,0"
+        Visibility="{Binding IsInMainWindow, Converter={StaticResource BoolToVis}}">
+                <materialDesign:PackIcon Kind="OpenInNew" Width="20" Height="20" />
+            </Button>
+        </StackPanel>
 
         <!-- Overall Progress -->
         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
@@ -164,6 +164,7 @@
                                         <TextBlock Grid.Column="1"
                                                    Margin="8,0,0,0"
                                                    VerticalAlignment="Center"
+                                                   Foreground="#AAFFFFFF"
                                                    FontSize="{Binding FontSize}">
                                             <Run Text="{Binding Provided, Mode=OneWay}" />
                                             <Run Text="/" />
