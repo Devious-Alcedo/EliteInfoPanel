@@ -2,7 +2,9 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Windows;
 using System.Windows.Media;
+using EliteInfoPanel.Controls;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Core.Models;
 using EliteInfoPanel.Util;
@@ -98,7 +100,7 @@ namespace EliteInfoPanel.ViewModels
         private bool _isConstructionComplete;
         private string _sortBy = "Missing";
         private bool _showCompleted = true;
-
+        public RelayCommand OpenInNewWindowCommand { get; }
         public ObservableCollection<ColonizationItemViewModel> Items { get; } = new ObservableCollection<ColonizationItemViewModel>();
 
         public double ProgressPercentage
@@ -187,7 +189,12 @@ namespace EliteInfoPanel.ViewModels
         public RelayCommand SortByName { get; }
         public RelayCommand SortByValue { get; }
         public RelayCommand ToggleShowCompleted { get; }
-
+        private bool _isInMainWindow = true; // Default to true for the main window
+        public bool IsInMainWindow
+        {
+            get => _isInMainWindow;
+            set => SetProperty(ref _isInMainWindow, value);
+        }
         public ColonizationViewModel(GameStateService gameState) : base("Colonization Project")
         {
             _gameState = gameState ?? throw new ArgumentNullException(nameof(gameState));
@@ -200,11 +207,37 @@ namespace EliteInfoPanel.ViewModels
 
             // Subscribe to property changes
             _gameState.PropertyChanged += GameState_PropertyChanged;
+            OpenInNewWindowCommand = new RelayCommand(_ => OpenInNewWindow());
 
             // Initial update
             UpdateColonizationDataInternal();
         }
+        private void OpenInNewWindow()
+        {
+            // Create a new instance of the viewmodel with IsInMainWindow=false
+            var popupViewModel = new ColonizationViewModel(_gameState)
+            {
+                IsInMainWindow = false
+            };
 
+            // Copy the current state to the new viewmodel
+            popupViewModel.SortBy = this.SortBy;
+            popupViewModel.ShowCompleted = this.ShowCompleted;
+
+            // Create a new window
+            var window = new Window
+            {
+                Title = "Colonization Project",
+                Width = 500,
+                Height = 600,
+                WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                Background = new SolidColorBrush(Color.FromArgb(255, 30, 30, 30)),
+                Content = new ColonizationCard { DataContext = popupViewModel }
+            };
+
+            // Show the window
+            window.Show();
+        }
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(GameStateService.CurrentColonization))

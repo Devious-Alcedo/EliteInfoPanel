@@ -73,11 +73,13 @@
                     Margin="3,0">
                 <materialDesign:PackIcon Kind="SortAlphabeticalAscending" Width="20" Height="20" />
             </Button>
+            <!-- Open in New Window button - Only visible when not already in a popup window -->
             <Button Style="{StaticResource MaterialDesignFlatButton}"
-                    Command="{Binding SortByValue}" 
-                    ToolTip="Sort by value"
-                    Margin="3,0">
-                <materialDesign:PackIcon Kind="CashMultiple" Width="20" Height="20" />
+        Command="{Binding OpenInNewWindowCommand}" 
+        ToolTip="Open in separate window"
+        Margin="3,0"
+        Visibility="{Binding IsInMainWindow, Converter={StaticResource BoolToVis}}">
+                <materialDesign:PackIcon Kind="OpenInNew" Width="20" Height="20" />
             </Button>
         </StackPanel>
 
