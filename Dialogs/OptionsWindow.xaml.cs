@@ -80,8 +80,10 @@ namespace EliteInfoPanel.Dialogs
                     Log.Debug("Saving ordered flags: {FlagCount} flags", settings.DisplayOptions.VisibleFlags.Count);
                 }
 
+                // Save the settings
                 _viewModel.SaveSettings();
 
+                // Notify for changes requiring UI updates
                 if (windowModeChanged)
                 {
                     // Notify about window mode change
@@ -96,10 +98,16 @@ namespace EliteInfoPanel.Dialogs
                     FontSizeChanged?.Invoke();
                 }
 
+                // Always notify about card visibility changes
+                if (Application.Current.MainWindow?.DataContext is MainViewModel mainViewModel)
+                {
+                    Log.Information("Refreshing card visibility based on new settings");
+                    mainViewModel.RefreshLayout(true);
+                }
+
                 DialogResult = true;
                 Close();
             });
-
             _viewModel.CancelCommand = new RelayCommand(_ =>
             {
                 DialogResult = false;

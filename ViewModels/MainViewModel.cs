@@ -141,6 +141,23 @@ namespace EliteInfoPanel.ViewModels
                     InitializeUI();
                 };
             }
+            ApplyUserCardPreferences();
+        }
+        private void ApplyUserCardPreferences()
+        {
+            var settings = SettingsManager.Load();
+
+            // Apply user preferences to each card
+            SummaryCard.IsUserEnabled = settings.ShowSummary;
+            FlagsCard.IsUserEnabled = settings.ShowFlags;
+            CargoCard.IsUserEnabled = settings.ShowCargo;
+            BackpackCard.IsUserEnabled = settings.ShowBackpack;
+            RouteCard.IsUserEnabled = settings.ShowRoute;
+            ModulesCard.IsUserEnabled = settings.ShowModules;
+            ColonizationCard.IsUserEnabled = settings.ShowColonisation;
+
+            // Force refresh of visibility
+            RefreshCardVisibility(true);
         }
 
         private void InitializeUI()
@@ -430,13 +447,13 @@ namespace EliteInfoPanel.ViewModels
                                             !_gameState.CurrentColonization.ConstructionComplete &&
                                             !_gameState.CurrentColonization.ConstructionFailed;
 
-                // Only update visibility if it's changed
-                if (ColonizationCard.IsVisible != hasActiveColonization)
-                {
-                    ColonizationCard.IsVisible = hasActiveColonization && SettingsManager.Load().ShowColonisation;
+                // Only update visibility if it's changed, considering user preference
+                var settings = SettingsManager.Load();
 
-                    Log.Debug("ColonizationCard visibility set to {Visible}", hasActiveColonization);
-                }
+                // Check both conditions: game state and user preference
+                ColonizationCard.IsVisible = hasActiveColonization && settings.ShowColonisation;
+
+                Log.Debug("ColonizationCard visibility set to {Visible}", ColonizationCard.IsVisible);
             }
             catch (Exception ex)
             {
@@ -550,6 +567,9 @@ namespace EliteInfoPanel.ViewModels
             var status = _gameState.CurrentStatus;
             if (status == null) return;
 
+            // Get user preferences
+            var settings = SettingsManager.Load();
+
             // Calculate all visibility states
             bool shouldShowPanels = !_gameState.IsHyperspaceJumping && (
                 status.Flags.HasFlag(Flag.Docked) ||
@@ -567,42 +587,43 @@ namespace EliteInfoPanel.ViewModels
 
             if (!shouldShowPanels) return;
 
-            // Show cards based on game state
-            SummaryCard.IsVisible = true;
+            // Show cards based on game state AND user preferences
+            SummaryCard.IsVisible = settings.ShowSummary;
 
             bool showBackpack = status.OnFoot;
             bool hasCargo = (_gameState.CurrentCargo?.Inventory?.Count ?? 0) > 0;
 
-            // Only show one of backpack or cargo
-            if (showBackpack)
+            // Only show one of backpack or cargo, respecting user preferences
+            if (showBackpack && settings.ShowBackpack)
                 BackpackCard.IsVisible = true;
-            else if (hasCargo)
+            else if (hasCargo && settings.ShowCargo)
                 CargoCard.IsVisible = true;
 
-            // Show route if available
+            // Show route if available and enabled by user
             bool hasRoute = _gameState.CurrentRoute?.Route?.Any() == true ||
                           !string.IsNullOrWhiteSpace(_gameState.CurrentStatus?.Destination?.Name);
-
-            if (hasRoute)
+            if (hasRoute && settings.ShowRoute)
                 RouteCard.IsVisible = true;
 
-            // Show modules if in main ship
+            // Show modules if in main ship and enabled by user
             bool inMainShip = status.Flags.HasFlag(Flag.InMainShip) &&
                             !status.OnFoot &&
                             !status.Flags.HasFlag(Flag.InSRV) &&
                             !status.Flags.HasFlag(Flag.InFighter);
-
-            if (inMainShip)
+            if (inMainShip && settings.ShowModules)
                 ModulesCard.IsVisible = true;
 
-            // Always show flags if we're showing panels
-            FlagsCard.IsVisible = true;
+            // Show flags if enabled by user
+            if (settings.ShowFlags)
+                FlagsCard.IsVisible = true;
+
+            // Show colonization if data available and enabled by user
+            UpdateColonizationCardVisibility();
 
             // Now that visibility is set, update the layout
             if (updateLayout)
                 UpdateCardLayout(false);
         }
-
         private void UpdateCardLayout(bool forceRebuild = false)
         {
             // Use the layout manager if it's been initialized
