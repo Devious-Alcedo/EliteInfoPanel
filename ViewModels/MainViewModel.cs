@@ -297,6 +297,10 @@ namespace EliteInfoPanel.ViewModels
                     // We still need to handle this to update card visibility
                     RefreshCardVisibility(true);
                     break;
+                case nameof(GameStateService.CurrentColonization):
+                    UpdateColonizationCardVisibility();
+                    break;
+
             }
         }
 
@@ -447,13 +451,21 @@ namespace EliteInfoPanel.ViewModels
                                             !_gameState.CurrentColonization.ConstructionComplete &&
                                             !_gameState.CurrentColonization.ConstructionFailed;
 
-                // Only update visibility if it's changed, considering user preference
+                // Get user preferences
                 var settings = SettingsManager.Load();
 
-                // Check both conditions: game state and user preference
-                ColonizationCard.IsVisible = hasActiveColonization && settings.ShowColonisation;
+                // Set the context visibility based on whether there's active colonization data
+                // This is separate from user preference - it means there's actually content to show
+                bool contextVisibility = hasActiveColonization;
 
-                Log.Debug("ColonizationCard visibility set to {Visible}", ColonizationCard.IsVisible);
+                // Final visibility is determined by BOTH conditions:
+                // 1. Context visibility (is there actual colonization data to show?)
+                // 2. User preference (did the user choose to see this card?)
+                ColonizationCard.IsVisible = contextVisibility && settings.ShowColonisation;
+
+                Log.Debug("ColonizationCard visibility update: HasActiveColonization={HasData}, " +
+                          "UserPreference={UserEnabled}, FinalVisibility={IsVisible}",
+                          hasActiveColonization, settings.ShowColonisation, ColonizationCard.IsVisible);
             }
             catch (Exception ex)
             {
