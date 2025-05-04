@@ -141,7 +141,17 @@ namespace EliteInfoPanel.ViewModels
                     InitializeUI();
                 };
             }
+
+            // Apply user preferences AFTER everything else
             ApplyUserCardPreferences();
+
+            // IMPORTANT: Add this explicit check for colonization data
+            // It needs to happen AFTER ApplyUserCardPreferences to override it if needed
+            if (_gameState.CurrentColonization != null)
+            {
+                Log.Information("MainViewModel: Found colonization data after initialization - making card visible");
+                UpdateColonizationCardVisibility();
+            }
         }
         private void ApplyUserCardPreferences()
         {
@@ -454,18 +464,24 @@ namespace EliteInfoPanel.ViewModels
                 // Get user preferences
                 var settings = SettingsManager.Load();
 
-                // Set the context visibility based on whether there's active colonization data
-                // This is separate from user preference - it means there's actually content to show
-                bool contextVisibility = hasActiveColonization;
+                Log.Information("UpdateColonizationCardVisibility: HasData={HasData}, Complete={Complete}, Failed={Failed}, UserEnabled={UserEnabled}",
+                    _gameState.CurrentColonization != null,
+                    _gameState.CurrentColonization?.ConstructionComplete ?? false,
+                    _gameState.CurrentColonization?.ConstructionFailed ?? false,
+                    settings.ShowColonisation);
 
-                // Final visibility is determined by BOTH conditions:
-                // 1. Context visibility (is there actual colonization data to show?)
-                // 2. User preference (did the user choose to see this card?)
-                ColonizationCard.IsVisible = contextVisibility && settings.ShowColonisation;
+                // Final visibility is determined by BOTH conditions
+                bool shouldBeVisible = hasActiveColonization && settings.ShowColonisation;
 
-                Log.Debug("ColonizationCard visibility update: HasActiveColonization={HasData}, " +
-                          "UserPreference={UserEnabled}, FinalVisibility={IsVisible}",
-                          hasActiveColonization, settings.ShowColonisation, ColonizationCard.IsVisible);
+                // Set visibility directly
+                if (ColonizationCard.IsVisible != shouldBeVisible)
+                {
+                    ColonizationCard.IsVisible = shouldBeVisible;
+                    Log.Information("ColonizationCard visibility set to {IsVisible}", shouldBeVisible);
+
+                    // Force layout refresh
+                    RefreshLayout(true);
+                }
             }
             catch (Exception ex)
             {
@@ -564,7 +580,12 @@ namespace EliteInfoPanel.ViewModels
                 card.IsVisible = false;
             }
 
-            // We'll let the status update handle showing the right cards
+            if (_gameState.CurrentColonization != null)
+            {
+                var settings = SettingsManager.Load();
+                Log.Information("Colonization data found during initial visibility setup");
+                ColonizationCard.IsVisible = settings.ShowColonisation;
+            }
         }
 
         private void RefreshCardVisibility(bool updateLayout = true)

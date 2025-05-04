@@ -932,7 +932,16 @@ namespace EliteInfoPanel.Core
                 LoadRouteProgress();
 
                 Task.Run(async () => await ProcessJournalAsync()).Wait();
-
+                if (CurrentColonization != null)
+                {
+                    Log.Information("Colonization data found during initial load: Progress={Progress:P2}, Resources={Count}",
+                        CurrentColonization.ConstructionProgress,
+                        CurrentColonization.ResourcesRequired?.Count ?? 0);
+                }
+                else
+                {
+                    Log.Warning("No colonization data found during initial load");
+                }
                 // Explicitly notify properties that are important for initialization
                 OnPropertyChanged(nameof(CurrentLoadout));
                 OnPropertyChanged(nameof(CurrentCargo));
