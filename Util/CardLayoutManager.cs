@@ -154,6 +154,13 @@ namespace EliteInfoPanel.Util
             if (_viewModel.FlagsCard.IsVisible)
                 result.Add(_viewModel.FlagsCard);
 
+            if (_viewModel.ColonizationCard.IsVisible)
+                result.Add(_viewModel.ColonizationCard);
+            Log.Information("Layout includes {Count} cards: {Cards}",
+       result.Count,
+       string.Join(", ", result.Select(c => c.GetType().Name)));
+
+
             return result;
         }
 
@@ -203,6 +210,8 @@ namespace EliteInfoPanel.Util
                 cardElement.Content = new EliteInfoPanel.Controls.ModulesCard { DataContext = viewModel };
             else if (viewModel is FlagsViewModel)
                 cardElement.Content = new EliteInfoPanel.Controls.FlagsCard { DataContext = viewModel };
+            else if (viewModel is ColonizationViewModel)
+                cardElement.Content = new EliteInfoPanel.Controls.ColonizationCard { DataContext = viewModel };
 
             // Cache the created element for future use
             _cardCache[vmType] = cardElement;

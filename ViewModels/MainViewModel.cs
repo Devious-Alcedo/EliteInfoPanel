@@ -151,6 +151,7 @@ namespace EliteInfoPanel.ViewModels
             {
                 Log.Information("MainViewModel: Found colonization data after initialization - making card visible");
                 UpdateColonizationCardVisibility();
+
             }
             EventAggregator.Instance.Subscribe<CardVisibilityChangedEvent>(OnCardVisibilityChanged);
             EventAggregator.Instance.Subscribe<LayoutRefreshRequestEvent>(OnLayoutRefreshRequested);
@@ -394,12 +395,101 @@ namespace EliteInfoPanel.ViewModels
                     RefreshCardVisibility(true);
                     break;
                 case nameof(GameStateService.CurrentColonization):
+                    Log.Information("GameStateService.CurrentColonization changed - updating card visibility");
                     UpdateColonizationCardVisibility();
                     break;
 
             }
         }
+        // Add this method back to MainViewModel
+        private void UpdateColonizationCardVisibility()
+        {
+            try
+            {
+                // Debug the current colonization state
+                var colonizationData = _gameState.CurrentColonization;
+                bool hasData = colonizationData != null;
+                bool isComplete = colonizationData?.ConstructionComplete ?? false;
+                bool isFailed = colonizationData?.ConstructionFailed ?? false;
 
+                // Log detailed diagnostic information
+                Log.Information("ColonizationCard diagnostic: HasData={HasData}, IsComplete={IsComplete}, " +
+                               "IsFailed={IsFailed}, Progress={Progress}, ResourceCount={Count}",
+                               hasData, isComplete, isFailed,
+                               colonizationData?.ConstructionProgress ?? 0,
+                               colonizationData?.ResourcesRequired?.Count ?? 0);
+
+                // Determine if we should show the card
+                bool hasActiveColonization = hasData && !isComplete && !isFailed;
+
+                // Get user preference
+                var settings = SettingsManager.Load();
+                bool userEnabled = settings.ShowColonisation;
+
+                // Check all conditions for visibility
+                bool shouldBeVisible = hasActiveColonization && userEnabled;
+
+                Log.Information("ColonizationCard visibility decision: HasActiveColonization={HasActive}, " +
+                               "UserEnabled={UserEnabled}, Final={ShouldShow}, CurrentlyVisible={IsVisible}",
+                               hasActiveColonization, userEnabled, shouldBeVisible, ColonizationCard.IsVisible);
+
+                // Set visibility if different from current state
+                if (ColonizationCard.IsVisible != shouldBeVisible)
+                {
+                    ColonizationCard.IsVisible = shouldBeVisible;
+                    Log.Information("ColonizationCard visibility set to {IsVisible}", shouldBeVisible);
+
+                    // Force a layout refresh immediately
+                    if (shouldBeVisible)
+                    {
+                        Log.Information("Forcing layout refresh to show colonization card");
+                        RefreshLayout(true);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error updating colonization card visibility");
+            }
+        }
+        private void UpdateColonizationData()
+        {
+            try
+            {
+                // Check if the colonization data exists and is active
+                bool hasActiveColonization = _gameState.CurrentColonization != null &&
+                                            !_gameState.CurrentColonization.ConstructionComplete &&
+                                            !_gameState.CurrentColonization.ConstructionFailed;
+
+                // Get user preferences
+                var settings = SettingsManager.Load();
+                bool userEnabled = settings.ShowColonisation;
+
+                Log.Information("MainViewModel: Updating colonization data - HasData={HasData}, UserEnabled={UserEnabled}",
+                    hasActiveColonization, userEnabled);
+
+                // Final visibility is determined by BOTH conditions
+                bool shouldBeVisible = hasActiveColonization && userEnabled;
+
+                // First apply visibility change if needed
+                if (ColonizationCard.IsVisible != shouldBeVisible)
+                {
+                    Log.Information("MainViewModel: Setting ColonizationCard visibility to {IsVisible}", shouldBeVisible);
+                    ColonizationCard.IsVisible = shouldBeVisible;
+                }
+
+                // Then refresh the layout if needed
+                if (shouldBeVisible)
+                {
+                    // Force layout refresh to ensure colonization card is displayed
+                    RefreshLayout(true);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error updating colonization data from MainViewModel");
+            }
+        }
         private void OnStatusChanged()
         {
             var status = _gameState.CurrentStatus;
@@ -538,42 +628,7 @@ namespace EliteInfoPanel.ViewModels
             // Force layout update
             _mainGrid.UpdateLayout();
         }
-        private void UpdateColonizationCardVisibility()
-        {
-            try
-            {
-                // Check if the colonization data exists and is active
-                bool hasActiveColonization = _gameState.CurrentColonization != null &&
-                                            !_gameState.CurrentColonization.ConstructionComplete &&
-                                            !_gameState.CurrentColonization.ConstructionFailed;
-
-                // Get user preferences
-                var settings = SettingsManager.Load();
-
-                Log.Information("UpdateColonizationCardVisibility: HasData={HasData}, Complete={Complete}, Failed={Failed}, UserEnabled={UserEnabled}",
-                    _gameState.CurrentColonization != null,
-                    _gameState.CurrentColonization?.ConstructionComplete ?? false,
-                    _gameState.CurrentColonization?.ConstructionFailed ?? false,
-                    settings.ShowColonisation);
-
-                // Final visibility is determined by BOTH conditions
-                bool shouldBeVisible = hasActiveColonization && settings.ShowColonisation;
-
-                // Set visibility directly
-                if (ColonizationCard.IsVisible != shouldBeVisible)
-                {
-                    ColonizationCard.IsVisible = shouldBeVisible;
-                    Log.Information("ColonizationCard visibility set to {IsVisible}", shouldBeVisible);
-
-                    // Force layout refresh
-                    RefreshLayout(true);
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error updating colonization card visibility");
-            }
-        }
+     
         private void EnsureCorrectCardsVisible()
         {
             // Make sure we're on the UI thread
@@ -737,7 +792,7 @@ namespace EliteInfoPanel.ViewModels
                 FlagsCard.IsVisible = true;
 
             // Show colonization if data available and enabled by user
-            UpdateColonizationCardVisibility();
+         
 
             // Now that visibility is set, update the layout
             if (updateLayout)
@@ -798,6 +853,9 @@ namespace EliteInfoPanel.ViewModels
                 if (FlagsCard.IsVisible)
                     visibleCards.Add(FlagsCard);
 
+                // Add colonization card 
+                if (ColonizationCard.IsVisible)
+                    visibleCards.Add(ColonizationCard);
                 // Add column definitions for each card
                 for (int i = 0; i < visibleCards.Count; i++)
                 {
@@ -834,6 +892,8 @@ namespace EliteInfoPanel.ViewModels
                         cardElement.Content = new EliteInfoPanel.Controls.ModulesCard { DataContext = card };
                     else if (card == FlagsCard)
                         cardElement.Content = new EliteInfoPanel.Controls.FlagsCard { DataContext = card };
+                    else if (card == ColonizationCard)
+                        cardElement.Content = new EliteInfoPanel.Controls.ColonizationCard { DataContext = card };
 
                     // Add to grid
                     Grid.SetColumn(cardElement, i);
