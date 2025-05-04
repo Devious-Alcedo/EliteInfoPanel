@@ -56,22 +56,29 @@
         <ItemsControl ItemsSource="{Binding Source={StaticResource NormalItemsView}}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <Grid x:Name="ItemStack"
-                  Margin="0,4,0,0"
-                  Opacity="1">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
 
-                        <materialDesign:PackIcon Grid.Column="0"
+                        <Grid x:Name="ItemStack"
+                      Grid.Row="0"
+                      Margin="0,4,0,0"
+                      Opacity="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <materialDesign:PackIcon Grid.Column="0"
                                          Kind="{Binding Icon}"
                                          Width="20"
                                          Height="20"
                                          Margin="0,0,6,0"
                                          Foreground="{Binding Foreground}" />
 
-                        <TextBlock Grid.Column="1"
+                            <TextBlock Grid.Column="1"
                            x:Name="ItemText"
                            Text="{Binding Content}"
                            FontSize="{Binding FontSize}"
@@ -81,46 +88,45 @@
                            VerticalAlignment="Center"
                            FontWeight="Bold"
                            TextOptions.TextRenderingMode="ClearType" />
+                        </Grid>
+
+                        <!-- Elite Ranks Row - Only visible for Commander item -->
+                        <ItemsControl Grid.Row="1" 
+                              ItemsSource="{Binding EliteRanks}" 
+                              Visibility="{Binding IsCommander, Converter={StaticResource BoolToVis}}"
+                              Margin="26,2,0,4">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Image Source="{Binding IconPath}" 
+                                   Width="20" 
+                                   Height="20"
+                                   Margin="0,0,8,0"
+                                   ToolTip="{Binding RankName, StringFormat='Elite in {0}'}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </Grid>
 
+                    <!-- Trigger is now correctly placed at the DataTemplate level -->
                     <DataTemplate.Triggers>
                         <DataTrigger Binding="{Binding Pulse}" Value="True">
                             <DataTrigger.EnterActions>
                                 <BeginStoryboard>
                                     <Storyboard RepeatBehavior="Forever" AutoReverse="True">
                                         <DoubleAnimation Storyboard.TargetName="ItemStack"
-                                                 Storyboard.TargetProperty="Opacity"
-                                                 From="1.0" To="0.4"
-                                                 Duration="0:0:0.6" />
+                                             Storyboard.TargetProperty="Opacity"
+                                             From="1.0" To="0.4"
+                                             Duration="0:0:0.6" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </DataTrigger.EnterActions>
                         </DataTrigger>
                     </DataTemplate.Triggers>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
-        <!-- Add this right after the regular summary items ItemsControl -->
-        <ItemsControl ItemsSource="{Binding EliteRanks}" 
-              Visibility="{Binding EliteRanks.Count, Converter={StaticResource CountToVisibilityConverter}}"
-              Margin="0,4,0,8">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <WrapPanel Orientation="Horizontal" />
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                    <StackPanel Orientation="Vertical" Margin="0,0,8,0">
-                        <Image Source="{Binding IconPath}" 
-                       Width="24" 
-                       Height="24" 
-                       ToolTip="{Binding RankType, StringFormat='Elite in {0}'}" />
-                        <TextBlock Text="{Binding RankType}" 
-                           FontSize="{Binding FontSize}" 
-                           TextAlignment="Center"
-                           Foreground="#CCFFFFFF" />
-                    </StackPanel>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
