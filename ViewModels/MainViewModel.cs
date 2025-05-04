@@ -281,7 +281,7 @@ namespace EliteInfoPanel.ViewModels
                 // Hide all cards when global condition fails
                 foreach (var card in Cards)
                 {
-                    card.IsVisible = false;
+                    card.SetContextVisibility(false); // CHANGED: Use SetContextVisibility
                 }
                 return;
             }
@@ -289,40 +289,45 @@ namespace EliteInfoPanel.ViewModels
             // Now evaluate each card once - in a specific order
 
             // Summary card
-            SummaryCard.IsVisible = settings.ShowSummary;
+            SummaryCard.SetContextVisibility(true); // CHANGED: Use SetContextVisibility
+            SummaryCard.IsUserEnabled = settings.ShowSummary; // ADDED: Set user preference directly
 
             // Determine mutually exclusive cards
             bool showBackpack = status.OnFoot &&
-                                (_gameState.CurrentBackpack?.Inventory?.Count > 0) &&
-                                settings.ShowBackpack;
-
+                                (_gameState.CurrentBackpack?.Inventory?.Count > 0);
             bool showCargo = !showBackpack &&
-                             (_gameState.CurrentCargo?.Inventory?.Count > 0) &&
-                             settings.ShowCargo;
+                             (_gameState.CurrentCargo?.Inventory?.Count > 0);
 
-            BackpackCard.IsVisible = showBackpack;
-            CargoCard.IsVisible = showCargo;
+            BackpackCard.SetContextVisibility(showBackpack); // CHANGED: Use SetContextVisibility
+            BackpackCard.IsUserEnabled = settings.ShowBackpack; // ADDED: Set user preference directly
+
+            CargoCard.SetContextVisibility(showCargo); // CHANGED: Use SetContextVisibility
+            CargoCard.IsUserEnabled = settings.ShowCargo; // ADDED: Set user preference directly
 
             // Route card
             bool hasRoute = _gameState.CurrentRoute?.Route?.Any() == true ||
                            !string.IsNullOrWhiteSpace(_gameState.CurrentStatus?.Destination?.Name);
-            RouteCard.IsVisible = hasRoute && settings.ShowRoute;
+            RouteCard.SetContextVisibility(hasRoute); // CHANGED: Use SetContextVisibility
+            RouteCard.IsUserEnabled = settings.ShowRoute; // ADDED: Set user preference directly
 
             // Modules card  
             bool inMainShip = status.Flags.HasFlag(Flag.InMainShip) &&
                             !status.OnFoot &&
                             !status.Flags.HasFlag(Flag.InSRV) &&
                             !status.Flags.HasFlag(Flag.InFighter);
-            ModulesCard.IsVisible = inMainShip && settings.ShowModules;
+            ModulesCard.SetContextVisibility(inMainShip); // CHANGED: Use SetContextVisibility
+            ModulesCard.IsUserEnabled = settings.ShowModules; // ADDED: Set user preference directly
 
             // Flags card
-            FlagsCard.IsVisible = settings.ShowFlags;
+            FlagsCard.SetContextVisibility(true); // CHANGED: Use SetContextVisibility
+            FlagsCard.IsUserEnabled = settings.ShowFlags; // ADDED: Set user preference directly
 
             // Colonization card - evaluated once
             bool hasActiveColonization = _gameState.CurrentColonization != null &&
                                        !_gameState.CurrentColonization.ConstructionComplete &&
                                        !_gameState.CurrentColonization.ConstructionFailed;
-            ColonizationCard.IsVisible = hasActiveColonization && settings.ShowColonisation;
+            ColonizationCard.SetContextVisibility(hasActiveColonization); // CHANGED: Use SetContextVisibility
+            ColonizationCard.IsUserEnabled = settings.ShowColonisation; // ADDED: Set user preference directly
         }
         public void SetMainGrid(Grid mainGrid)
         {
