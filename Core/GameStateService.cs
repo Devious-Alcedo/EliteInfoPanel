@@ -446,19 +446,19 @@ namespace EliteInfoPanel.Core
                 case "DockingRequested":
                     _currentDockingState = DockingState.DockingRequested;
                     IsDocking = true;
-                    Log.Information("Docking requested - IsDocking set to true");
+                    Log.Debug("Docking requested - IsDocking set to true");
                     break;
 
                 case "DockingGranted":
                     _currentDockingState = DockingState.DockingGranted;
                     IsDocking = true;
-                    Log.Information("Docking granted - IsDocking set to true");
+                    Log.Debug("Docking granted - IsDocking set to true");
                     break;
 
                 case "Docked":
                     _currentDockingState = DockingState.Docked;
                     IsDocking = false;
-                    Log.Information("Docked - IsDocking set to false");
+                    Log.Debug("Docked - IsDocking set to false");
                     break;
 
                 case "DockingCancelled":
@@ -466,7 +466,7 @@ namespace EliteInfoPanel.Core
                 case "DockingTimeout":
                     _currentDockingState = DockingState.NotDocking;
                     IsDocking = false;
-                    Log.Information($"{eventType} - IsDocking set to false");
+                    Log.Debug($"{eventType} - IsDocking set to false");
                     break;
             }
         }
@@ -1186,11 +1186,11 @@ namespace EliteInfoPanel.Core
                 if (CurrentStatus?.Flags != null)
                 {
                     uint rawFlags = (uint)CurrentStatus.Flags;
-                    Log.Information("Raw Status Flags value: 0x{RawFlags:X8} ({RawFlags})",
+                    Log.Debug("Raw Status Flags value: 0x{RawFlags:X8} ({RawFlags})",
                         rawFlags, rawFlags);
 
                     // Log individual flags that are set
-                    Log.Information("Active flags: {Flags}",
+                    Log.Debug("Active flags: {Flags}",
                         Enum.GetValues(typeof(Flag))
                             .Cast<Flag>()
                             .Where(f => f != Flag.None && CurrentStatus.Flags.HasFlag(f))
@@ -1200,7 +1200,7 @@ namespace EliteInfoPanel.Core
                     // Log Flags2 if available
                     if (CurrentStatus.Flags2 != 0)
                     {
-                        Log.Information("Raw Status Flags2 value: 0x{RawFlags2:X8} ({RawFlags2})",
+                        Log.Debug("Raw Status Flags2 value: 0x{RawFlags2:X8} ({RawFlags2})",
                             CurrentStatus.Flags2, CurrentStatus.Flags2);
 
                         // If Flags2 is defined as an enum, you could also log individual flags
@@ -1326,7 +1326,7 @@ namespace EliteInfoPanel.Core
                                         string userShipName = root.TryGetProperty("UserShipName", out var nameProp) ? nameProp.GetString() : null;
                                         string userShipId = root.TryGetProperty("UserShipId", out var idProp) ? idProp.GetString() : null;
 
-                                        Log.Information("Received ship name info for {Ship}: {UserShipName} [{UserShipId}]", shipType, userShipName, userShipId);
+                                        Log.Debug("Received ship name info for {Ship}: {UserShipName} [{UserShipId}]", shipType, userShipName, userShipId);
 
                                         ShipName = shipType;
                                         UserShipName = userShipName;
@@ -1359,7 +1359,7 @@ namespace EliteInfoPanel.Core
                                         ShipName = shipType;
                                         ShipLocalised = shipTypeName;
 
-                                        Log.Information("Ship changed to: {Type} ({Localised})", shipType, shipTypeName);
+                                        Log.Debug("Ship changed to: {Type} ({Localised})", shipType, shipTypeName);
 
                                         CurrentLoadout = null;
                                         LoadLoadoutData();
@@ -1413,7 +1413,7 @@ namespace EliteInfoPanel.Core
                                             string stationType = dockStationTypeProp.GetString();
                                             isCarrier = string.Equals(stationType, "FleetCarrier", StringComparison.OrdinalIgnoreCase);
 
-                                            Log.Information("Docked at station: {Station}, StationType: {Type}, IsCarrier: {IsCarrier}",
+                                            Log.Debug("Docked at station: {Station}, StationType: {Type}, IsCarrier: {IsCarrier}",
                                                 CurrentStationName, stationType, isCarrier);
                                         }
                                         if (isCarrier || dockStationTypeProp.ValueKind != JsonValueKind.Undefined)
@@ -1436,7 +1436,7 @@ namespace EliteInfoPanel.Core
                                     break;
 
                                 case "DockingGranted":
-                                    Log.Information("Docking granted by station — setting IsDocking = true");
+                                    Log.Debug("Docking granted by station — setting IsDocking = true");
                                     ProcessDockingEvent(eventType, root);
                                     break;
                                 #endregion
@@ -1845,7 +1845,7 @@ namespace EliteInfoPanel.Core
                                 string stationType = stationTypeProp.GetString();
                                 isCarrier = string.Equals(stationType, "FleetCarrier", StringComparison.OrdinalIgnoreCase);
 
-                                Log.Information("Docked at station: {Station}, StationType: {Type}, IsCarrier: {IsCarrier}",
+                                Log.Debug("Docked at station: {Station}, StationType: {Type}, IsCarrier: {IsCarrier}",
                                     CurrentStationName, stationType, isCarrier);
                             }
 
@@ -1980,7 +1980,7 @@ namespace EliteInfoPanel.Core
                     FleetCarrierJumpInProgress = true;
                     OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // ✅ force re-eval
 
-                    Log.Information("Recovered scheduled CarrierJump to {System}, {Body} at {Time}",
+                    Log.Debug("Recovered scheduled CarrierJump to {System}, {Body} at {Time}",
                         system, body, latestDeparture);
                 }
 

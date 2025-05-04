@@ -525,7 +525,7 @@ namespace EliteInfoPanel.ViewModels
                                 ShowRefuelHint = showRefuelHint
                             };
 
-                            Log.Information("Adding RouteItem: {System} | StarClass: {Class} | Scoopable: {Scoopable} | IconColor: {Color}",
+                            Log.Debug("Adding RouteItem: {System} | StarClass: {Class} | Scoopable: {Scoopable} | IconColor: {Color}",
                                 jump.StarSystem, jump.StarClass, isScoopable, routeItem.IconColor.ToString());
 
                             Items.Add(routeItem);
