@@ -14,7 +14,7 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
         <util:ProgressToWidthMultiConverter x:Key="ProgressToWidthMultiConverter" />
         <converters:TagFilterConverter x:Key="TagFilterConverter" />
-
+        <converters:CountToVisibilityConverter x:Key="CountToVisibilityConverter" />
         <!-- Summary (non-jump) items -->
         <CollectionViewSource x:Key="NormalItemsView"
                       Source="{Binding Items}" />
@@ -100,7 +100,30 @@
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
-
+        <!-- Add this right after the regular summary items ItemsControl -->
+        <ItemsControl ItemsSource="{Binding EliteRanks}" 
+              Visibility="{Binding EliteRanks.Count, Converter={StaticResource CountToVisibilityConverter}}"
+              Margin="0,4,0,8">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Vertical" Margin="0,0,8,0">
+                        <Image Source="{Binding IconPath}" 
+                       Width="24" 
+                       Height="24" 
+                       ToolTip="{Binding RankType, StringFormat='Elite in {0}'}" />
+                        <TextBlock Text="{Binding RankType}" 
+                           FontSize="{Binding FontSize}" 
+                           TextAlignment="Center"
+                           Foreground="#CCFFFFFF" />
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
         <!-- Fuel Info -->
         <StackPanel Visibility="{Binding ShowFuelBar, Converter={StaticResource BoolToVis}}" Margin="0,12,0,0">
             <TextBlock FontSize="{Binding FontSize}"

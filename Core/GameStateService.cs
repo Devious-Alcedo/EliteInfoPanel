@@ -34,6 +34,48 @@ namespace EliteInfoPanel.Core
         private string _carrierJumpDestinationBody;
         private bool _isCarrierJumping = false;
         private string _carrierJumpDestinationSystem;
+        private int _combatRank;
+        private int _tradeRank;
+        private int _explorationRank;
+        private int _cqcRank;
+        private int _exobiologistRank;
+        private int _mercenaryRank;
+
+        public int CombatRank
+        {
+            get => _combatRank;
+            private set => SetProperty(ref _combatRank, value);
+        }
+
+        public int TradeRank
+        {
+            get => _tradeRank;
+            private set => SetProperty(ref _tradeRank, value);
+        }
+
+        public int ExplorationRank
+        {
+            get => _explorationRank;
+            private set => SetProperty(ref _explorationRank, value);
+        }
+
+        public int CqcRank
+        {
+            get => _cqcRank;
+            private set => SetProperty(ref _cqcRank, value);
+        }
+
+        public int ExobiologistRank
+        {
+            get => _exobiologistRank;
+            private set => SetProperty(ref _exobiologistRank, value);
+        }
+
+        public int MercenaryRank
+        {
+            get => _mercenaryRank;
+            private set => SetProperty(ref _mercenaryRank, value);
+        }
         private enum DockingState
         {
             NotDocking,
@@ -1212,6 +1254,46 @@ namespace EliteInfoPanel.Core
                                     }
                                     break;
 
+                                case "Rank":
+                                    if (root.TryGetProperty("Combat", out var combatProp))
+                                        CombatRank = combatProp.GetInt32();
+
+                                    if (root.TryGetProperty("Trade", out var tradeProp))
+                                        TradeRank = tradeProp.GetInt32();
+
+                                    if (root.TryGetProperty("Explore", out var exploreProp))
+                                        ExplorationRank = exploreProp.GetInt32();
+
+                                    if (root.TryGetProperty("CQC", out var cqcProp))
+                                        CqcRank = cqcProp.GetInt32();
+
+                                    if (root.TryGetProperty("Exobiologist", out var exobioProp))
+                                        ExobiologistRank = exobioProp.GetInt32();
+
+                                    if (root.TryGetProperty("Mercenary", out var mercProp))
+                                        MercenaryRank = mercProp.GetInt32();
+
+                                    break;
+                                case "Promotion":
+                                    if (root.TryGetProperty("Combat", out var combatPromotionProp))
+                                        CombatRank = combatPromotionProp.GetInt32();
+
+                                    if (root.TryGetProperty("Trade", out var tradePromotionProp))
+                                        TradeRank = tradePromotionProp.GetInt32();
+
+                                    if (root.TryGetProperty("Explore", out var explorePromotionProp))
+                                        ExplorationRank = explorePromotionProp.GetInt32();
+
+                                    if (root.TryGetProperty("CQC", out var cqcPromotionProp))
+                                        CqcRank = cqcPromotionProp.GetInt32();
+
+                                    if (root.TryGetProperty("Exobiologist", out var exobioPromotionProp))
+                                        ExobiologistRank = exobioPromotionProp.GetInt32();
+
+                                    if (root.TryGetProperty("Mercenary", out var mercPromotionProp))
+                                        MercenaryRank = mercPromotionProp.GetInt32();
+
+                                    break;
                                 case "SetUserShipName":
                                     if (root.TryGetProperty("Ship", out var setShipTypeProperty) &&
                                         root.TryGetProperty("ShipID", out var setShipIdProperty))

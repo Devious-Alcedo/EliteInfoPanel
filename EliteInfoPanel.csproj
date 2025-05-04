@@ -16,6 +16,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Assets\Ranks\Combat_Elite_icon.png" />
+    <None Remove="Assets\Ranks\CQC_Elite_icon.png" />
+    <None Remove="Assets\Ranks\Exobiologist_Elite_icon.png" />
+    <None Remove="Assets\Ranks\Explorer_Elite_icon.png" />
+    <None Remove="Assets\Ranks\Mercenary_Elite_icon.png" />
+    <None Remove="Assets\Ranks\Trader_Elite_icon.png" />
     <None Remove="Assets\Stars\A.ico" />
     <None Remove="Assets\Stars\A.png" />
     <None Remove="Assets\Stars\Ae.ico" />
@@ -114,6 +120,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="Assets\Ranks\Combat_Elite_icon.png" />
+    <Resource Include="Assets\Ranks\CQC_Elite_icon.png" />
+    <Resource Include="Assets\Ranks\Exobiologist_Elite_icon.png" />
+    <Resource Include="Assets\Ranks\Explorer_Elite_icon.png" />
+    <Resource Include="Assets\Ranks\Mercenary_Elite_icon.png" />
+    <Resource Include="Assets\Ranks\Trader_Elite_icon.png" />
     <Resource Include="Assets\Stars\A.png" />
     <Resource Include="Assets\Stars\Ae.png" />
     <Resource Include="Assets\Stars\B.png" />
