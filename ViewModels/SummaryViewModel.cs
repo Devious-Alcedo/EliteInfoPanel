@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
@@ -101,7 +102,7 @@ namespace EliteInfoPanel.ViewModels
             System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() => {
                 // Just call InitializeAllItems directly
                 InitializeAllItems();
-                UpdateEliteRanks();
+               
             }), System.Windows.Threading.DispatcherPriority.Background);
         }
 
@@ -116,56 +117,7 @@ namespace EliteInfoPanel.ViewModels
         #endregion
 
         #region Private Methods
-        private void UpdateEliteRanks()
-        {
-            try
-            {
-                EliteRanks.Clear();
-
-                // Check each rank from gameState and add if Elite
-                if (_gameState.CombatRank >= 8) // Elite or higher in Combat
-                {
-                    EliteRanks.Add(new EliteRankViewModel("Combat", "pack://application:,,,/Assets/Ranks/Combat_Elite_icon.png"));
-                }
-
-                if (_gameState.TradeRank >= 8) // Elite or higher in Trade
-                {
-                    EliteRanks.Add(new EliteRankViewModel("Trade", "pack://application:,,,/Assets/Ranks/Trader_Elite_icon.png"));
-                }
-
-                if (_gameState.ExplorationRank >= 8) // Elite or higher in Exploration
-                {
-                    EliteRanks.Add(new EliteRankViewModel("Explore", "pack://application:,,,/Assets/Ranks/Explorer_Elite_icon.png"));
-                }
-
-                if (_gameState.CqcRank >= 8) // Elite in CQC
-                {
-                    EliteRanks.Add(new EliteRankViewModel("CQC", "pack://application:,,,/Assets/Ranks/CQC_Elite_icon.png"));
-                }
-
-                if (_gameState.ExobiologistRank >= 8) // Elite in Exobiology
-                {
-                    EliteRanks.Add(new EliteRankViewModel("Exobiology", "pack://application:,,,/Assets/Ranks/Exobiologist_Elite_icon.png"));
-                }
-
-                if (_gameState.MercenaryRank >= 8) // Elite in Mercenary
-                {
-                    EliteRanks.Add(new EliteRankViewModel("Mercenary", "pack://application:,,,/Assets/Ranks/Mercenary_Elite_icon.png"));
-                }
-
-                // Update font size for all ranks
-                foreach (var rank in EliteRanks)
-                {
-                    rank.FontSize = (int)(this.FontSize * 0.7); // Slightly smaller than main text
-                }
-
-                Log.Debug("Elite ranks updated: {Count} elite ranks found", EliteRanks.Count);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error updating Elite ranks");
-            }
-        }
+       
         private SummaryItemViewModel FindItemByTag(string tag)
         {
             return Items.FirstOrDefault(x => x.Tag == tag);
@@ -267,13 +219,7 @@ namespace EliteInfoPanel.ViewModels
                 case nameof(GameStateService.CurrentStatus):
                     _hasFuel = _gameState.CurrentLoadout != null && _gameState.CurrentStatus?.Fuel != null;
                     break;
-                case nameof(GameStateService.CombatRank):
-                case nameof(GameStateService.TradeRank):
-                case nameof(GameStateService.ExplorationRank):
-                case nameof(GameStateService.CqcRank):
-                case nameof(GameStateService.ExobiologistRank):
-                case nameof(GameStateService.MercenaryRank):
-                    UpdateEliteRanks();
+             
                     break;
             }
 
@@ -337,7 +283,7 @@ namespace EliteInfoPanel.ViewModels
                     UpdateBalanceItem();
                     UpdateSystemItem();
                     UpdateFuelInfo();
-                    UpdateEliteRanks();
+                   
 
                     // Special case for carrier countdown - preserve state
                     if (wasJumpInProgress)
@@ -379,6 +325,46 @@ namespace EliteInfoPanel.ViewModels
                 {
                     item.Content = $"CMDR {_gameState.CommanderName}";
                     Log.Debug("Updated existing Commander item: {Content}", item.Content);
+
+                    // Update elite ranks directly on the item
+                    item.EliteRanks.Clear();
+                    if (_gameState.CombatRank >= 8)
+                    {
+                        item.EliteRanks.Add(new EliteRankInfo("Combat",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Combat_Elite_icon.png"));
+                        Log.Debug("Added Combat Elite rank to Commander item");
+                    }
+                    if (_gameState.TradeRank >= 8)
+                    {
+                        item.EliteRanks.Add(new EliteRankInfo("Trade",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Trader_Elite_icon.png"));
+                        Log.Debug("Added Trade Elite rank to Commander item");
+                    }
+                    if (_gameState.ExplorationRank >= 8)
+                    {
+                        item.EliteRanks.Add(new EliteRankInfo("Exploration",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Explorer_Elite_icon.png"));
+                        Log.Debug("Added Exploration Elite rank to Commander item");
+                    }
+                    if (_gameState.CqcRank >= 8)
+                    {
+                        item.EliteRanks.Add(new EliteRankInfo("CQC",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/CQC_Elite_icon.png"));
+                        Log.Debug("Added CQC Elite rank to Commander item");
+                    }
+                    if (_gameState.ExobiologistRank >= 8)
+                    {
+                        item.EliteRanks.Add(new EliteRankInfo("Exobiology",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Exobiologist_Elite_icon.png"));
+                        Log.Debug("Added Exobiology Elite rank to Commander item");
+                    }
+                    if (_gameState.MercenaryRank >= 8)
+                    {
+                        item.EliteRanks.Add(new EliteRankInfo("Mercenary",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Mercenary_Elite_icon.png"));
+                        Log.Debug("Added Mercenary Elite rank to Commander item");
+                    }
+                    Log.Debug("Updated Commander item with {Count} elite ranks", item.EliteRanks.Count);
                 }
                 else
                 {
@@ -391,8 +377,40 @@ namespace EliteInfoPanel.ViewModels
                         FontSize = (int)this.FontSize
                     };
 
+                    // Add elite ranks to the new Commander item
+                    if (_gameState.CombatRank >= 8)
+                    {
+                        newItem.EliteRanks.Add(new EliteRankInfo("Combat",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Combat_Elite_icon.png"));
+                    }
+                    if (_gameState.TradeRank >= 8)
+                    {
+                        newItem.EliteRanks.Add(new EliteRankInfo("Trade",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Trader_Elite_icon.png"));
+                    }
+                    if (_gameState.ExplorationRank >= 8)
+                    {
+                        newItem.EliteRanks.Add(new EliteRankInfo("Exploration",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Explorer_Elite_icon.png"));
+                    }
+                    if (_gameState.CqcRank >= 8)
+                    {
+                        newItem.EliteRanks.Add(new EliteRankInfo("CQC",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/CQC_Elite_icon.png"));
+                    }
+                    if (_gameState.ExobiologistRank >= 8)
+                    {
+                        newItem.EliteRanks.Add(new EliteRankInfo("Exobiology",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Exobiologist_Elite_icon.png"));
+                    }
+                    if (_gameState.MercenaryRank >= 8)
+                    {
+                        newItem.EliteRanks.Add(new EliteRankInfo("Mercenary",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Mercenary_Elite_icon.png"));
+                    }
+
                     Items.Add(newItem);
-                    Log.Debug("Added new Commander item: {Content}", newItem.Content);
+                    Log.Debug("Added new Commander item with {Count} elite ranks", newItem.EliteRanks.Count);
                 }
             }
             catch (Exception ex)
