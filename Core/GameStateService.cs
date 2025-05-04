@@ -34,6 +34,57 @@ namespace EliteInfoPanel.Core
         private string _carrierJumpDestinationBody;
         private bool _isCarrierJumping = false;
         private string _carrierJumpDestinationSystem;
+        private int _combatRank;
+        private int _tradeRank;
+        private int _explorationRank;
+        private int _cqcRank;
+        private int _exobiologistRank;
+        private int _mercenaryRank;
+
+        public int CombatRank
+        {
+            get => _combatRank;
+            private set => SetProperty(ref _combatRank, value);
+        }
+
+        public int TradeRank
+        {
+            get => _tradeRank;
+            private set => SetProperty(ref _tradeRank, value);
+        }
+
+        public int ExplorationRank
+        {
+            get => _explorationRank;
+            private set => SetProperty(ref _explorationRank, value);
+        }
+
+        public int CqcRank
+        {
+            get => _cqcRank;
+            private set => SetProperty(ref _cqcRank, value);
+        }
+
+        public int ExobiologistRank
+        {
+            get => _exobiologistRank;
+            private set => SetProperty(ref _exobiologistRank, value);
+        }
+
+        public int MercenaryRank
+        {
+            get => _mercenaryRank;
+            private set => SetProperty(ref _mercenaryRank, value);
+        }
+        private enum DockingState
+        {
+            NotDocking,
+            DockingRequested,
+            DockingGranted,
+            Docked
+        }
+
+        private DockingState _currentDockingState = DockingState.NotDocking;
 
         private DateTime? _carrierJumpScheduledTime;
 
@@ -358,9 +409,10 @@ namespace EliteInfoPanel.Core
             get => _fleetCarrierJumpInProgress;
             private set
             {
-                Log.Information("📡 FleetCarrierJumpInProgress changed to {0}", value);
+                Log.Information("📡 FleetCarrierJumpInProgress changed to {0} - Stack trace: {1}",
+                    value, Environment.StackTrace);
                 if (SetProperty(ref _fleetCarrierJumpInProgress, value))
-                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // 👈 notify
+                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // notify
             }
         }
 
@@ -387,7 +439,37 @@ namespace EliteInfoPanel.Core
             get => _isDocking;
             private set => SetProperty(ref _isDocking, value);
         }
+        private void ProcessDockingEvent(string eventType, JsonElement root)
+        {
+            switch (eventType)
+            {
+                case "DockingRequested":
+                    _currentDockingState = DockingState.DockingRequested;
+                    IsDocking = true;
+                    Log.Information("Docking requested - IsDocking set to true");
+                    break;
 
+                case "DockingGranted":
+                    _currentDockingState = DockingState.DockingGranted;
+                    IsDocking = true;
+                    Log.Information("Docking granted - IsDocking set to true");
+                    break;
+
+                case "Docked":
+                    _currentDockingState = DockingState.Docked;
+                    IsDocking = false;
+                    Log.Information("Docked - IsDocking set to false");
+                    break;
+
+                case "DockingCancelled":
+                case "DockingDenied":
+                case "DockingTimeout":
+                    _currentDockingState = DockingState.NotDocking;
+                    IsDocking = false;
+                    Log.Information($"{eventType} - IsDocking set to false");
+                    break;
+            }
+        }
         public bool IsHyperspaceJumping
         {
             get => _isHyperspaceJumping;
@@ -488,7 +570,12 @@ namespace EliteInfoPanel.Core
                              CarrierJumpScheduledTime?.ToString() ?? "null",
                              JumpArrived,
                              CarrierJumpDestinationSystem ?? "null");
-
+                    if (_jumpCountdownJustReachedZero && IsOnFleetCarrier &&
+                        !string.IsNullOrEmpty(CarrierJumpDestinationSystem))
+                            {
+                                Log.Information("Jump animation starting - forced overlay display");
+                                return true;
+                            }
                     // Updated logic with extra safety checks
                     bool result = FleetCarrierJumpInProgress &&
                                  IsOnFleetCarrier &&
@@ -617,70 +704,7 @@ namespace EliteInfoPanel.Core
             _routeWasActive = false;
         }
 
-        public void SetDockingStatus()
-        {
-            // Only proceed if not already in docking state
-            if (IsDocking)
-            {
-                // Refresh the timer but don't create a new one
-                try
-                {
-                    // Extended docking timer to 30 seconds from 10 seconds
-                    _dockingCts.CancelAfter(30000);
-                }
-                catch (ObjectDisposedException)
-                {
-                    // Create a new CTS if the previous one was disposed
-                    _dockingCts = new CancellationTokenSource();
-                    _dockingCts.CancelAfter(30000);
-                }
-                return;
-            }
-
-            // Cancel any existing docking timer
-            try
-            {
-                _dockingCts.Cancel();
-                _dockingCts.Dispose();
-            }
-            catch (Exception ex)
-            {
-                Log.Warning(ex, "Error canceling previous docking timer");
-            }
-
-            _dockingCts = new CancellationTokenSource();
-            IsDocking = true;
-
-            var token = _dockingCts.Token;
-
-            Task.Run(async () =>
-            {
-                try
-                {
-                    // Increased timeout from 10 to 30 seconds
-                    await Task.Delay(30000, token); // Wait 30 seconds or until cancelled
-                    if (!token.IsCancellationRequested)
-                    {
-                        IsDocking = false;
-                        Log.Information("Docking timer expired, IsDocking = false");
-                    }
-                }
-                catch (TaskCanceledException)
-                {
-                    // Suppress the exception from being reported
-                    // This is expected behavior when canceled
-                    if (System.Diagnostics.Debugger.IsAttached)
-                    {
-                        Log.Debug("Docking task was canceled as expected");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "Unexpected error in docking timer");
-                }
-            }, token);
-        }
-
+    
         public void UpdateLoadout(LoadoutJson loadout)
         {
             CurrentLoadout = loadout;
@@ -1225,9 +1249,10 @@ namespace EliteInfoPanel.Core
                             Log.Debug("Processing journal event: {Event}", eventType);
 
                             // All the existing switch cases and handling logic remains the same
+                            // Full expanded and grouped switch statement with all original logic
                             switch (eventType)
                             {
-                                // Keep all your existing case statements exactly as they are
+                                #region 🧑‍🚀 Commander Info
                                 case "Commander":
                                     if (root.TryGetProperty("Name", out var nameProperty))
                                     {
@@ -1235,6 +1260,66 @@ namespace EliteInfoPanel.Core
                                     }
                                     break;
 
+                                case "Rank":
+                                    if (root.TryGetProperty("Combat", out var combatProp))
+                                        CombatRank = combatProp.GetInt32();
+
+                                    if (root.TryGetProperty("Trade", out var tradeProp))
+                                        TradeRank = tradeProp.GetInt32();
+
+                                    if (root.TryGetProperty("Explore", out var exploreProp))
+                                        ExplorationRank = exploreProp.GetInt32();
+
+                                    if (root.TryGetProperty("CQC", out var cqcProp))
+                                        CqcRank = cqcProp.GetInt32();
+
+                                    if (root.TryGetProperty("Exobiologist", out var exobioProp))
+                                        ExobiologistRank = exobioProp.GetInt32();
+
+                                    if (root.TryGetProperty("Mercenary", out var mercProp))
+                                        MercenaryRank = mercProp.GetInt32();
+
+                                    break;
+                                case "Promotion":
+                                    if (root.TryGetProperty("Combat", out var combatPromotionProp))
+                                        CombatRank = combatPromotionProp.GetInt32();
+
+                                    if (root.TryGetProperty("Trade", out var tradePromotionProp))
+                                        TradeRank = tradePromotionProp.GetInt32();
+
+                                    if (root.TryGetProperty("Explore", out var explorePromotionProp))
+                                        ExplorationRank = explorePromotionProp.GetInt32();
+
+                                    if (root.TryGetProperty("CQC", out var cqcPromotionProp))
+                                        CqcRank = cqcPromotionProp.GetInt32();
+
+                                    if (root.TryGetProperty("Exobiologist", out var exobioPromotionProp))
+                                        ExobiologistRank = exobioPromotionProp.GetInt32();
+
+                                    if (root.TryGetProperty("Mercenary", out var mercPromotionProp))
+                                        MercenaryRank = mercPromotionProp.GetInt32();
+
+                                    break;
+                                case "SetUserShipName":
+                                    if (root.TryGetProperty("Ship", out var setShipTypeProperty) &&
+                                        root.TryGetProperty("ShipID", out var setShipIdProperty))
+                                    {
+                                        string shipType = setShipTypeProperty.GetString();
+                                        int shipId = setShipIdProperty.GetInt32();
+
+                                        string userShipName = root.TryGetProperty("UserShipName", out var nameProp) ? nameProp.GetString() : null;
+                                        string userShipId = root.TryGetProperty("UserShipId", out var idProp) ? idProp.GetString() : null;
+
+                                        Log.Information("Received ship name info for {Ship}: {UserShipName} [{UserShipId}]", shipType, userShipName, userShipId);
+
+                                        ShipName = shipType;
+                                        UserShipName = userShipName;
+                                        UserShipId = userShipId;
+                                    }
+                                    break;
+                                #endregion
+
+                                #region 🚀 Ship / Loadout Events
                                 case "LoadGame":
                                     if (root.TryGetProperty("Ship", out var shipProperty))
                                     {
@@ -1253,49 +1338,18 @@ namespace EliteInfoPanel.Core
                                         string shipType = shipTypeProperty.GetString();
                                         string shipTypeName = root.TryGetProperty("ShipType_Localised", out var localisedProp) && !string.IsNullOrWhiteSpace(localisedProp.GetString())
                                             ? localisedProp.GetString()
-                                            : ShipNameHelper.GetLocalisedName(shipType); // fallback if null or missing
+                                            : ShipNameHelper.GetLocalisedName(shipType);
 
                                         ShipName = shipType;
                                         ShipLocalised = shipTypeName;
 
                                         Log.Information("Ship changed to: {Type} ({Localised})", shipType, shipTypeName);
 
-                                        // Clear current loadout
                                         CurrentLoadout = null;
                                         LoadLoadoutData();
                                     }
                                     break;
 
-                                case "SetUserShipName":
-                                    if (root.TryGetProperty("Ship", out var setShipTypeProperty) &&
-                                        root.TryGetProperty("ShipID", out var setShipIdProperty))
-                                    {
-                                        string shipType = setShipTypeProperty.GetString();
-                                        int shipId = setShipIdProperty.GetInt32();
-
-                                        string userShipName = root.TryGetProperty("UserShipName", out var nameProp) ? nameProp.GetString() : null;
-                                        string userShipId = root.TryGetProperty("UserShipId", out var idProp) ? idProp.GetString() : null;
-
-                                        Log.Information("Received ship name info for {Ship}: {UserShipName} [{UserShipId}]", shipType, userShipName, userShipId);
-
-                                        ShipName = shipType;
-                                        UserShipName = userShipName;
-                                        UserShipId = userShipId;
-                                    }
-                                    break;
-                                case "ShipLocker":
-                                    // Check if the carrier jump was initiated and then completed
-                                    if (_isCarrierJumping)
-                                    {
-                                        Log.Information("Carrier jump completed - carrier has arrived");
-                                        CarrierJumpDestinationSystem = null;
-                                        // Reset the flag and trigger overlay logic
-                                        _isCarrierJumping = false;
-                                        _jumpArrived = true;
-                                        // Here you can trigger the carrier jump overlay completion
-                                        //OnCarrierJumpComplete();
-                                    }
-                                    break;
                                 case "Loadout":
                                     var loadout = JsonSerializer.Deserialize<LoadoutJson>(line);
                                     if (loadout != null)
@@ -1306,23 +1360,192 @@ namespace EliteInfoPanel.Core
                                             {
                                                 InferClassAndRatingFromItem(module);
                                             }
-
                                         }
 
                                         CurrentLoadout = loadout;
 
-                                        // explicitly notify UI
                                         OnPropertyChanged(nameof(CurrentLoadout));
-                                        OnPropertyChanged(nameof(CurrentStatus)); // fuel level from status might need updating
-                                        LoadoutUpdated?.Invoke(); // explicitly notify subscribers
+                                        OnPropertyChanged(nameof(CurrentStatus));
+                                        LoadoutUpdated?.Invoke();
+                                    }
+                                    break;
+                                #endregion
+
+                                #region 🛰️ Docking Events
+                                case "Undocked":
+                                    _currentDockingState = DockingState.NotDocking;
+                                    IsDocking = false;
+                                    CurrentStationName = null;
+                                    IsOnFleetCarrier = false;
+                                    break;
+
+                                case "Docked":
+                                    if (root.TryGetProperty("Wanted", out var wantedProp) && wantedProp.GetBoolean())
+                                    {
+                                        LegalState = "Wanted";
+                                    }
+                                    else
+                                    {
+                                        LegalState = "Clean";
+                                    }
+                                    if (root.TryGetProperty("StationName", out var stationProp))
+                                    {
+                                        CurrentStationName = stationProp.GetString();
+                                        bool isCarrier = false;
+                                        if (root.TryGetProperty("StationType", out var dockStationTypeProp))
+                                        {
+                                            string stationType = dockStationTypeProp.GetString();
+                                            isCarrier = string.Equals(stationType, "FleetCarrier", StringComparison.OrdinalIgnoreCase);
+
+                                            Log.Information("Docked at station: {Station}, StationType: {Type}, IsCarrier: {IsCarrier}",
+                                                CurrentStationName, stationType, isCarrier);
+                                        }
+                                        if (isCarrier || dockStationTypeProp.ValueKind != JsonValueKind.Undefined)
+                                        {
+                                            IsOnFleetCarrier = isCarrier;
+                                        }
                                     }
                                     break;
 
-                                case "Status":
-                                    // Process legal state from Status events
-                                    ProcessLegalStateEvent(root, "Status");
+                                case "DockingCancelled":
+                                    ProcessDockingEvent(eventType, root);
+                                    Log.Debug("Docking cancelled explicitly");
                                     break;
 
+                                case "DockingDenied":
+                                    ProcessDockingEvent(eventType, root);
+                                    break;
+                                case "DockingTimeout":
+                                    ProcessDockingEvent(eventType, root);
+                                    break;
+
+                                case "DockingGranted":
+                                    Log.Information("Docking granted by station — setting IsDocking = true");
+                                    ProcessDockingEvent(eventType, root);
+                                    break;
+                                #endregion
+
+                                #region 🪐 Jump / Travel Events
+                                case "StartJump":
+                                    if (root.TryGetProperty("JumpType", out var jumpTypeProp))
+                                    {
+                                        string jumpType = jumpTypeProp.GetString();
+
+                                        if (jumpType == "Hyperspace")
+                                        {
+                                            IsHyperspaceJumping = true;
+                                            _isInHyperspace = true;
+
+                                            if (root.TryGetProperty("StarClass", out var starClassProp))
+                                            {
+                                                HyperspaceStarClass = starClassProp.GetString();
+                                            }
+                                            else
+                                            {
+                                                HyperspaceStarClass = null;
+                                            }
+
+                                            EnsureHyperspaceTimeout();
+                                        }
+                                        else
+                                        {
+                                            IsHyperspaceJumping = false;
+                                            _isInHyperspace = false;
+                                        }
+                                    }
+                                    break;
+
+                                case "FSDTarget":
+                                    if (root.TryGetProperty("RemainingJumpsInRoute", out var jumpsProp))
+                                        RemainingJumps = jumpsProp.GetInt32();
+
+                                    if (root.TryGetProperty("Name", out var fsdNameProp))
+                                        LastFsdTargetSystem = fsdNameProp.GetString();
+
+                                    break;
+
+                                case "FSDJump":
+                                    Log.Information("✅ Hyperspace jump completed");
+
+                                    IsHyperspaceJumping = false;
+                                    _isInHyperspace = false;
+                                    HyperspaceDestination = null;
+                                    HyperspaceStarClass = null;
+
+                                    if (root.TryGetProperty("StarSystem", out JsonElement systemElement))
+                                    {
+                                        string currentSystem = systemElement.GetString();
+
+                                        if (!string.Equals(LastVisitedSystem, currentSystem, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            LastVisitedSystem = currentSystem;
+                                        }
+
+                                        CurrentSystem = currentSystem;
+
+                                        if (!_routeProgress.CompletedSystems.Contains(CurrentSystem))
+                                        {
+                                            _routeProgress.CompletedSystems.Add(CurrentSystem);
+                                            _routeProgress.LastKnownSystem = CurrentSystem;
+                                            SaveRouteProgress();
+                                        }
+
+                                        PruneCompletedRouteSystems();
+                                    }
+                                    break;
+
+                                case "SupercruiseEntry":
+                                    Log.Debug("Entered supercruise");
+                                    if (IsHyperspaceJumping || _isInHyperspace)
+                                    {
+                                        Log.Warning("⚠️ Hyperspace state was still active during {Event} - resetting", eventType);
+
+                                        HyperspaceDestination = null;
+                                        HyperspaceStarClass = null;
+                                    }
+                                    break;
+
+                                case "Location":
+                                    if (IsHyperspaceJumping || _isInHyperspace)
+                                    {
+                                        Log.Warning("⚠️ Hyperspace state was still active during {Event} - resetting", eventType);
+
+                                        HyperspaceDestination = null;
+                                        HyperspaceStarClass = null;
+                                    }
+
+                                    if (root.TryGetProperty("StarSystem", out JsonElement locationElement))
+                                    {
+                                        string currentSystem = locationElement.GetString();
+
+                                        if (!string.Equals(LastVisitedSystem, currentSystem, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            LastVisitedSystem = currentSystem;
+                                        }
+
+                                        CurrentSystem = currentSystem;
+                                        PruneCompletedRouteSystems();
+                                    }
+                                    break;
+
+                                case "SupercruiseExit":
+                                    if (IsHyperspaceJumping || _isInHyperspace)
+                                    {
+                                        Log.Warning("⚠️ Hyperspace state was still active during {Event} - resetting", eventType);
+
+                                        HyperspaceDestination = null;
+                                        HyperspaceStarClass = null;
+                                    }
+
+                                    if (root.TryGetProperty("StarSystem", out JsonElement exitSystemElement))
+                                    {
+                                        CurrentSystem = exitSystemElement.GetString();
+                                        PruneCompletedRouteSystems();
+                                    }
+                                    break;
+                                #endregion
+
+                                #region 🛠 Fleet Carrier Events
                                 case "CarrierCancelJump":
                                     FleetCarrierJumpTime = null;
                                     CarrierJumpScheduledTime = null;
@@ -1333,9 +1556,123 @@ namespace EliteInfoPanel.Core
                                     OnPropertyChanged(nameof(FleetCarrierJumpTime));
                                     break;
 
+                                case "CarrierJumpRequest":
+                                    if (root.TryGetProperty("DepartureTime", out var departureTimeProp) &&
+                                        DateTime.TryParse(departureTimeProp.GetString(), out var departureTime))
+                                    {
+                                        if (departureTime > DateTime.UtcNow)
+                                        {
+                                            FleetCarrierJumpTime = departureTime;
+                                            CarrierJumpScheduledTime = departureTime;
 
+                                            if (root.TryGetProperty("SystemName", out var sysName))
+                                                CarrierJumpDestinationSystem = sysName.GetString();
 
+                                            if (root.TryGetProperty("Body", out var bodyName))
+                                                CarrierJumpDestinationBody = bodyName.GetString();
+
+                                            JumpArrived = false;
+                                            FleetCarrierJumpInProgress = true;
+                                            Log.Debug($"Carrier jump scheduled for {departureTime:u}");
+                                        }
+                                        else
+                                        {
+                                            Log.Debug("CarrierJumpRequest ignored — departure time is in the past");
+                                        }
+                                    }
                                     break;
+
+                                case "CarrierJump":
+                                    if (root.TryGetProperty("Docked", out var dockedProperty) &&
+                                        dockedProperty.GetBoolean() &&
+                                        root.TryGetProperty("StationType", out var jumpStationTypeProp) &&
+                                        string.Equals(jumpStationTypeProp.GetString(), "FleetCarrier", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        Log.Information("CarrierJump event detected - Player docked on fleet carrier that has completed jump");
+                                        IsOnFleetCarrier = true;
+                                        JumpArrived = true;
+                                        OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
+                                    }
+                                    JumpArrived = true;
+                                    break;
+
+                                case "CarrierJumpCancelled":
+                                    if (FleetCarrierJumpTime != null || CarrierJumpScheduledTime != null)
+                                    {
+                                        Log.Information("Carrier jump was cancelled ... clearing jump state");
+                                        FleetCarrierJumpTime = null;
+                                        CarrierJumpScheduledTime = null;
+                                        CarrierJumpDestinationSystem = null;
+                                        CarrierJumpDestinationBody = null;
+                                        FleetCarrierJumpInProgress = false;
+                                    }
+                                    else
+                                    {
+                                        Log.Debug("Ignoring CarrierJumpCancelled as no jump was active.");
+                                    }
+                                    break;
+
+                                case "CarrierLocation":
+                                    Log.Debug("CarrierLocation seen — clearing any jump state");
+                                    FleetCarrierJumpInProgress = false;
+                                   // JumpArrived = true;
+
+                                    bool isOnCarrier = false;
+
+                                    if (root.TryGetProperty("OnFoot", out var onFootProp) && !onFootProp.GetBoolean() &&
+                                        root.TryGetProperty("Docked", out var dockedProp) && dockedProp.GetBoolean() &&
+                                        root.TryGetProperty("StationType", out var stationTypeProp))
+                                    {
+                                        string stationType = stationTypeProp.GetString();
+                                        isOnCarrier = string.Equals(stationType, "FleetCarrier", StringComparison.OrdinalIgnoreCase);
+
+                                        Log.Information("CarrierLocation: {System}, StationType={Type}, IsOnCarrier={OnCarrier}",
+                                            root.TryGetProperty("StarSystem", out var sysProp) ? sysProp.GetString() : "(unknown)",
+                                            stationType,
+                                            isOnCarrier);
+
+                                        IsOnFleetCarrier = isOnCarrier;
+                                    }
+
+                                    if (IsOnFleetCarrier && root.TryGetProperty("StarSystem", out var carrierSystemProp))
+                                    {
+                                        var carrierSystem = carrierSystemProp.GetString();
+                                        CurrentSystem = carrierSystem;
+                                        Log.Debug("✅ Updated CurrentSystem from CarrierLocation: {System}", carrierSystem);
+                                    }
+                                    break;
+
+                                case "ShipLocker":
+                                    if (_isCarrierJumping)
+                                    {
+                                        Log.Information("Carrier jump completed - carrier has arrived");
+                                        CarrierJumpDestinationSystem = null;
+                                        _isCarrierJumping = false;
+                                        _jumpArrived = true;
+                                    }
+                                    break;
+                                #endregion
+
+                                #region ⚠️ Legal / Crime Events
+                                case "CommitCrime":
+                                    ProcessLegalStateEvent(root, "CommitCrime");
+                                    break;
+
+                                case "FactionKillBond":
+                                case "Bounty":
+                                    ProcessLegalStateEvent(root, eventType);
+                                    break;
+
+                                case "FactionAllianceChanged":
+                                    ProcessLegalStateEvent(root, "FactionAllianceChanged");
+                                    break;
+
+                                case "Status":
+                                    ProcessLegalStateEvent(root, "Status");
+                                    break;
+                                #endregion
+
+                                #region 🧱 Construction / Colony
                                 case "ColonisationConstructionDepot":
                                     try
                                     {
@@ -1392,329 +1729,33 @@ namespace EliteInfoPanel.Core
                                     {
                                         Log.Error(ex, "Error processing colonization event");
                                     }
-
                                     break;
-                                case "CarrierLocation":
-                                    Log.Debug("CarrierLocation seen — clearing any jump state");
+                                #endregion
 
-                                    FleetCarrierJumpInProgress = false;
-                                    JumpArrived = true;
+                                #region 💬 Comms
+                                case "ReceiveText":
+                                    string msg = null;
 
-                                    bool isOnCarrier = false;
-
-                                    if (root.TryGetProperty("OnFoot", out var onFootProp) && !onFootProp.GetBoolean() &&
-                                        root.TryGetProperty("Docked", out var dockedProp) && dockedProp.GetBoolean() &&
-                                        root.TryGetProperty("StationType", out var stationTypeProp))
-                                    {
-                                        string stationType = stationTypeProp.GetString();
-                                        isOnCarrier = string.Equals(stationType, "FleetCarrier", StringComparison.OrdinalIgnoreCase);
-
-                                        Log.Information("CarrierLocation: {System}, StationType={Type}, IsOnCarrier={OnCarrier}",
-                                            root.TryGetProperty("StarSystem", out var sysProp) ? sysProp.GetString() : "(unknown)",
-                                            stationType,
-                                            isOnCarrier);
-
-                                        IsOnFleetCarrier = isOnCarrier;
-                                    }
-
-
-                                    if (IsOnFleetCarrier && root.TryGetProperty("StarSystem", out var carrierSystemProp))
-                                    {
-                                        var carrierSystem = carrierSystemProp.GetString();
-                                        CurrentSystem = carrierSystem;
-                                        Log.Debug("✅ Updated CurrentSystem from CarrierLocation: {System}", carrierSystem);
-                                    }
+                                   //nothing here yet
                                     break;
+                                #endregion
 
-
-                                case "DockingGranted":
-                                    Log.Information("Docking granted by station — setting IsDocking = true");
-                                    SetDockingStatus();
-
-                                    SetProperty(ref _isDocking, true, nameof(IsDocking));
-                                    break;
-
-                                case "CarrierJumpRequest":
-                                    if (root.TryGetProperty("DepartureTime", out var departureTimeProp) &&
-                                        DateTime.TryParse(departureTimeProp.GetString(), out var departureTime))
-                                    {
-                                        if (departureTime > DateTime.UtcNow)
-                                        {
-                                            FleetCarrierJumpTime = departureTime;
-                                            CarrierJumpScheduledTime = departureTime;
-
-                                            if (root.TryGetProperty("SystemName", out var sysName))
-                                                CarrierJumpDestinationSystem = sysName.GetString();
-
-                                            if (root.TryGetProperty("Body", out var bodyName))
-                                                CarrierJumpDestinationBody = bodyName.GetString();
-
-                                            JumpArrived = false;
-                                            FleetCarrierJumpInProgress = true;
-                                            Log.Debug($"Carrier jump scheduled for {departureTime:u}");
-                                        }
-                                        else
-                                        {
-                                            Log.Debug("CarrierJumpRequest ignored — departure time is in the past");
-                                        }
-                                    }
-                                    break;
-
-                                case "CarrierJump":
-                                    // This event fires when a carrier completes its jump
-                                    if (root.TryGetProperty("Docked", out var dockedProperty) &&
-                                        dockedProperty.GetBoolean() &&
-                                        root.TryGetProperty("StationType", out var jumpStationTypeProp) &&
-                                        string.Equals(jumpStationTypeProp.GetString(), "FleetCarrier", StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        Log.Information("CarrierJump event detected - Player docked on fleet carrier that has completed jump");
-
-                                        // Set state to indicate we're on a fleet carrier
-                                        IsOnFleetCarrier = true;
-
-                                        // Mark the jump as complete
-                                        JumpArrived = true;
-
-                                        // Schedule cleanup of jump state after overlay has been shown
-                                        Task.Delay(10000).ContinueWith(_ => {
-                                            if (FleetCarrierJumpInProgress && JumpArrived)
-                                            {
-                                                FleetCarrierJumpInProgress = false;
-                                                CarrierJumpDestinationSystem = null;
-                                                OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
-                                                Log.Information("Clearing carrier jump state after overlay display period");
-                                            }
-                                        });
-                                     
-                                        // Force update of overlay status
-                                        OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
-                                    }
-                                    break;
-                                case "FSDTarget":
-                                    if (root.TryGetProperty("RemainingJumpsInRoute", out var jumpsProp))
-                                        RemainingJumps = jumpsProp.GetInt32();
-
-                                    if (root.TryGetProperty("Name", out var fsdNameProp))
-                                        LastFsdTargetSystem = fsdNameProp.GetString();
-
-                                    break;
-                                case "StartJump":
-                                    if (root.TryGetProperty("JumpType", out var jumpTypeProp))
-                                    {
-                                        string jumpType = jumpTypeProp.GetString();
-
-                                        if (jumpType == "Hyperspace")
-                                        {
-                                            IsHyperspaceJumping = true;
-                                            _isInHyperspace = true;
-
-                                            // ✅ Add this:
-                                            if (root.TryGetProperty("StarClass", out var starClassProp))
-                                            {
-                                                HyperspaceStarClass = starClassProp.GetString();
-                                            }
-                                            else
-                                            {
-                                                HyperspaceStarClass = null;
-                                            }
-
-                                            EnsureHyperspaceTimeout(); // optional fail-safe
-                                        }
-                                        else
-                                        {
-                                            IsHyperspaceJumping = false;
-                                            _isInHyperspace = false;
-                                        }
-                                    }
-                                    break;
-                                case "Music":
-                                    if (root.TryGetProperty("MusicTrack", out var musicTrackProp) &&
-                                        musicTrackProp.GetString() == "DockingComputer")
-                                    {
-                                        Log.Information("Docking computer music detected - setting IsDocking = true");
-                                        SetDockingStatus();
-                                    }
-                                    break;
-
-
-
-                                case "CarrierJumpCancelled":
-                                    // Only process this if a jump was actually scheduled
-                                    if (FleetCarrierJumpTime != null || CarrierJumpScheduledTime != null)
-                                    {
-                                        Log.Information("Carrier jump was cancelled ... clearing jump state");
-                                        FleetCarrierJumpTime = null;
-                                        CarrierJumpScheduledTime = null;
-                                        CarrierJumpDestinationSystem = null;
-                                        CarrierJumpDestinationBody = null;
-                                        FleetCarrierJumpInProgress = false;
-                                    }
-                                    else
-                                    {
-                                        Log.Debug("Ignoring CarrierJumpCancelled as no jump was active.");
-                                    }
-                                    break;
-
-                                case "Docked":
-                                    // When docked, reset to "Clean" unless explicitly told otherwise
-                                    if (root.TryGetProperty("Wanted", out var wantedProp) && wantedProp.GetBoolean())
-                                    {
-                                        LegalState = "Wanted";
-                                    }
-                                    else
-                                    {
-                                        LegalState = "Clean";
-                                    }
-                                    if (root.TryGetProperty("StationName", out var stationProp))
-                                    {
-                                        CurrentStationName = stationProp.GetString();
-
-                                        // Check specifically for Fleet Carrier station type
-                                        bool isCarrier = false;
-                                        if (root.TryGetProperty("StationType", out var dockStationTypeProp)) // Changed variable name here
-                                        {
-                                            string stationType = dockStationTypeProp.GetString();
-                                            isCarrier = string.Equals(stationType, "FleetCarrier", StringComparison.OrdinalIgnoreCase);
-
-                                            Log.Information("Docked at station: {Station}, StationType: {Type}, IsCarrier: {IsCarrier}",
-                                                CurrentStationName, stationType, isCarrier);
-                                        }
-
-                                        // Only set if true or if we're sure it's not a carrier
-                                        if (isCarrier || dockStationTypeProp.ValueKind != JsonValueKind.Undefined) // Changed reference here
-                                        {
-                                            IsOnFleetCarrier = isCarrier;
-                                        }
-                                    }
-                                    break;
-                                case "CommitCrime":
-                                    ProcessLegalStateEvent(root, "CommitCrime");
-                                    break;
-
-                                case "FactionKillBond":
-                                case "Bounty":
-                                    ProcessLegalStateEvent(root, eventType);
-                                    break;
-
-                                case "FactionAllianceChanged":
-                                    ProcessLegalStateEvent(root, "FactionAllianceChanged");
-                                    break;
-                                // Optional, if you ever see "DockingCancelled"
-                                case "DockingCancelled":
-                                    IsDocking = false; // Immediately clear docking state
-                                    Log.Debug("Docking cancelled explicitly");
-                                    break;
-
-                                case "Undocked":
-                                    CurrentStationName = null;
-                                    IsOnFleetCarrier = false; // Reset carrier flag when undocking
-                                    break;
-
-                                case "FSDJump":
-                                    Log.Information("✅ Hyperspace jump completed");
-
-                                    IsHyperspaceJumping = false;
-                                    _isInHyperspace = false;
-                                    HyperspaceDestination = null;
-                                    HyperspaceStarClass = null;
-
-                                    if (root.TryGetProperty("StarSystem", out JsonElement systemElement))
-                                    {
-                                        string currentSystem = systemElement.GetString();
-
-                                        if (!string.Equals(LastVisitedSystem, currentSystem, StringComparison.OrdinalIgnoreCase))
-                                        {
-                                            LastVisitedSystem = currentSystem;
-                                        }
-
-                                        CurrentSystem = currentSystem;
-
-                                        // Route tracking
-                                        if (!_routeProgress.CompletedSystems.Contains(CurrentSystem))
-                                        {
-                                            _routeProgress.CompletedSystems.Add(CurrentSystem);
-                                            _routeProgress.LastKnownSystem = CurrentSystem;
-                                            SaveRouteProgress();
-                                        }
-
-                                        PruneCompletedRouteSystems();
-                                    }
-                                    break;
-
-
-                                case "SupercruiseEntry":
-                                    Log.Debug("Entered supercruise");
-                                    // For any of these events, we should not be in hyperspace
-                                    if (IsHyperspaceJumping || _isInHyperspace)
-                                    {
-                                        Log.Warning("⚠️ Hyperspace state was still active during {Event} - resetting", eventType);
-
-                                        HyperspaceDestination = null;
-                                        HyperspaceStarClass = null;
-                                    }
-                                    break;
-
-                                case "Location":
-                                    // For any of these events, we should not be in hyperspace
-                                    if (IsHyperspaceJumping || _isInHyperspace)
-                                    {
-                                        Log.Warning("⚠️ Hyperspace state was still active during {Event} - resetting", eventType);
-
-                                        HyperspaceDestination = null;
-                                        HyperspaceStarClass = null;
-                                    }
-
-                                    if (root.TryGetProperty("StarSystem", out JsonElement locationElement))
-                                    {
-                                        string currentSystem = locationElement.GetString();
-
-                                        if (!string.Equals(LastVisitedSystem, currentSystem, StringComparison.OrdinalIgnoreCase))
-                                        {
-                                            LastVisitedSystem = currentSystem;
-                                        }
-
-                                        CurrentSystem = currentSystem;
-                                        PruneCompletedRouteSystems();
-                                    }
-                                    break;
-
-                                case "SupercruiseExit":
-                                    // For any of these events, we should not be in hyperspace
-                                    if (IsHyperspaceJumping || _isInHyperspace)
-                                    {
-                                        Log.Warning("⚠️ Hyperspace state was still active during {Event} - resetting", eventType);
-
-                                        HyperspaceDestination = null;
-                                        HyperspaceStarClass = null;
-                                    }
-
-                                    if (root.TryGetProperty("StarSystem", out JsonElement exitSystemElement))
-                                    {
-                                        CurrentSystem = exitSystemElement.GetString();
-                                        PruneCompletedRouteSystems();
-                                    }
-                                    break;
-
+                                #region 🛸 Faction / Org
                                 case "SquadronStartup":
                                     if (root.TryGetProperty("SquadronName", out var squadron))
                                         SquadronName = squadron.GetString();
                                     break;
+                                #endregion
 
-                                case "ReceiveText":
-                                    string msg = null;
-
-                                    if (root.TryGetProperty("Message_Localised", out var msgProp))
+                                #region 🎶 Misc
+                                case "Music":
+                                    if (root.TryGetProperty("MusicTrack", out var musicTrackProp) &&
+                                        musicTrackProp.GetString() == "DockingComputer")
                                     {
-                                        msg = msgProp.GetString();
-                                        if (msg?.Contains("Docking request granted", StringComparison.OrdinalIgnoreCase) == true)
-                                        {
-                                            SetDockingStatus();
-                                        }
+                                        //do nothing
                                     }
-
-
                                     break;
-
+                                    #endregion
                             }
 
 

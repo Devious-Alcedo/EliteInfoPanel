@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
@@ -33,7 +34,7 @@ namespace EliteInfoPanel.ViewModels
 
         #region Public Properties
         public ObservableCollection<SummaryItemViewModel> Items { get; } = new();
-
+        public ObservableCollection<EliteRankViewModel> EliteRanks { get; } = new();
         public override double FontSize
         {
             get => base.FontSize;
@@ -101,8 +102,10 @@ namespace EliteInfoPanel.ViewModels
             System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() => {
                 // Just call InitializeAllItems directly
                 InitializeAllItems();
+               
             }), System.Windows.Threading.DispatcherPriority.Background);
         }
+
         #endregion
 
         #region Public Methods
@@ -114,6 +117,7 @@ namespace EliteInfoPanel.ViewModels
         #endregion
 
         #region Private Methods
+       
         private SummaryItemViewModel FindItemByTag(string tag)
         {
             return Items.FirstOrDefault(x => x.Tag == tag);
@@ -215,6 +219,8 @@ namespace EliteInfoPanel.ViewModels
                 case nameof(GameStateService.CurrentStatus):
                     _hasFuel = _gameState.CurrentLoadout != null && _gameState.CurrentStatus?.Fuel != null;
                     break;
+             
+                    break;
             }
 
             // Trigger init when all critical info is available, once
@@ -266,26 +272,28 @@ namespace EliteInfoPanel.ViewModels
                     Log.Information("SummaryViewModel: InitializeAllItems called");
                     RemoveNonCustomItems();
 
-                    // Even if CurrentStatus is null, still try to update the other items
-                    // that might have data available
+                    // Remember original carrier jump state
+                    bool wasJumpInProgress = _gameState.FleetCarrierJumpInProgress;
+                    bool hadJumpArrived = _gameState.JumpArrived;
+
+                    // Regular initialization code...
                     UpdateCommanderItem();
                     UpdateSquadronItem();
                     UpdateShipItem();
                     UpdateBalanceItem();
                     UpdateSystemItem();
+                    UpdateFuelInfo();
+                   
 
-                    // These are more dependent on CurrentStatus, so check before calling
-                    if (_gameState.CurrentStatus != null)
+                    // Special case for carrier countdown - preserve state
+                    if (wasJumpInProgress)
                     {
-                        UpdateFuelInfo();
-                        UpdateCarrierCountdown();
+                        // Use existing state without modifying it
+                        UpdateCarrierCountdown(preserveState: true);
                     }
-
-                    // Log final state
-                    Log.Debug("📋 Final Summary Items after initialization: {Count} items", Items.Count);
-                    foreach (var item in Items)
+                    else
                     {
-                        Log.Debug("  - Tag: {Tag}, Content: {Content}", item.Tag, item.Content);
+                        UpdateCarrierCountdown();
                     }
                 });
             }
@@ -317,6 +325,46 @@ namespace EliteInfoPanel.ViewModels
                 {
                     item.Content = $"CMDR {_gameState.CommanderName}";
                     Log.Debug("Updated existing Commander item: {Content}", item.Content);
+
+                    // Update elite ranks directly on the item
+                    item.EliteRanks.Clear();
+                    if (_gameState.CombatRank >= 8)
+                    {
+                        item.EliteRanks.Add(new EliteRankInfo("Combat",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Combat_Elite_icon.png"));
+                        Log.Debug("Added Combat Elite rank to Commander item");
+                    }
+                    if (_gameState.TradeRank >= 8)
+                    {
+                        item.EliteRanks.Add(new EliteRankInfo("Trade",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Trader_Elite_icon.png"));
+                        Log.Debug("Added Trade Elite rank to Commander item");
+                    }
+                    if (_gameState.ExplorationRank >= 8)
+                    {
+                        item.EliteRanks.Add(new EliteRankInfo("Exploration",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Explorer_Elite_icon.png"));
+                        Log.Debug("Added Exploration Elite rank to Commander item");
+                    }
+                    if (_gameState.CqcRank >= 8)
+                    {
+                        item.EliteRanks.Add(new EliteRankInfo("CQC",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/CQC_Elite_icon.png"));
+                        Log.Debug("Added CQC Elite rank to Commander item");
+                    }
+                    if (_gameState.ExobiologistRank >= 8)
+                    {
+                        item.EliteRanks.Add(new EliteRankInfo("Exobiology",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Exobiologist_Elite_icon.png"));
+                        Log.Debug("Added Exobiology Elite rank to Commander item");
+                    }
+                    if (_gameState.MercenaryRank >= 8)
+                    {
+                        item.EliteRanks.Add(new EliteRankInfo("Mercenary",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Mercenary_Elite_icon.png"));
+                        Log.Debug("Added Mercenary Elite rank to Commander item");
+                    }
+                    Log.Debug("Updated Commander item with {Count} elite ranks", item.EliteRanks.Count);
                 }
                 else
                 {
@@ -329,8 +377,40 @@ namespace EliteInfoPanel.ViewModels
                         FontSize = (int)this.FontSize
                     };
 
+                    // Add elite ranks to the new Commander item
+                    if (_gameState.CombatRank >= 8)
+                    {
+                        newItem.EliteRanks.Add(new EliteRankInfo("Combat",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Combat_Elite_icon.png"));
+                    }
+                    if (_gameState.TradeRank >= 8)
+                    {
+                        newItem.EliteRanks.Add(new EliteRankInfo("Trade",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Trader_Elite_icon.png"));
+                    }
+                    if (_gameState.ExplorationRank >= 8)
+                    {
+                        newItem.EliteRanks.Add(new EliteRankInfo("Exploration",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Explorer_Elite_icon.png"));
+                    }
+                    if (_gameState.CqcRank >= 8)
+                    {
+                        newItem.EliteRanks.Add(new EliteRankInfo("CQC",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/CQC_Elite_icon.png"));
+                    }
+                    if (_gameState.ExobiologistRank >= 8)
+                    {
+                        newItem.EliteRanks.Add(new EliteRankInfo("Exobiology",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Exobiologist_Elite_icon.png"));
+                    }
+                    if (_gameState.MercenaryRank >= 8)
+                    {
+                        newItem.EliteRanks.Add(new EliteRankInfo("Mercenary",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Mercenary_Elite_icon.png"));
+                    }
+
                     Items.Add(newItem);
-                    Log.Debug("Added new Commander item: {Content}", newItem.Content);
+                    Log.Debug("Added new Commander item with {Count} elite ranks", newItem.EliteRanks.Count);
                 }
             }
             catch (Exception ex)
@@ -495,10 +575,17 @@ namespace EliteInfoPanel.ViewModels
             return $"Carrier Jump: {timeText}\nto {destination}";
         }
 
-        private void UpdateCarrierCountdown()
+        private void UpdateCarrierCountdown(bool preserveState = false)
         {
             try
             {
+                // Skip state changes if preserveState is true and a countdown is already active
+                if (preserveState && _carrierCountdownItem != null && Items.Contains(_carrierCountdownItem))
+                {
+                    Log.Debug("🛑 Preserving existing carrier countdown state");
+                    return;
+                }
+
                 if (_gameState.JumpCountdown is TimeSpan countdown && countdown.TotalSeconds > 0)
                 {
                     StartCarrierCountdown(countdown, _gameState.CarrierJumpDestinationSystem);

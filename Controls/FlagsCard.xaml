@@ -8,54 +8,65 @@
              mc:Ignorable="d" 
              d:DesignHeight="300" d:DesignWidth="600">
 
+    <UserControl.Resources>
+        <!-- Determine a better minimum and maximum width for the flags -->
+        <Style x:Key="FlagContainerStyle" TargetType="Border">
+            <Setter Property="Background" Value="#33FFFFFF" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PrimaryHueMidBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Margin" Value="4" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="MinWidth" Value="180" />
+            <Setter Property="MinHeight" Value="38" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+    </UserControl.Resources>
+
     <StackPanel>
         <TextBlock Text="{Binding Title}" 
                    Style="{StaticResource CardTitleStyle}"/>
 
         <!-- Flags container with scroll viewer for many flags -->
         <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="400">
-            <WrapPanel Orientation="Horizontal">
-                <ItemsControl ItemsSource="{Binding Items}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel IsItemsHost="True" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
+            <ItemsControl ItemsSource="{Binding Items}" HorizontalAlignment="Stretch">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <!-- Keep enough horizontal space between items to prevent unnecessary wrapping -->
+                        <WrapPanel IsItemsHost="True" Orientation="Horizontal" Margin="0,0,4,0" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
 
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Border Background="#33FFFFFF"
-                                    BorderBrush="{DynamicResource PrimaryHueMidBrush}"
-                                    BorderThickness="1"
-                                    Margin="4"
-                                    CornerRadius="6"
-                                    Padding="8,4"
-                                    MinWidth="120"
-                                    MaxWidth="180"
-                                    MinHeight="30"
-                                    HorizontalAlignment="Left"
-                                    VerticalAlignment="Top"
-                                    ToolTip="{Binding Tooltip}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource FlagContainerStyle}"
+                                ToolTip="{Binding Tooltip}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <materialDesign:PackIcon Kind="{Binding IconKind}"
-                                                             Width="24" Height="24"
-                                                             Foreground="{Binding IconColor}" 
-                                                             Margin="0,0,8,0"/>
+                                <materialDesign:PackIcon Grid.Column="0" 
+                                                     Kind="{Binding IconKind}"
+                                                     Width="22" Height="22"
+                                                     Foreground="{Binding IconColor}" 
+                                                     Margin="0,0,8,0"
+                                                     VerticalAlignment="Center"/>
 
-                                    <TextBlock Text="{Binding DisplayText}" 
-                                               VerticalAlignment="Center" 
-                                               Foreground="White" 
-                                               FontSize="{Binding FontSize}"
-                                               FontWeight="Medium"
-                                               TextTrimming="CharacterEllipsis"
-                                               TextWrapping="Wrap"/>
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </WrapPanel>
+                                <TextBlock Grid.Column="1" 
+                                       Text="{Binding DisplayText}" 
+                                       VerticalAlignment="Center" 
+                                       Foreground="White" 
+                                       FontSize="{Binding FontSize}"
+                                       FontWeight="Medium"
+                                       TextWrapping="Wrap"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
         </ScrollViewer>
     </StackPanel>
 </UserControl>
