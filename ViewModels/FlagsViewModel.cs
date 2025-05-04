@@ -274,7 +274,7 @@ namespace EliteInfoPanel.ViewModels
                     bool hasFlags = Items.Count > 0;
                     Log.Debug("Setting FlagsCard visibility: {Visible} (Items count: {Count})",
                         hasFlags, Items.Count);
-                    IsVisible = hasFlags && SettingsManager.Load().ShowFlags;
+                    SetContextVisibility(hasFlags && SettingsManager.Load().ShowFlags);
                 }
                 catch (Exception ex)
                 {

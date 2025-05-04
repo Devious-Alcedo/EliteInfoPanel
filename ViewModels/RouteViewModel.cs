@@ -132,7 +132,7 @@ namespace EliteInfoPanel.ViewModels
 
                 if (IsVisible != shouldShow)
                 {
-                    IsVisible = shouldShow;
+                    SetContextVisibility(shouldShow);
                     Log.Debug("RouteViewModel: Changed visibility to {Visibility}", shouldShow);
                     UpdateTitle();
                 }

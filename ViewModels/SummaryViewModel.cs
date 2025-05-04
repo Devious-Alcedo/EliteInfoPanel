@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -265,7 +266,7 @@ namespace EliteInfoPanel.ViewModels
 
         private void InitializeAllItems()
         {
-            IsVisible = SettingsManager.Load().ShowSummary;
+            SetContextVisibility(SettingsManager.Load().ShowSummary);
             try
             {
                 RunOnUIThread(() =>
@@ -465,22 +466,27 @@ namespace EliteInfoPanel.ViewModels
                 if (string.IsNullOrEmpty(_gameState.ShipName))
                     return;
 
-                string shipDisplayName = !string.IsNullOrEmpty(_gameState.ShipLocalised)
+                // Get the ship type (from localized name or helper)
+                string shipType = !string.IsNullOrEmpty(_gameState.ShipLocalised)
                     ? _gameState.ShipLocalised
                     : ShipNameHelper.GetLocalisedName(_gameState.ShipName);
 
-                string shipText = shipDisplayName;
+                // Format the display text to clearly show type, name, and ID
+                var shipTextBuilder = new StringBuilder(shipType);
 
-                if (!string.IsNullOrEmpty(_gameState.UserShipName) || !string.IsNullOrEmpty(_gameState.UserShipId))
+                // Add ship name if available
+                if (!string.IsNullOrEmpty(_gameState.UserShipName))
                 {
-                    shipText += " - ";
-
-                    if (!string.IsNullOrEmpty(_gameState.UserShipName))
-                        shipText += _gameState.UserShipName;
-
-                    if (!string.IsNullOrEmpty(_gameState.UserShipId))
-                        shipText += $" [{_gameState.UserShipId}]";
+                    shipTextBuilder.Append($" - \"{_gameState.UserShipName}\"");
                 }
+
+                // Add ship ID if available
+                if (!string.IsNullOrEmpty(_gameState.UserShipId))
+                {
+                    shipTextBuilder.Append($" [{_gameState.UserShipId}]");
+                }
+
+                string shipText = shipTextBuilder.ToString();
 
                 var item = FindItemByTag("Ship");
                 if (item != null)
@@ -498,13 +504,14 @@ namespace EliteInfoPanel.ViewModels
                         FontSize = (int)this.FontSize
                     });
                 }
+
+                Log.Debug("Updated ship item: {ShipText}", shipText);
             }
             catch (Exception ex)
             {
                 Log.Error(ex, "Error updating Ship item");
             }
         }
-
         private void UpdateBalanceItem()
         {
             try

@@ -122,18 +122,17 @@ namespace EliteInfoPanel.ViewModels
             }
         }
 
+        // In CargoViewModel.cs
         private void UpdateCargo()
         {
             try
             {
-                // Log before any processing
                 Log.Debug("CargoViewModel: UpdateCargo called - checking inventory");
 
                 // Get cargo data
                 var cargo = _gameState.CurrentCargo;
                 bool hasInventory = cargo?.Inventory != null && cargo.Inventory.Count > 0;
 
-                // Log cargo state immediately
                 Log.Debug("CargoViewModel: Cargo data - HasInventory:{HasInventory}, ItemCount:{ItemCount}",
                     hasInventory, cargo?.Inventory?.Count ?? 0);
 
@@ -142,12 +141,17 @@ namespace EliteInfoPanel.ViewModels
                     // Clear existing items
                     Items.Clear();
 
-                    // CRITICAL FIX: Set visibility directly based on inventory state
-                    if (hasInventory && !(_gameState.CurrentStatus?.OnFoot == true) && !_gameState.IsHyperspaceJumping)
-                    {
-                        Log.Debug("CargoViewModel: Setting IsVisible = true");
-                        IsVisible = true;
+                    // FIXED: Calculate context visibility but don't set IsVisible directly
+                    bool contextVisible = hasInventory &&
+                                        !(_gameState.CurrentStatus?.OnFoot == true) &&
+                                        !_gameState.IsHyperspaceJumping;
 
+                    // Set context visibility (this will respect user preferences)
+                    SetContextVisibility(contextVisible);
+
+                    // Only populate items if we have inventory
+                    if (hasInventory)
+                    {
                         // Add items to display
                         foreach (var item in cargo.Inventory.OrderByDescending(i => i.Count))
                         {
@@ -160,11 +164,6 @@ namespace EliteInfoPanel.ViewModels
 
                         UpdateCargoTitle();
                         Log.Debug("CargoViewModel: Added {Count} items to display", Items.Count);
-                    }
-                    else
-                    {
-                        Log.Debug("CargoViewModel: Setting IsVisible = false");
-                        IsVisible = false;
                     }
                 });
             }
@@ -212,7 +211,7 @@ namespace EliteInfoPanel.ViewModels
                 // This might be directly setting IsVisible without respecting user preferences
                 if (IsVisible != shouldShow)
                 {
-                    IsVisible = shouldShow; // THIS would also be a problem!
+                    SetContextVisibility(shouldShow); // THIS would also be a problem!
                 }
             }
             catch (Exception ex)

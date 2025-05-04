@@ -9,6 +9,8 @@ namespace EliteInfoPanel.ViewModels
     {
         private string _title;
         private bool _isVisible;
+        private bool _isUserEnabled = true;
+        protected bool _contextVisible = true;
 
         public string Title
         {
@@ -25,22 +27,26 @@ namespace EliteInfoPanel.ViewModels
 
         public string CardName { get; set; }
 
-        private bool _isUserEnabled = true;
         public bool IsUserEnabled
         {
             get => _isUserEnabled;
             set
             {
                 if (SetProperty(ref _isUserEnabled, value))
+                {
+                    Log.Debug("CardViewModel [{0}]: IsUserEnabled set to {1}",
+                        this.GetType().Name, value);
                     UpdateIsVisible();
+                }
             }
         }
 
-        protected bool _contextVisible = true;
         public void SetContextVisibility(bool contextVisible)
         {
             if (_contextVisible != contextVisible)
             {
+                Log.Debug("CardViewModel [{0}]: ContextVisibility set to {1}",
+                    this.GetType().Name, contextVisible);
                 _contextVisible = contextVisible;
                 UpdateIsVisible();
             }
@@ -48,24 +54,31 @@ namespace EliteInfoPanel.ViewModels
 
         private void UpdateIsVisible()
         {
-            IsVisible = _isUserEnabled && _contextVisible;
+            bool newVisibility = _isUserEnabled && _contextVisible;
+
+            // Only update if changing
+            if (IsVisible != newVisibility)
+            {
+                Log.Debug("CardViewModel [{0}]: Final visibility changing to {1} (UserEnabled={2}, ContextVisible={3})",
+                    this.GetType().Name, newVisibility, _isUserEnabled, _contextVisible);
+                IsVisible = newVisibility;
+            }
         }
 
         public bool IsVisible
         {
             get => _isVisible;
-            set
+            private set
             {
                 if (_isVisible != value)
                 {
                     _isVisible = value;
 
-                    // Publish event instead of directly calling method
                     EventAggregator.Instance.Publish(new CardVisibilityChangedEvent
                     {
                         CardName = this.GetType().Name,
                         IsVisible = value,
-                        RequiresLayoutRefresh = false // Most visibility changes don't need full rebuild
+                        RequiresLayoutRefresh = false
                     });
 
                     OnPropertyChanged();

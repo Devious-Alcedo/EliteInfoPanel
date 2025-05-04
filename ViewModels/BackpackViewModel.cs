@@ -139,7 +139,7 @@ namespace EliteInfoPanel.ViewModels
                     if (IsVisible)
                     {
                         Log.Debug("BackpackViewModel: No status available, hiding backpack");
-                        IsVisible = false;
+                        SetContextVisibility(false);
                     }
                     return;
                 }
@@ -170,7 +170,7 @@ namespace EliteInfoPanel.ViewModels
                 if (IsVisible != shouldShow)
                 {
                     Log.Debug("BackpackViewModel: Visibility changed to {Visibility}", shouldShow);
-                    IsVisible = shouldShow;
+                    SetContextVisibility(shouldShow);
                 }
             }
             catch (Exception ex)
