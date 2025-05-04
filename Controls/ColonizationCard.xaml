@@ -26,6 +26,7 @@
                                     <MultiBinding Converter="{StaticResource ProgressToWidthMultiConverter}">
                                         <Binding Path="Value" RelativeSource="{RelativeSource TemplatedParent}" />
                                         <Binding Path="ActualWidth" RelativeSource="{RelativeSource TemplatedParent}" />
+                                        <Binding Path="Maximum" RelativeSource="{RelativeSource TemplatedParent}" />
                                     </MultiBinding>
                                 </Rectangle.Width>
                             </Rectangle>

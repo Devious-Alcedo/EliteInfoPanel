@@ -285,9 +285,9 @@ namespace EliteInfoPanel.ViewModels
             if (!globalShowCondition)
             {
                 // Hide all cards when global condition fails
-                foreach (var card in Cards)
+                foreach (var card in Cards.Where(c => !(c is ColonizationViewModel)))
                 {
-                    card.SetContextVisibility(false); // CHANGED: Use SetContextVisibility
+                    card.SetContextVisibility(false);
                 }
                 return;
             }
@@ -329,8 +329,10 @@ namespace EliteInfoPanel.ViewModels
             FlagsCard.IsUserEnabled = settings.ShowFlags; // ADDED: Set user preference directly
 
             // Colonization card - evaluated once
-            ColonizationCard.SetContextVisibility(true);
-            ColonizationCard.IsUserEnabled = settings.ShowColonisation;
+           
+            ColonizationCard.SetContextVisibility(true); // Always set the context to true
+            ColonizationCard.IsUserEnabled = settings.ShowColonisation; // Let user setting control visibility
+
         }
         public void SetMainGrid(Grid mainGrid)
         {
@@ -414,24 +416,35 @@ namespace EliteInfoPanel.ViewModels
         {
             try
             {
-                // Get user preference only
+                // Get user preference 
                 var settings = SettingsManager.Load();
                 bool userEnabled = settings.ShowColonisation;
 
-                // Log information
-                Log.Information("Updating ColonizationCard visibility based on user preference: {UserEnabled}",
-                               userEnabled);
+                // IMPORTANT: Check if we have actual data, regardless of what the status says
+                bool hasData = _gameState.CurrentColonization != null &&
+                              _gameState.CurrentColonization.ResourcesRequired?.Count > 0;
 
-                // Set visibility based only on user preference
-                if (ColonizationCard.IsVisible != userEnabled)
+                Log.Information("Updating ColonizationCard visibility: UserEnabled={UserEnabled}, HasData={HasData}",
+                              userEnabled, hasData);
+
+                // Set context visibility to true if we have data (override the usual game state logic)
+                if (hasData)
                 {
-                    // Set context to true and let user preference control visibility
+                    // Always set context visibility to true if we have data
                     ColonizationCard.SetContextVisibility(true);
                     ColonizationCard.IsUserEnabled = userEnabled;
 
-                    Log.Information("ColonizationCard visibility set to {IsVisible}", userEnabled);
+                    Log.Information("ColonizationCard should be visible: HasData=true, UserEnabled={UserEnabled}",
+                                  userEnabled);
 
                     // Force a layout refresh
+                    RefreshLayout(true);
+                }
+                else if (ColonizationCard.IsVisible)
+                {
+                    // Only hide if we don't have data and it's currently visible
+                    ColonizationCard.SetContextVisibility(false);
+                    Log.Information("ColonizationCard hidden due to no data");
                     RefreshLayout(true);
                 }
             }
