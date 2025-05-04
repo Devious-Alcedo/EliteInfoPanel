@@ -32,20 +32,27 @@ namespace EliteInfoPanel.Util
         #endregion
 
         #region Public Methods
+        // In CardLayoutManager.cs
+
         public void UpdateLayout(bool forceRebuild = false)
         {
+            // If we're already updating, don't stack calls
+            if (_isUpdating && !forceRebuild) return;
+
+            _isUpdating = true;
+
             try
             {
                 var visibleCards = GetVisibleCards();
 
                 bool cardsChanged = !_initialLayoutComplete || forceRebuild ||
-                                    !AreCardListsEqual(_lastVisibleCards, visibleCards);
+                                   !AreCardListsEqual(_lastVisibleCards, visibleCards);
 
                 if (cardsChanged)
                 {
                     Log.Debug("Rebuilding card layout: initial={0}, force={1}, changed={2}",
-                              !_initialLayoutComplete, forceRebuild,
-                              _initialLayoutComplete && !forceRebuild && !AreCardListsEqual(_lastVisibleCards, visibleCards));
+                             !_initialLayoutComplete, forceRebuild,
+                             _initialLayoutComplete && !forceRebuild && !AreCardListsEqual(_lastVisibleCards, visibleCards));
 
                     Application.Current.Dispatcher.Invoke(() =>
                     {
@@ -66,7 +73,14 @@ namespace EliteInfoPanel.Util
             {
                 Log.Error(ex, "Error updating card layout");
             }
+            finally
+            {
+                _isUpdating = false;
+            }
         }
+
+        // Add field
+        private bool _isUpdating = false;
 
         #endregion
 

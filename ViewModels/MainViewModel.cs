@@ -152,6 +152,30 @@ namespace EliteInfoPanel.ViewModels
                 Log.Information("MainViewModel: Found colonization data after initialization - making card visible");
                 UpdateColonizationCardVisibility();
             }
+            EventAggregator.Instance.Subscribe<CardVisibilityChangedEvent>(OnCardVisibilityChanged);
+            EventAggregator.Instance.Subscribe<LayoutRefreshRequestEvent>(OnLayoutRefreshRequested);
+
+        }
+        private void OnCardVisibilityChanged(CardVisibilityChangedEvent e)
+        {
+            // We receive notifications here but don't trigger an immediate refresh
+            // Instead, we queue a single refresh
+            if (!_layoutChangePending)
+            {
+                _layoutChangePending = true;
+
+                // Use dispatcher to batch all visibility changes
+                Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    _layoutChangePending = false;
+                    UpdateCardLayout(e.RequiresLayoutRefresh);
+                }), DispatcherPriority.Background);
+            }
+        }
+
+        private void OnLayoutRefreshRequested(LayoutRefreshRequestEvent e)
+        {
+            RefreshLayout(e.ForceRebuild);
         }
         private void ApplyUserCardPreferences()
         {
@@ -198,32 +222,31 @@ namespace EliteInfoPanel.ViewModels
         public void RefreshLayout(bool forceRebuild = false)
         {
             Log.Information("MainViewModel: RefreshLayout called - forceRebuild={0}", forceRebuild);
+
             if (!_initializationComplete && !forceRebuild)
             {
                 Log.Debug("RefreshLayout called before initialization complete, deferring");
                 return;
             }
+
             if (_layoutChangePending && !forceRebuild)
                 return; // Avoid redundant refreshes
 
             _layoutChangePending = true;
-            Log.Information("FlagsViewModel state: IsVisible={Visible}, ItemsCount={Count}",
-                FlagsCard.IsVisible, FlagsCard.Items.Count);
-            // Use dispatcher to batch layout updates and avoid multiple refreshes in same frame
-            Application.Current.Dispatcher.BeginInvoke((Action)(() =>
+
+            // Use dispatcher for a single update
+            Application.Current.Dispatcher.BeginInvoke(new Action(() =>
             {
                 try
                 {
-                    // Refresh visibility first
-                    RefreshCardVisibility(false);
-                    UpdateColonizationCardVisibility();
+                    // Single batch update of all cards
+                    UpdateCardVisibility();
+
                     if (forceRebuild)
                     {
-                        // Force recreate all cards to apply new font sizes
                         RecreateAllCards();
                     }
 
-                    // Update the layout
                     UpdateCardLayout(forceRebuild);
 
                     _layoutChangePending = false;
@@ -234,9 +257,72 @@ namespace EliteInfoPanel.ViewModels
                     Log.Error(ex, "Error in RefreshLayout");
                     _layoutChangePending = false;
                 }
-            }), System.Windows.Threading.DispatcherPriority.Background);
+            }), DispatcherPriority.Background);
         }
+        private void UpdateCardVisibility()
+        {
+            var status = _gameState.CurrentStatus;
+            if (status == null) return;
 
+            var settings = SettingsManager.Load();
+
+            // Determine global conditions for visibility
+            bool globalShowCondition = !_gameState.IsHyperspaceJumping && (
+                status.Flags.HasFlag(Flag.Docked) ||
+                status.Flags.HasFlag(Flag.Supercruise) ||
+                status.Flags.HasFlag(Flag.InSRV) ||
+                status.OnFoot ||
+                status.Flags.HasFlag(Flag.InFighter) ||
+                status.Flags.HasFlag(Flag.InMainShip));
+
+            if (!globalShowCondition)
+            {
+                // Hide all cards when global condition fails
+                foreach (var card in Cards)
+                {
+                    card.IsVisible = false;
+                }
+                return;
+            }
+
+            // Now evaluate each card once - in a specific order
+
+            // Summary card
+            SummaryCard.IsVisible = settings.ShowSummary;
+
+            // Determine mutually exclusive cards
+            bool showBackpack = status.OnFoot &&
+                                (_gameState.CurrentBackpack?.Inventory?.Count > 0) &&
+                                settings.ShowBackpack;
+
+            bool showCargo = !showBackpack &&
+                             (_gameState.CurrentCargo?.Inventory?.Count > 0) &&
+                             settings.ShowCargo;
+
+            BackpackCard.IsVisible = showBackpack;
+            CargoCard.IsVisible = showCargo;
+
+            // Route card
+            bool hasRoute = _gameState.CurrentRoute?.Route?.Any() == true ||
+                           !string.IsNullOrWhiteSpace(_gameState.CurrentStatus?.Destination?.Name);
+            RouteCard.IsVisible = hasRoute && settings.ShowRoute;
+
+            // Modules card  
+            bool inMainShip = status.Flags.HasFlag(Flag.InMainShip) &&
+                            !status.OnFoot &&
+                            !status.Flags.HasFlag(Flag.InSRV) &&
+                            !status.Flags.HasFlag(Flag.InFighter);
+            ModulesCard.IsVisible = inMainShip && settings.ShowModules;
+
+            // Flags card
+            FlagsCard.IsVisible = settings.ShowFlags;
+
+            // Colonization card - evaluated once
+            bool hasActiveColonization = _gameState.CurrentColonization != null &&
+                                       !_gameState.CurrentColonization.ConstructionComplete &&
+                                       !_gameState.CurrentColonization.ConstructionFailed;
+            ColonizationCard.IsVisible = hasActiveColonization && settings.ShowColonisation;
+        }
         public void SetMainGrid(Grid mainGrid)
         {
             _mainGrid = mainGrid;

@@ -965,6 +965,13 @@ namespace EliteInfoPanel.Core
                 throw; // Re-throw to ensure the application handles this error
             }
         }
+        public void BatchUpdate(Action updateAction)
+        {
+            using (BeginUpdate())
+            {
+                updateAction?.Invoke();
+            }
+        }
         private bool LoadBackpackData()
         {
             var oldBackpack = CurrentBackpack;

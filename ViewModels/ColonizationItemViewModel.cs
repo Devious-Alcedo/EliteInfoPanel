@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows.Media;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Core.Models;
+using EliteInfoPanel.Util;
 using MaterialDesignThemes.Wpf;
 using Serilog;
 
@@ -216,59 +217,98 @@ namespace EliteInfoPanel.ViewModels
         {
             try
             {
+                // Get data first to avoid unnecessary UI thread calls
+                var colonizationData = _gameState.CurrentColonization;
+                bool hasData = colonizationData != null && !colonizationData.ConstructionComplete;
+
+                // Get user preference once
+                var settings = SettingsManager.Load();
+                bool userEnabled = settings.ShowColonisation;
+
+                // Determine final visibility state
+                bool shouldBeVisible = hasData && userEnabled;
+
                 RunOnUIThread(() =>
                 {
-                    var colonizationData = _gameState.CurrentColonization;
-                    HasActiveColonization = colonizationData != null && !colonizationData.ConstructionComplete;
+                    // First update internal state
+                    HasActiveColonization = hasData;
 
-                    // Update visibility
-                    IsVisible = HasActiveColonization;
-
-                    if (!HasActiveColonization)
+                    // If no data, clear items and stop
+                    if (!hasData)
                     {
                         Items.Clear();
+
+                        // Only change visibility if needed
+                        if (IsVisible != false)
+                        {
+                            Log.Debug("Colonization data not available - hiding card");
+                            IsVisible = false;
+                        }
                         return;
                     }
 
-                    // Update top-level properties
-                    ProgressPercentage = colonizationData.ConstructionProgress;
-                    LastUpdated = colonizationData.LastUpdated;
-                    IsConstructionComplete = colonizationData.ConstructionComplete;
-                    CompletedItems = colonizationData.CompletedResources;
-                    TotalItems = colonizationData.TotalResources;
+                    // Handle visibility separately from data updates to avoid cascading effects
+                    bool visibilityChanged = IsVisible != shouldBeVisible;
 
-                    CompletionText = $"Overall: {colonizationData.CompletionPercentage:N1}% Complete ({CompletedItems}/{TotalItems} resources)";
+                    // Begin by suspending property notifications if possible
+                    // This depends on your ViewModel base class implementation
+                    // If it has IsSuppressingNotifications property:
+                    bool wasSuppressing = IsSuppressingNotifications;
+                    IsSuppressingNotifications = true;
 
-                    // Update title with completion percentage
-                    Title = $"Colonization Project ({colonizationData.CompletionPercentage:N1}%)";
-
-                    // Clear and rebuild items list
-                    Items.Clear();
-
-                    // Filter based on ShowCompleted setting
-                    var resources = colonizationData.ResourcesRequired;
-                    if (!ShowCompleted)
+                    try
                     {
-                        resources = resources.Where(r => !r.IsComplete).ToList();
+                        // Update data properties
+                        ProgressPercentage = colonizationData.ConstructionProgress;
+                        LastUpdated = colonizationData.LastUpdated;
+                        IsConstructionComplete = colonizationData.ConstructionComplete;
+                        CompletedItems = colonizationData.CompletedResources;
+                        TotalItems = colonizationData.TotalResources;
+                        CompletionText = $"Overall: {colonizationData.CompletionPercentage:N1}% Complete ({CompletedItems}/{TotalItems} resources)";
+                        Title = $"Colonization Project ({colonizationData.CompletionPercentage:N1}%)";
+
+                        // Update items
+                        Items.Clear();
+
+                        // Filter and sort items
+                        var resources = colonizationData.ResourcesRequired;
+                        if (!ShowCompleted)
+                        {
+                            resources = resources.Where(r => !r.IsComplete).ToList();
+                        }
+                        resources = SortResources(resources);
+
+                        // Add all items at once
+                        foreach (var resource in resources)
+                        {
+                            Items.Add(new ColonizationItemViewModel
+                            {
+                                Name = resource.DisplayName,
+                                Required = resource.RequiredAmount,
+                                Provided = resource.ProvidedAmount,
+                                Remaining = resource.RemainingAmount,
+                                Payment = resource.Payment,
+                                CompletionPercentage = resource.CompletionPercentage,
+                                IsComplete = resource.IsComplete,
+                                ProfitPerUnit = resource.ProfitPerUnit,
+                                FontSize = (int)this.FontSize
+                            });
+                        }
+                    }
+                    finally
+                    {
+                        // Restore notification state
+                        IsSuppressingNotifications = wasSuppressing;
+
+                        // Fire a single property changed notification for all properties
+                        OnPropertyChanged(string.Empty);
                     }
 
-                    // Apply sorting
-                    resources = SortResources(resources);
-
-                    foreach (var resource in resources)
+                    // Only after everything is ready, update visibility if needed
+                    if (visibilityChanged)
                     {
-                        Items.Add(new ColonizationItemViewModel
-                        {
-                            Name = resource.DisplayName,
-                            Required = resource.RequiredAmount,
-                            Provided = resource.ProvidedAmount,
-                            Remaining = resource.RemainingAmount,
-                            Payment = resource.Payment,
-                            CompletionPercentage = resource.CompletionPercentage,
-                            IsComplete = resource.IsComplete,
-                            ProfitPerUnit = resource.ProfitPerUnit,
-                            FontSize = (int)this.FontSize
-                        });
+                        Log.Information("Setting ColonizationCard visibility to {IsVisible}", shouldBeVisible);
+                        IsVisible = shouldBeVisible;
                     }
 
                     Log.Information("Colonization data updated: {Progress:P2} complete, {CompletedItems}/{TotalItems} resources",
@@ -280,7 +320,6 @@ namespace EliteInfoPanel.ViewModels
                 Log.Error(ex, "Error updating colonization data");
             }
         }
-
         private List<ColonizationResource> SortResources(List<ColonizationResource> resources)
         {
             switch (SortBy)

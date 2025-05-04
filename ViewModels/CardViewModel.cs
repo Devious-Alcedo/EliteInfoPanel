@@ -1,4 +1,5 @@
 ﻿// CardViewModel.cs
+using EliteInfoPanel.Util;
 using Serilog;
 using System.Windows;
 
@@ -55,14 +56,13 @@ namespace EliteInfoPanel.ViewModels
                 {
                     _isVisible = value;
 
-                    if (System.Windows.Application.Current.Dispatcher.CheckAccess())
+                    // Publish event instead of directly calling method
+                    EventAggregator.Instance.Publish(new CardVisibilityChangedEvent
                     {
-                        NotifyCardVisibilityChanged();
-                    }
-                    else
-                    {
-                        System.Windows.Application.Current.Dispatcher.Invoke(NotifyCardVisibilityChanged);
-                    }
+                        CardName = this.GetType().Name,
+                        IsVisible = value,
+                        RequiresLayoutRefresh = false // Most visibility changes don't need full rebuild
+                    });
 
                     OnPropertyChanged();
                 }
