@@ -37,7 +37,7 @@ namespace EliteInfoPanel.ViewModels
         }
 
         protected bool _contextVisible = true;
-        protected void SetContextVisibility(bool contextVisible)
+        public void SetContextVisibility(bool contextVisible)
         {
             if (_contextVisible != contextVisible)
             {

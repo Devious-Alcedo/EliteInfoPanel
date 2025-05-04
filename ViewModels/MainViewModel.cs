@@ -533,7 +533,7 @@ namespace EliteInfoPanel.ViewModels
 
             if (CargoCard.IsVisible != shouldShow)
             {
-                CargoCard.IsVisible = shouldShow;
+                CargoCard.SetContextVisibility(shouldShow); // Changed from IsVisible
                 UpdateCardLayout();
             }
         }
@@ -546,7 +546,7 @@ namespace EliteInfoPanel.ViewModels
 
             if (BackpackCard.IsVisible != shouldShow)
             {
-                BackpackCard.IsVisible = shouldShow;
+                BackpackCard.SetContextVisibility(shouldShow);
                 UpdateCardLayout();
             }
         }
@@ -560,7 +560,7 @@ namespace EliteInfoPanel.ViewModels
 
             if (RouteCard.IsVisible != shouldShow)
             {
-                RouteCard.IsVisible = shouldShow;
+                RouteCard.SetContextVisibility(shouldShow);
                 UpdateCardLayout();
             }
         }
@@ -576,7 +576,7 @@ namespace EliteInfoPanel.ViewModels
 
             if (ModulesCard.IsVisible != shouldShow)
             {
-                ModulesCard.IsVisible = shouldShow;
+                ModulesCard.SetContextVisibility(shouldShow);
                 UpdateCardLayout();
             }
         }
@@ -628,7 +628,7 @@ namespace EliteInfoPanel.ViewModels
             // Force layout update
             _mainGrid.UpdateLayout();
         }
-     
+
         private void EnsureCorrectCardsVisible()
         {
             // Make sure we're on the UI thread
@@ -652,59 +652,54 @@ namespace EliteInfoPanel.ViewModels
 
             bool visibilityChanged = false;
 
+            // Set context visibility for each card
+
             // Summary card visibility
-            bool shouldShowSummary = shouldShowPanels;
-            if (SummaryCard.IsVisible != shouldShowSummary)
-            {
-                SummaryCard.IsVisible = shouldShowSummary;
+            bool oldSummaryVisible = SummaryCard.IsVisible;
+            SummaryCard.SetContextVisibility(shouldShowPanels);
+            if (oldSummaryVisible != SummaryCard.IsVisible)
                 visibilityChanged = true;
-            }
 
             // Backpack visibility
             bool shouldShowBackpack = shouldShowPanels && status.OnFoot;
-            if (BackpackCard.IsVisible != shouldShowBackpack)
-            {
-                BackpackCard.IsVisible = shouldShowBackpack;
+            bool oldBackpackVisible = BackpackCard.IsVisible;
+            BackpackCard.SetContextVisibility(shouldShowBackpack);
+            if (oldBackpackVisible != BackpackCard.IsVisible)
                 visibilityChanged = true;
-            }
 
             // Cargo visibility
             bool hasCargo = (_gameState.CurrentCargo?.Inventory?.Count ?? 0) > 0;
             bool shouldShowCargo = shouldShowPanels && !shouldShowBackpack && hasCargo;
-            if (CargoCard.IsVisible != shouldShowCargo)
-            {
-                CargoCard.IsVisible = shouldShowCargo;
+            bool oldCargoVisible = CargoCard.IsVisible;
+            CargoCard.SetContextVisibility(shouldShowCargo);
+            if (oldCargoVisible != CargoCard.IsVisible)
                 visibilityChanged = true;
-            }
 
             // Route visibility
             bool hasRoute = _gameState.CurrentRoute?.Route?.Any() == true ||
                           !string.IsNullOrWhiteSpace(_gameState.CurrentStatus?.Destination?.Name);
             bool shouldShowRoute = shouldShowPanels && hasRoute;
-            if (RouteCard.IsVisible != shouldShowRoute)
-            {
-                RouteCard.IsVisible = shouldShowRoute;
+            bool oldRouteVisible = RouteCard.IsVisible;
+            RouteCard.SetContextVisibility(shouldShowRoute);
+            if (oldRouteVisible != RouteCard.IsVisible)
                 visibilityChanged = true;
-            }
 
             // Modules visibility
             bool inMainShip = shouldShowPanels && status.Flags.HasFlag(Flag.InMainShip) &&
                             !status.OnFoot &&
                             !status.Flags.HasFlag(Flag.InSRV) &&
                             !status.Flags.HasFlag(Flag.InFighter);
-            if (ModulesCard.IsVisible != inMainShip)
-            {
-                ModulesCard.IsVisible = inMainShip;
+            bool oldModulesVisible = ModulesCard.IsVisible;
+            ModulesCard.SetContextVisibility(inMainShip);
+            if (oldModulesVisible != ModulesCard.IsVisible)
                 visibilityChanged = true;
-            }
 
             // Flags visibility
             bool shouldShowFlags = shouldShowPanels;
-            if (FlagsCard.IsVisible != shouldShowFlags)
-            {
-                FlagsCard.IsVisible = shouldShowFlags;
+            bool oldFlagsVisible = FlagsCard.IsVisible;
+            FlagsCard.SetContextVisibility(shouldShowFlags);
+            if (oldFlagsVisible != FlagsCard.IsVisible)
                 visibilityChanged = true;
-            }
 
             // Only update layout if visibility changed
             if (visibilityChanged)
@@ -712,7 +707,6 @@ namespace EliteInfoPanel.ViewModels
                 UpdateCardLayout(false);
             }
         }
-
         private void SetInitialCardVisibility()
         {
             // Default state - hide all cards initially
@@ -744,7 +738,7 @@ namespace EliteInfoPanel.ViewModels
             // Get user preferences
             var settings = SettingsManager.Load();
 
-            // Calculate all visibility states
+            // Calculate global visibility state
             bool shouldShowPanels = !_gameState.IsHyperspaceJumping && (
                 status.Flags.HasFlag(Flag.Docked) ||
                 status.Flags.HasFlag(Flag.Supercruise) ||
@@ -753,46 +747,43 @@ namespace EliteInfoPanel.ViewModels
                 status.Flags.HasFlag(Flag.InFighter) ||
                 status.Flags.HasFlag(Flag.InMainShip));
 
-            // Set visibility for all cards
-            foreach (var card in Cards)
+            // Hide all cards if global state is false
+            if (!shouldShowPanels)
             {
-                card.IsVisible = false; // Start by hiding all
+                foreach (var card in Cards)
+                {
+                    card.SetContextVisibility(false); // Use SetContextVisibility instead of IsVisible
+                }
+                return;
             }
 
-            if (!shouldShowPanels) return;
+            // Now set context visibility for individual cards based on conditions
 
-            // Show cards based on game state AND user preferences
-            SummaryCard.IsVisible = settings.ShowSummary;
+            // Summary is always visible if global state is true
+            SummaryCard.SetContextVisibility(true);
 
-            bool showBackpack = status.OnFoot;
+            // Determine conditions for backpack and cargo
+            bool backpackCondition = status.OnFoot;
             bool hasCargo = (_gameState.CurrentCargo?.Inventory?.Count ?? 0) > 0;
 
-            // Only show one of backpack or cargo, respecting user preferences
-            if (showBackpack && settings.ShowBackpack)
-                BackpackCard.IsVisible = true;
-            else if (hasCargo && settings.ShowCargo)
-                CargoCard.IsVisible = true;
+            // Set context visibility appropriately
+            BackpackCard.SetContextVisibility(backpackCondition);
+            CargoCard.SetContextVisibility(hasCargo && !backpackCondition);
 
-            // Show route if available and enabled by user
+            // Show route if available
             bool hasRoute = _gameState.CurrentRoute?.Route?.Any() == true ||
-                          !string.IsNullOrWhiteSpace(_gameState.CurrentStatus?.Destination?.Name);
-            if (hasRoute && settings.ShowRoute)
-                RouteCard.IsVisible = true;
+                            !string.IsNullOrWhiteSpace(_gameState.CurrentStatus?.Destination?.Name);
+            RouteCard.SetContextVisibility(hasRoute);
 
-            // Show modules if in main ship and enabled by user
+            // Show modules if in main ship
             bool inMainShip = status.Flags.HasFlag(Flag.InMainShip) &&
                             !status.OnFoot &&
                             !status.Flags.HasFlag(Flag.InSRV) &&
                             !status.Flags.HasFlag(Flag.InFighter);
-            if (inMainShip && settings.ShowModules)
-                ModulesCard.IsVisible = true;
+            ModulesCard.SetContextVisibility(inMainShip);
 
-            // Show flags if enabled by user
-            if (settings.ShowFlags)
-                FlagsCard.IsVisible = true;
-
-            // Show colonization if data available and enabled by user
-         
+            // Flags are always contextually visible if global state is true
+            FlagsCard.SetContextVisibility(true);
 
             // Now that visibility is set, update the layout
             if (updateLayout)
