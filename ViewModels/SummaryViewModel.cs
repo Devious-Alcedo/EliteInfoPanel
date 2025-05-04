@@ -266,26 +266,27 @@ namespace EliteInfoPanel.ViewModels
                     Log.Information("SummaryViewModel: InitializeAllItems called");
                     RemoveNonCustomItems();
 
-                    // Even if CurrentStatus is null, still try to update the other items
-                    // that might have data available
+                    // Remember original carrier jump state
+                    bool wasJumpInProgress = _gameState.FleetCarrierJumpInProgress;
+                    bool hadJumpArrived = _gameState.JumpArrived;
+
+                    // Regular initialization code...
                     UpdateCommanderItem();
                     UpdateSquadronItem();
                     UpdateShipItem();
                     UpdateBalanceItem();
                     UpdateSystemItem();
+                    UpdateFuelInfo();
 
-                    // These are more dependent on CurrentStatus, so check before calling
-                    if (_gameState.CurrentStatus != null)
+                    // Special case for carrier countdown - preserve state
+                    if (wasJumpInProgress)
                     {
-                        UpdateFuelInfo();
-                        UpdateCarrierCountdown();
+                        // Use existing state without modifying it
+                        UpdateCarrierCountdown(preserveState: true);
                     }
-
-                    // Log final state
-                    Log.Debug("📋 Final Summary Items after initialization: {Count} items", Items.Count);
-                    foreach (var item in Items)
+                    else
                     {
-                        Log.Debug("  - Tag: {Tag}, Content: {Content}", item.Tag, item.Content);
+                        UpdateCarrierCountdown();
                     }
                 });
             }
@@ -495,10 +496,17 @@ namespace EliteInfoPanel.ViewModels
             return $"Carrier Jump: {timeText}\nto {destination}";
         }
 
-        private void UpdateCarrierCountdown()
+        private void UpdateCarrierCountdown(bool preserveState = false)
         {
             try
             {
+                // Skip state changes if preserveState is true and a countdown is already active
+                if (preserveState && _carrierCountdownItem != null && Items.Contains(_carrierCountdownItem))
+                {
+                    Log.Debug("🛑 Preserving existing carrier countdown state");
+                    return;
+                }
+
                 if (_gameState.JumpCountdown is TimeSpan countdown && countdown.TotalSeconds > 0)
                 {
                     StartCarrierCountdown(countdown, _gameState.CarrierJumpDestinationSystem);
