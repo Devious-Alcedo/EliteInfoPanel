@@ -762,12 +762,11 @@ namespace EliteInfoPanel.ViewModels
                 status.Flags.HasFlag(Flag.InFighter) ||
                 status.Flags.HasFlag(Flag.InMainShip));
 
-            // Hide all cards if global state is false
             if (!shouldShowPanels)
             {
-                foreach (var card in Cards)
+                foreach (var card in Cards.Where(c => !(c is ColonizationViewModel)))
                 {
-                    card.SetContextVisibility(false); // Use SetContextVisibility instead of IsVisible
+                    card.SetContextVisibility(false);
                 }
                 return;
             }
