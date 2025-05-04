@@ -40,6 +40,9 @@ namespace EliteInfoPanel.ViewModels
             SaveCommand = new RelayCommand(_ => SaveSettings());
             CancelCommand = new RelayCommand(_ => { /* Will be handled by view */ });
             ChangeDisplayCommand = new RelayCommand(_ => RequestDisplayChange());
+           
+            // Add more dynamically if needed
+
         }
 
         #endregion Public Constructors
@@ -57,6 +60,7 @@ namespace EliteInfoPanel.ViewModels
         #endregion Public Events
 
         #region Public Properties
+        public ObservableCollection<CardViewModel> AvailableCards { get; } = new();
 
         public bool AlwaysOnTop
         {

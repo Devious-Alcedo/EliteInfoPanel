@@ -123,7 +123,8 @@ namespace EliteInfoPanel.ViewModels
                 bool isJumping = _gameState.IsHyperspaceJumping;
 
                 // Should show only if: (has route OR has destination) AND not jumping
-                bool shouldShow = (hasRoute || hasDestination) && !isJumping;
+                bool shouldShow = SettingsManager.Load().ShowRoute && (hasRoute || hasDestination) && !isJumping;
+
 
                 Log.Debug("RouteViewModel: Visibility check - HasRoute:{HasRoute}, HasDestination:{HasDestination}, " +
                          "Jumping:{Jumping}, ShouldShow:{ShouldShow}",

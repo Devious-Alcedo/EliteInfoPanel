@@ -118,9 +118,11 @@ namespace EliteInfoPanel.Dialogs
             // Load UI when window is shown
             Loaded += (s, e) =>
             {
+
                 PopulateDisplayOptions();
                 PopulateFlagOptions();
                 PopulateWindowModeOptions();
+                PopulateCardOptions();
             };
         }
 
@@ -331,7 +333,45 @@ namespace EliteInfoPanel.Dialogs
             this.Left = targetScreen.WpfBounds.Left + (targetScreen.WpfBounds.Width - this.Width) / 2;
             this.Top = targetScreen.WpfBounds.Top + (targetScreen.WpfBounds.Height - this.Height) / 2;
         }
+        private void PopulateCardOptions()
+        {
+            if (CardsOptionsPanel is not StackPanel panel) return;
 
+            panel.Children.Clear();
+
+            var appSettings = _viewModel.AppSettings;
+
+            // Directly referencing top-level properties
+            var cardMap = new Dictionary<string, string>
+            {
+                { nameof(appSettings.ShowSummary), "Summary" },
+                { nameof(appSettings.ShowFlags), "Flags" },
+                { nameof(appSettings.ShowCargo), "Cargo" },
+                { nameof(appSettings.ShowBackpack), "Backpack" },
+                { nameof(appSettings.ShowRoute), "Route" },
+                { nameof(appSettings.ShowModules), "Modules" },
+                { nameof(appSettings.ShowColonisation), "Colonisation" }
+            };
+
+            foreach (var entry in cardMap)
+            {
+                var prop = typeof(AppSettings).GetProperty(entry.Key);
+                bool value = (bool)(prop?.GetValue(appSettings) ?? false);
+
+                var checkbox = new CheckBox
+                {
+                    Content = entry.Value,
+                    IsChecked = value,
+                    Margin = new Thickness(5),
+                    Tag = entry.Key
+                };
+
+                checkbox.Checked += (s, e) => prop?.SetValue(appSettings, true);
+                checkbox.Unchecked += (s, e) => prop?.SetValue(appSettings, false);
+
+                panel.Children.Add(checkbox);
+            }
+        }
         private void SaveSettings()
         {
             var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;

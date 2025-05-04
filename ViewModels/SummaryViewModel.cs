@@ -265,6 +265,7 @@ namespace EliteInfoPanel.ViewModels
 
         private void InitializeAllItems()
         {
+            IsVisible = SettingsManager.Load().ShowSummary;
             try
             {
                 RunOnUIThread(() =>

@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using EliteInfoPanel.Core;
+using EliteInfoPanel.Util;
 using Serilog;
 
 namespace EliteInfoPanel.ViewModels
@@ -145,7 +146,6 @@ namespace EliteInfoPanel.ViewModels
 
                 bool isOnFoot = status.OnFoot;
 
-                // Check if there are any items in any of the inventory sections
                 bool hasItems = false;
                 if (_gameState.CurrentBackpack != null)
                 {
@@ -159,11 +159,13 @@ namespace EliteInfoPanel.ViewModels
                 }
 
                 bool isJumping = _gameState.IsHyperspaceJumping;
-                bool shouldShow = isOnFoot && hasItems && !isJumping;
+                bool userWantsBackpack = SettingsManager.Load().ShowBackpack;
+
+                bool shouldShow = userWantsBackpack && isOnFoot && hasItems && !isJumping;
 
                 Log.Debug("BackpackViewModel: Visibility check - OnFoot:{OnFoot}, HasItems:{HasItems}, " +
-                         "Jumping:{Jumping}, ShouldShow:{ShouldShow}",
-                         isOnFoot, hasItems, isJumping, shouldShow);
+                         "Jumping:{Jumping}, UserEnabled:{UserEnabled}, ShouldShow:{ShouldShow}",
+                         isOnFoot, hasItems, isJumping, userWantsBackpack, shouldShow);
 
                 if (IsVisible != shouldShow)
                 {

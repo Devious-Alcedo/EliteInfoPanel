@@ -433,7 +433,8 @@ namespace EliteInfoPanel.ViewModels
                 // Only update visibility if it's changed
                 if (ColonizationCard.IsVisible != hasActiveColonization)
                 {
-                    ColonizationCard.IsVisible = hasActiveColonization;
+                    ColonizationCard.IsVisible = hasActiveColonization && SettingsManager.Load().ShowColonisation;
+
                     Log.Debug("ColonizationCard visibility set to {Visible}", hasActiveColonization);
                 }
             }

@@ -20,8 +20,32 @@ namespace EliteInfoPanel.ViewModels
             get => _fontSize;
             set => SetProperty(ref _fontSize, value);
         }
+        public string CardName { get; set; }
 
+        private bool _isUserEnabled = true;
+        public bool IsUserEnabled
+        {
+            get => _isUserEnabled;
+            set
+            {
+                if (SetProperty(ref _isUserEnabled, value))
+                    UpdateIsVisible();
+            }
+        }
+        protected bool _contextVisible = true;
+        protected void SetContextVisibility(bool contextVisible)
+        {
+            if (_contextVisible != contextVisible)
+            {
+                _contextVisible = contextVisible;
+                UpdateIsVisible();
+            }
+        }
 
+        private void UpdateIsVisible()
+        {
+            IsVisible = _isUserEnabled && _contextVisible;
+        }
         public bool IsVisible
         {
             get => _isVisible;

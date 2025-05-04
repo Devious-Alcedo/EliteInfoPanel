@@ -1594,6 +1594,7 @@ namespace EliteInfoPanel.Core
                                         OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
                                     }
                                     JumpArrived = true;
+                                    ResetFleetCarrierJumpState();
                                     break;
 
                                 case "CarrierJumpCancelled":
@@ -1787,8 +1788,10 @@ namespace EliteInfoPanel.Core
             OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // This will re-evaluate the ShowCarrierJumpOverlay property
             Log.Information("Carrier jump completed, overlay should be shown now.");
         }
-
-
+        public void ClearJumpCountdownFlag()
+        {
+            _jumpCountdownJustReachedZero = false;
+        }
         private void ProcessLegalStateEvent(JsonElement root, string eventType)
         {
             try
