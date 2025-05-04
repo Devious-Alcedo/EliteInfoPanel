@@ -531,9 +531,13 @@ namespace EliteInfoPanel.ViewModels
             bool hasCargo = (_gameState.CurrentCargo?.Inventory?.Count ?? 0) > 0;
             bool shouldShow = hasCargo && !_gameState.IsHyperspaceJumping;
 
-            if (CargoCard.IsVisible != shouldShow)
+            // Don't check IsVisible directly since it factors in user preferences
+            // Just update the context visibility
+            CargoCard.SetContextVisibility(shouldShow);
+
+            // Only update layout if visibility actually changed
+            if (CargoCard.IsVisible != (shouldShow && CargoCard.IsUserEnabled))
             {
-                CargoCard.SetContextVisibility(shouldShow); // Changed from IsVisible
                 UpdateCardLayout();
             }
         }

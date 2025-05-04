@@ -195,6 +195,7 @@ namespace EliteInfoPanel.ViewModels
             }
         }
 
+        // In CargoViewModel.cs
         private void UpdateVisibility()
         {
             try
@@ -208,16 +209,10 @@ namespace EliteInfoPanel.ViewModels
                 // Direct visibility calculation
                 bool shouldShow = hasInventory && !isOnFoot && !isJumping;
 
-                // Log calculation details
-                Log.Debug("CargoViewModel: UpdateVisibility - HasInventory:{HasInventory}, OnFoot:{OnFoot}, " +
-                             "Jumping:{Jumping}, ShouldShow:{ShouldShow}, CurrentVisibility:{CurrentVisibility}",
-                             hasInventory, isOnFoot, isJumping, shouldShow, IsVisible);
-
-                // Update visibility if changed
+                // This might be directly setting IsVisible without respecting user preferences
                 if (IsVisible != shouldShow)
                 {
-                    IsVisible = shouldShow;
-                    Log.Debug("CargoViewModel: Changed visibility to {NewState}", shouldShow);
+                    IsVisible = shouldShow; // THIS would also be a problem!
                 }
             }
             catch (Exception ex)
