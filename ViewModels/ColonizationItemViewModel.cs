@@ -212,8 +212,11 @@ namespace EliteInfoPanel.ViewModels
             // Initial update
             UpdateColonizationDataInternal();
         }
-        private void OpenInNewWindow()
+      private void OpenInNewWindow()
         {
+            // Load settings
+            var settings = SettingsManager.Load();
+
             // Create a new instance of the viewmodel with IsInMainWindow=false
             var popupViewModel = new ColonizationViewModel(_gameState)
             {
@@ -228,15 +231,77 @@ namespace EliteInfoPanel.ViewModels
             var window = new Window
             {
                 Title = "Colonization Project",
-                Width = 500,
-                Height = 600,
-                WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                Width = settings.ColonizationWindowWidth,
+                Height = settings.ColonizationWindowHeight,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = settings.ColonizationWindowLeft,
+                Top = settings.ColonizationWindowTop,
                 Background = new SolidColorBrush(Color.FromArgb(255, 30, 30, 30)),
                 Content = new ColonizationCard { DataContext = popupViewModel }
             };
 
+            // Add event handlers to save position
+            window.LocationChanged += (s, e) => {
+                if (window.WindowState == WindowState.Normal)
+                {
+                    settings.ColonizationWindowLeft = window.Left;
+                    settings.ColonizationWindowTop = window.Top;
+                    SettingsManager.Save(settings);
+                }
+            };
+
+            window.SizeChanged += (s, e) => {
+                if (window.WindowState == WindowState.Normal)
+                {
+                    settings.ColonizationWindowWidth = window.Width;
+                    settings.ColonizationWindowHeight = window.Height;
+                    SettingsManager.Save(settings);
+                }
+            };
+
+            // Ensure window is within screen bounds
+            EnsureWindowIsVisible(window, settings);
+
             // Show the window
             window.Show();
+        }
+        private void EnsureWindowIsVisible(Window window, AppSettings settings)
+        {
+            // Get screen information
+            var screens = WpfScreenHelper.Screen.AllScreens;
+            var screenBounds = WpfScreenHelper.Screen.AllScreens.First().Bounds;
+
+
+
+            // Check if window position is valid
+            bool isPositionValid = false;
+            foreach (var screen in screens)
+            {
+                var bounds = screen.Bounds;
+                if (settings.ColonizationWindowLeft >= bounds.Left &&
+                    settings.ColonizationWindowTop >= bounds.Top &&
+                    settings.ColonizationWindowLeft + settings.ColonizationWindowWidth <= bounds.Right &&
+                    settings.ColonizationWindowTop + settings.ColonizationWindowHeight <= bounds.Bottom)
+                {
+                    isPositionValid = true;
+                    break;
+                }
+            }
+
+            // If position is invalid, center on primary screen
+            if (!isPositionValid)
+            {
+                window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+
+                // After window is loaded, save the new position
+                window.Loaded += (s, e) => {
+                    settings.ColonizationWindowLeft = window.Left;
+                    settings.ColonizationWindowTop = window.Top;
+                    settings.ColonizationWindowWidth = window.Width;
+                    settings.ColonizationWindowHeight = window.Height;
+                    SettingsManager.Save(settings);
+                };
+            }
         }
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
