@@ -409,9 +409,10 @@ namespace EliteInfoPanel.Core
             get => _fleetCarrierJumpInProgress;
             private set
             {
-                Log.Information("📡 FleetCarrierJumpInProgress changed to {0}", value);
+                Log.Information("📡 FleetCarrierJumpInProgress changed to {0} - Stack trace: {1}",
+                    value, Environment.StackTrace);
                 if (SetProperty(ref _fleetCarrierJumpInProgress, value))
-                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // 👈 notify
+                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // notify
             }
         }
 
@@ -569,7 +570,12 @@ namespace EliteInfoPanel.Core
                              CarrierJumpScheduledTime?.ToString() ?? "null",
                              JumpArrived,
                              CarrierJumpDestinationSystem ?? "null");
-
+                    if (_jumpCountdownJustReachedZero && IsOnFleetCarrier &&
+                        !string.IsNullOrEmpty(CarrierJumpDestinationSystem))
+                            {
+                                Log.Information("Jump animation starting - forced overlay display");
+                                return true;
+                            }
                     // Updated logic with extra safety checks
                     bool result = FleetCarrierJumpInProgress &&
                                  IsOnFleetCarrier &&
@@ -1587,6 +1593,7 @@ namespace EliteInfoPanel.Core
                                         JumpArrived = true;
                                         OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
                                     }
+                                    JumpArrived = true;
                                     break;
 
                                 case "CarrierJumpCancelled":
@@ -1608,7 +1615,7 @@ namespace EliteInfoPanel.Core
                                 case "CarrierLocation":
                                     Log.Debug("CarrierLocation seen — clearing any jump state");
                                     FleetCarrierJumpInProgress = false;
-                                    JumpArrived = true;
+                                   // JumpArrived = true;
 
                                     bool isOnCarrier = false;
 

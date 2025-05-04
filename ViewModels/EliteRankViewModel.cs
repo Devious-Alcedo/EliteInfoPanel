@@ -10,7 +10,7 @@ namespace EliteInfoPanel.ViewModels
     {
         private string _rankType;
         private string _iconPath;
-        private int _fontSize = 10;
+        private int _fontSize = 20;
 
         public string RankType
         {

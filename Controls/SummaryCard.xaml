@@ -103,9 +103,10 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Image Source="{Binding IconPath}" 
-                                   Width="20" 
-                                   Height="20"
+                                   Width="40" 
+                                   Height="40"
                                    Margin="0,0,8,0"
+                                   RenderOptions.BitmapScalingMode="HighQuality" 
                                    ToolTip="{Binding RankName, StringFormat='Elite in {0}'}" />
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
