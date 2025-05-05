@@ -26,9 +26,9 @@ namespace EliteInfoPanel.ViewModels
 
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(GameStateService.CarrierCargo))
+            if (e.PropertyName == nameof(GameStateService.CurrentCarrierCargo))
             {
-                Log.Information("FleetCarrierCargoViewModel received CarrierCargo update");
+                Log.Information("FleetCarrierCargoViewModel received CurrentCarrierCargo update");
                 UpdateCargo();
             }
         }

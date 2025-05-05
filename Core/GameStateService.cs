@@ -1774,37 +1774,20 @@ namespace EliteInfoPanel.Core
                                     break;
                                 case "CargoTransfer":
                                     {
-                                        Log.Debug("*** PROCESSING CARGO TRANSFER EVENT ***");
-
                                         if (root.TryGetProperty("Transfers", out var transfersProp) &&
                                             transfersProp.ValueKind == JsonValueKind.Array)
                                         {
-                                            // Log ALL transfers for debugging
-                                            foreach (var transfer in transfersProp.EnumerateArray())
+                                            using (BeginUpdate())
                                             {
-                                                string type = transfer.GetProperty("Type").GetString();
-                                                int count = transfer.GetProperty("Count").GetInt32();
-                                                string direction = transfer.GetProperty("Direction").GetString();
+                                                // Update through CarrierCargoTracker
+                                                _carrierCargoTracker.Process(root);
 
-                                                Log.Debug("Transfer found: {Direction} {Count} of {Type}",
-                                                    direction, count, type);
+                                                // Update the Dictionary from the tracker
+                                                CarrierCargo = new Dictionary<string, int>(_carrierCargoTracker.Cargo);
+
+                                                // Update the List representation for UI binding
+                                                UpdateCurrentCarrierCargoFromDictionary();
                                             }
-
-                                            // Update through CarrierCargoTracker
-                                            _carrierCargoTracker.Process(root);
-
-                                            // Log cargo tracker state after processing
-                                            Log.Debug("CarrierCargoTracker after processing:");
-                                            foreach (var item in _carrierCargoTracker.Cargo)
-                                            {
-                                                Log.Debug("  - {Name}: {Count}", item.Key, item.Value);
-                                            }
-
-                                            // Update the Dictionary from the tracker
-                                            CarrierCargo = new Dictionary<string, int>(_carrierCargoTracker.Cargo);
-
-                                            // Update the List representation for UI binding
-                                            UpdateCurrentCarrierCargoFromDictionary();
 
                                             Log.Information("CargoTransfer processed: {Count} items in carrier cargo",
                                                 CarrierCargo.Count);
@@ -2455,10 +2438,11 @@ namespace EliteInfoPanel.Core
                 });
             }
 
-            CurrentCarrierCargo = items.OrderByDescending(item => item.Quantity).ToList();
-
-            // Explicitly call OnPropertyChanged to ensure UI updates
-            OnPropertyChanged(nameof(CurrentCarrierCargo));
+            // Set the property without triggering another notification
+            using (BeginUpdate())
+            {
+                CurrentCarrierCargo = items.OrderByDescending(item => item.Quantity).ToList();
+            }
         }
 
     }
