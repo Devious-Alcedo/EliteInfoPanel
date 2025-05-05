@@ -3,23 +3,80 @@
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:EliteInfoPanel.ViewModels">
-  
 
     <Grid Margin="8">
-        <StackPanel>
-            <TextBlock Text="Carrier Cargo" FontWeight="Bold" FontSize="16" Margin="0 0 0 8"/>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <TextBlock Text="Fleet Carrier Cargo" FontWeight="Bold" FontSize="16" Margin="0 0 0 8" Grid.Row="0"/>
+
+        <!-- Cargo List with inline editing -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" MaxHeight="200">
             <ItemsControl ItemsSource="{Binding Cargo}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <DockPanel LastChildFill="True">
-                            <TextBlock Text="{Binding Name}" DockPanel.Dock="Left"/>
-                            <TextBlock Text="{Binding Quantity}" DockPanel.Dock="Right"/>
-                        </DockPanel>
+                        <Border Margin="0,2,0,2" Padding="4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Commodity Name -->
+                                <TextBlock Text="{Binding Name}" Grid.Column="0" VerticalAlignment="Center"/>
+
+                                <!-- Quantity -->
+                                <TextBlock Text="{Binding Quantity}" Grid.Column="1" Margin="8,0,8,0" MinWidth="30" 
+                                           TextAlignment="Right" VerticalAlignment="Center"/>
+
+                                <!-- Adjustment Buttons -->
+                                <Button Grid.Column="2" Style="{DynamicResource MaterialDesignIconFlatButton}" 
+                                        Command="{Binding DataContext.DecrementCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}" Width="30" Height="30" Padding="0" Margin="2,0">
+                                    <materialDesign:PackIcon Kind="Minus" Height="18" Width="18"/>
+                                </Button>
+
+                                <Button Grid.Column="3" Style="{DynamicResource MaterialDesignIconFlatButton}"
+                                        Command="{Binding DataContext.IncrementCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}" Width="30" Height="30" Padding="0" Margin="2,0">
+                                    <materialDesign:PackIcon Kind="Plus" Height="18" Width="18"/>
+                                </Button>
+                            </Grid>
+                        </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <TextBlock Text="(Tracking live transfers)" FontStyle="Italic"
-                       FontSize="10" Foreground="Gray" Margin="0,6,0,0"/>
-        </StackPanel>
+        </ScrollViewer>
+
+        <!-- Add New Section -->
+        <Grid Grid.Row="2" Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBox Grid.Column="0" materialDesign:HintAssist.Hint="Commodity name" 
+                     Text="{Binding NewCommodityName, UpdateSourceTrigger=PropertyChanged}"/>
+
+            <TextBox Grid.Column="1" materialDesign:HintAssist.Hint="Qty" Width="60" Margin="8,0"
+                     Text="{Binding NewCommodityQuantity, UpdateSourceTrigger=PropertyChanged}"/>
+
+            <Button Grid.Column="2" Style="{StaticResource MaterialDesignRaisedButton}"
+                    Command="{Binding AddCommodityCommand}">
+                <materialDesign:PackIcon Kind="Plus"/>
+            </Button>
+        </Grid>
+
+        <!-- Status Message -->
+        <TextBlock Text="(Tracking live transfers)" FontStyle="Italic"
+                   FontSize="10" Foreground="Gray" Margin="0,6,0,0" 
+                   Grid.Row="2" VerticalAlignment="Bottom" HorizontalAlignment="Right"/>
     </Grid>
 </UserControl>

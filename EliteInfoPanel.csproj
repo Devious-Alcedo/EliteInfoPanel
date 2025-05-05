@@ -154,4 +154,8 @@
     <Resource Include="Assets\Stars\Y.png" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Views\" />
+  </ItemGroup>
+
 </Project>
