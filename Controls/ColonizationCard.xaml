@@ -73,6 +73,13 @@
                     Margin="3,0">
                 <materialDesign:PackIcon Kind="SortAlphabeticalAscending" Width="20" Height="20" />
             </Button>
+            <!-- Add this button next to the other buttons in the sort options row -->
+            <Button Style="{StaticResource MaterialDesignFlatButton}"
+        Command="{Binding ExportToCsvCommand}" 
+        ToolTip="Export to CSV"
+        Margin="3,0">
+                <materialDesign:PackIcon Kind="FileExport" Width="20" Height="20" />
+            </Button>
             <!-- Open in New Window button - Only visible when not already in a popup window -->
             <Button Style="{StaticResource MaterialDesignFlatButton}"
         Command="{Binding OpenInNewWindowCommand}" 
@@ -126,24 +133,41 @@
                                 </Grid.RowDefinitions>
 
                                 <!-- Resource Name and Progress -->
-                                <StackPanel Grid.Column="0" Grid.Row="0" Orientation="Horizontal">
-                                    <TextBlock Text="{Binding Name}" 
-                                               FontWeight="SemiBold"
-                                               FontSize="{Binding FontSize}"
-                                               Foreground="White"
-                                               VerticalAlignment="Center"
-                                               Margin="0,0,8,0"
-                                               TextWrapping="Wrap"
-                                               TextTrimming="None" />
+                                <Grid Grid.Column="0" Grid.Row="0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
 
-                                    <materialDesign:PackIcon Kind="Check" 
-                                                         Foreground="LimeGreen"
-                                                         Width="18" 
-                                                         Height="18"
-                                                         VerticalAlignment="Center" 
-                                                         Visibility="{Binding IsComplete, Converter={StaticResource BoolToVis}}" />
-                                </StackPanel>
+                                    <!-- Commodity Name - Always visible -->
+                                    <TextBlock Grid.Column="0"
+               Text="{Binding Name}" 
+               FontWeight="SemiBold"
+               FontSize="{Binding FontSize}"
+               Foreground="White"
+               VerticalAlignment="Center"
+               TextWrapping="Wrap"
+               TextTrimming="None"/>
+                                    <TextBlock Grid.Column="1"
+               Visibility="{Binding IsComplete, Converter={StaticResource InverseBoolConverter}}"
+               VerticalAlignment="Center"
+               Margin="4,0,0,0">
+        <Run Text="(" />
+        <Run Text="{Binding Remaining, Mode=OneWay}" Foreground="Orange" FontWeight="Bold" />
+        <Run Text=")" />
+                                    </TextBlock>
 
+                                    <!-- Checkmark for completed items -->
+                                    <materialDesign:PackIcon Grid.Column="2"
+                           Kind="Check" 
+                           Foreground="LimeGreen"
+                           Width="18" 
+                           Height="18"
+                           Margin="4,0,0,0"
+                           VerticalAlignment="Center" 
+                           Visibility="{Binding IsComplete, Converter={StaticResource BoolToVis}}" />
+                                </Grid>
                                 <!-- Progress Bar and Numbers -->
                                 <StackPanel Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="1">
                                     <Grid Margin="0,4,0,0">
