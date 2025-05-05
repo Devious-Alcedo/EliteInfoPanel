@@ -96,6 +96,8 @@ namespace EliteInfoPanel.Core
         }
 
         // In CarrierCargoTracker.cs
+        // In CarrierCargoTracker.cs - Fix the ProcessTransfer method
+
         private void ProcessTransfer(JsonElement root)
         {
             if (!root.TryGetProperty("Transfers", out var transfersProp) || transfersProp.ValueKind != JsonValueKind.Array)
@@ -113,30 +115,39 @@ namespace EliteInfoPanel.Core
 
                     if (string.IsNullOrWhiteSpace(name)) continue;
 
-                    // CORRECTED LOGIC:
-                    // "tocarrier" means adding TO the carrier (from ship)
-                    // "toship" means removing FROM the carrier (to ship)
+                    // Fix case sensitivity issues by standardizing the name
+                    name = name.ToLowerInvariant();
+
                     Log.Information("CarrierCargoTracker processing transfer: {Direction} {Count} of {Type}",
                         direction, count, name);
 
                     if (direction == "tocarrier")
                     {
-                        // Adding TO carrier
-                        if (!_cargo.ContainsKey(name))
-                            _cargo[name] = 0;
+                        // Fix #1: Get current amount first
+                        int currentAmount = 0;
+                        if (_cargo.TryGetValue(name, out int existing))
+                        {
+                            currentAmount = existing;
+                        }
 
-                        _cargo[name] += count;
-                        Log.Information("  -> Added to carrier: {Type} now at {Count}", name, _cargo[name]);
+                        // Add to current amount
+                        _cargo[name] = currentAmount + count;
+                        Log.Information("  -> Added to carrier: {Type} now at {Count} (was {Previous})",
+                            name, _cargo[name], currentAmount);
                     }
                     else if (direction == "toship")
                     {
-                        // Removing FROM carrier
-                        if (_cargo.ContainsKey(name))
+                        if (_cargo.TryGetValue(name, out int currentAmount))
                         {
-                            _cargo[name] -= count;
-                            Log.Information("  -> Removed from carrier: {Type} now at {Count}", name, _cargo[name]);
+                            // Subtract from current amount
+                            int newAmount = Math.Max(0, currentAmount - count);
+                            _cargo[name] = newAmount;
 
-                            if (_cargo[name] <= 0)
+                            Log.Information("  -> Removed from carrier: {Type} now at {Count} (was {Previous})",
+                                name, newAmount, currentAmount);
+
+                            // Remove completely if zero
+                            if (newAmount <= 0)
                             {
                                 _cargo.Remove(name);
                                 Log.Information("  -> Removed {Type} completely from carrier tracking", name);
@@ -147,10 +158,6 @@ namespace EliteInfoPanel.Core
                             Log.Warning("  -> Attempted to remove {Count} of {Type} from carrier, but none in inventory",
                                 count, name);
                         }
-                    }
-                    else
-                    {
-                        Log.Warning("  -> Unknown transfer direction: {Direction}", direction);
                     }
                 }
             }

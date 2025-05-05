@@ -17,7 +17,7 @@ namespace EliteInfoPanel.ViewModels
         private bool _ignoreJournalUpdates = false;
         private string _newCommodityName;
         private int _newCommodityQuantity = 1;
-
+        private bool _isInitializing = true;
         public ObservableCollection<CarrierCargoItem> Cargo { get; } = new();
 
         public string NewCommodityName
@@ -40,7 +40,7 @@ namespace EliteInfoPanel.ViewModels
         {
             _gameState = gameState;
 
-            // Set up save path
+            // Set up save path in AppData
             string appDataFolder = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "EliteInfoPanel");
@@ -52,21 +52,17 @@ namespace EliteInfoPanel.ViewModels
             DecrementCommand = new RelayCommand(DecrementCommodity);
             AddCommodityCommand = new RelayCommand(_ => AddCommodity(), _ => CanAddCommodity());
 
-            // Load saved data first
-            if (LoadSavedCargoData())
-            {
-                // If we successfully loaded saved data, ignore initial journal updates
-                _ignoreJournalUpdates = true;
-            }
+            // First try to load saved data
+            bool hasSavedData = LoadSavedCargoData();
+            Log.Information("Saved cargo data loaded: {Success}, {Count} items",
+                hasSavedData, Cargo.Count);
 
-            // Subscribe to property changed events
+            // ONLY NOW subscribe to property changes - AFTER loading saved data
             _gameState.PropertyChanged += GameState_PropertyChanged;
 
-            // Initial update if we don't have saved data
-            if (Cargo.Count == 0)
-            {
-                UpdateCargo();
-            }
+            // Initialization complete - now we'll handle journal updates
+            _isInitializing = false;
+            Log.Information("Fleet carrier cargo initialization complete");
         }
 
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -75,18 +71,85 @@ namespace EliteInfoPanel.ViewModels
             {
                 Log.Information("FleetCarrierCargoViewModel received CurrentCarrierCargo update");
 
-                // Skip the first update if we loaded saved data
-                if (_ignoreJournalUpdates)
+                // Skip updates during initialization
+                if (_isInitializing)
                 {
-                    _ignoreJournalUpdates = false;
-                    Log.Information("Ignoring initial carrier cargo update in favor of saved data");
+                    Log.Information("Ignoring carrier cargo update during initialization");
                     return;
                 }
 
-                UpdateCargo();
+                // Now synchronize with the game state
+                UpdateFromGameState();
             }
         }
+        private void UpdateFromGameState()
+        {
+            App.Current.Dispatcher.Invoke(() =>
+            {
+                var gameItems = _gameState.CurrentCarrierCargo;
+                if (gameItems == null || !gameItems.Any())
+                {
+                    Log.Warning("UpdateFromGameState: No carrier cargo items available");
+                    return;
+                }
 
+                Log.Debug("Updating UI from game state: {Count} items", gameItems.Count);
+
+                // Process all items from game state
+                var itemsToUpdate = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                foreach (var item in gameItems)
+                {
+                    itemsToUpdate[item.Name] = item.Quantity;
+                }
+
+                // Update UI collection
+                foreach (var pair in itemsToUpdate)
+                {
+                    var existingItem = Cargo.FirstOrDefault(i =>
+                        string.Equals(i.Name, pair.Key, StringComparison.OrdinalIgnoreCase));
+
+                    if (existingItem != null)
+                    {
+                        // Update quantity of existing item
+                        if (existingItem.Quantity != pair.Value)
+                        {
+                            Log.Debug("  Updating {Name}: {OldQty} → {NewQty}",
+                                pair.Key, existingItem.Quantity, pair.Value);
+                            existingItem.Quantity = pair.Value;
+                        }
+                    }
+                    else
+                    {
+                        // Add new item
+                        Log.Debug("  Adding new item: {Name} = {Qty}", pair.Key, pair.Value);
+                        Cargo.Add(new CarrierCargoItem
+                        {
+                            Name = pair.Key,
+                            Quantity = pair.Value
+                        });
+                    }
+                }
+
+                // Remove items that are no longer in the game state
+                for (int i = Cargo.Count - 1; i >= 0; i--)
+                {
+                    var item = Cargo[i];
+                    if (!itemsToUpdate.ContainsKey(item.Name) || itemsToUpdate[item.Name] <= 0)
+                    {
+                        Log.Debug("  Removing item: {Name}", item.Name);
+                        Cargo.RemoveAt(i);
+                    }
+                }
+
+                // Save updated data
+                SaveCargoData();
+
+                // Update visibility
+                SetContextVisibility(Cargo.Count > 0);
+
+                Log.Information("Fleet carrier cargo updated from game state: {Count} items", Cargo.Count);
+            });
+        }
         private void UpdateCargo()
         {
             App.Current.Dispatcher.Invoke(() =>
@@ -98,56 +161,60 @@ namespace EliteInfoPanel.ViewModels
                     return;
                 }
 
-                // Create dictionary of existing items
-                var existingItems = new Dictionary<string, CarrierCargoItem>();
-                foreach (var item in Cargo)
-                {
-                    existingItems[item.Name] = item;
-                }
+                Log.Debug("UpdateCargo: Processing {Count} items from game state", cargoItems.Count);
 
-                // Track which items were updated
-                var updatedItems = new HashSet<string>();
+                // Track which items we've seen for removal purposes
+                var seenItems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                foreach (var newItem in cargoItems)
+                // Process all items in CurrentCarrierCargo
+                foreach (var gameItem in cargoItems)
                 {
-                    if (existingItems.TryGetValue(newItem.Name, out var existingItem))
+                    seenItems.Add(gameItem.Name);
+
+                    // Try to find existing item in our UI collection
+                    var existingItem = Cargo.FirstOrDefault(i =>
+                        string.Equals(i.Name, gameItem.Name, StringComparison.OrdinalIgnoreCase));
+
+                    if (existingItem != null)
                     {
-                        // Update existing item
-                        existingItem.Quantity = newItem.Quantity;
+                        // Update quantity
+                        if (existingItem.Quantity != gameItem.Quantity)
+                        {
+                            Log.Debug("Updating {0}: {1} → {2}",
+                                gameItem.Name, existingItem.Quantity, gameItem.Quantity);
+                            existingItem.Quantity = gameItem.Quantity;
+                        }
                     }
                     else
                     {
                         // Add new item
+                        Log.Debug("Adding new item: {0} = {1}", gameItem.Name, gameItem.Quantity);
                         Cargo.Add(new CarrierCargoItem
                         {
-                            Name = newItem.Name,
-                            Quantity = newItem.Quantity
+                            Name = gameItem.Name,
+                            Quantity = gameItem.Quantity
                         });
                     }
-
-                    updatedItems.Add(newItem.Name);
                 }
 
-                // Remove items that no longer exist
+                // Remove items that aren't in the game state
                 for (int i = Cargo.Count - 1; i >= 0; i--)
                 {
                     var item = Cargo[i];
-                    if (!updatedItems.Contains(item.Name) || item.Quantity <= 0)
+                    if (!seenItems.Contains(item.Name))
                     {
+                        Log.Debug("Removing item not in game state: {0}", item.Name);
                         Cargo.RemoveAt(i);
                     }
                 }
 
-                // Always ensure the card is visible if we have cargo
+                // Set visibility and save data
                 SetContextVisibility(Cargo.Count > 0);
-
-                // Save the updated data
                 SaveCargoData();
 
-                Log.Information("Fleet carrier cargo updated with {Count} items", Cargo.Count);
+                Log.Information("Fleet carrier cargo updated: {0} items in UI", Cargo.Count);
             });
         }
-
         private bool LoadSavedCargoData()
         {
             try
@@ -203,6 +270,7 @@ namespace EliteInfoPanel.ViewModels
             if (parameter is CarrierCargoItem item)
             {
                 item.Quantity++;
+                Log.Debug("Manually incremented: {Name} to {Quantity}", item.Name, item.Quantity);
                 SaveCargoData();
             }
         }
@@ -212,11 +280,13 @@ namespace EliteInfoPanel.ViewModels
             if (parameter is CarrierCargoItem item && item.Quantity > 0)
             {
                 item.Quantity--;
+                Log.Debug("Manually decremented: {Name} to {Quantity}", item.Name, item.Quantity);
 
                 // Remove the item if quantity is zero
                 if (item.Quantity == 0)
                 {
                     Cargo.Remove(item);
+                    Log.Debug("Removed {Name} due to zero quantity", item.Name);
                 }
 
                 SaveCargoData();
@@ -240,7 +310,7 @@ namespace EliteInfoPanel.ViewModels
             {
                 // Update existing item
                 existingItem.Quantity += NewCommodityQuantity;
-                Log.Debug("Updated existing cargo: {Name} to {Quantity}",
+                Log.Debug("Added to existing cargo: {Name} now at {Quantity}",
                     existingItem.Name, existingItem.Quantity);
             }
             else

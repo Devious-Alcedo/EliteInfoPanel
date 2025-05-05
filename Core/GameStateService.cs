@@ -2423,26 +2423,41 @@ namespace EliteInfoPanel.Core
                 }
             }
         }
+        // In GameStateService.cs - Fix the UpdateCurrentCarrierCargoFromDictionary method
+
         private void UpdateCurrentCarrierCargoFromDictionary()
         {
-            var items = new List<CarrierCargoItem>();
-
-            foreach (var pair in CarrierCargo.Where(kv => kv.Value > 0))
+            try
             {
-                items.Add(new CarrierCargoItem
+                var items = new List<CarrierCargoItem>();
+
+                foreach (var pair in CarrierCargo.Where(kv => kv.Value > 0))
                 {
-                    Name = pair.Key,
-                    Quantity = pair.Value
-                });
-            }
+                    items.Add(new CarrierCargoItem
+                    {
+                        Name = pair.Key,
+                        Quantity = pair.Value
+                    });
+                }
 
-            // Set the property without triggering another notification
-            using (BeginUpdate())
+                // Update the property - this will trigger the UI to update
+                var sortedItems = items.OrderByDescending(i => i.Quantity).ToList();
+                CurrentCarrierCargo = sortedItems;
+
+                // Log the result
+                Log.Information("UpdateCurrentCarrierCargoFromDictionary: Updated with {Count} items",
+                    sortedItems.Count);
+
+                foreach (var item in sortedItems)
+                {
+                    Log.Debug("  - {Name}: {Quantity}", item.Name, item.Quantity);
+                }
+            }
+            catch (Exception ex)
             {
-                CurrentCarrierCargo = items.OrderByDescending(item => item.Quantity).ToList();
+                Log.Error(ex, "Error updating CurrentCarrierCargo from dictionary");
             }
         }
-
     }
 } 
 #endregion
