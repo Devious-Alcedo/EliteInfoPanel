@@ -1432,9 +1432,7 @@ namespace EliteInfoPanel.Core
 
                             string eventType = eventProp.GetString();
                             Log.Debug("Processing journal event: {Event}", eventType);
-                            _carrierCargoTracker.Process(root);
-                            CarrierCargo = new Dictionary<string, int>(_carrierCargoTracker.Cargo);
-
+                         
 
 
                             // All the existing switch cases and handling logic remains the same
