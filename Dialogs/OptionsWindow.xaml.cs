@@ -350,7 +350,8 @@ namespace EliteInfoPanel.Dialogs
                 { nameof(appSettings.ShowBackpack), "Backpack" },
                 { nameof(appSettings.ShowRoute), "Route" },
                 { nameof(appSettings.ShowModules), "Modules" },
-                { nameof(appSettings.ShowColonisation), "Colonisation" }
+                { nameof(appSettings.ShowColonisation), "Colonisation" },
+                { nameof(appSettings.ShowFleetCarrierCargoCard), "Fleet Carrier Cargo"   }
             };
 
             foreach (var entry in cardMap)

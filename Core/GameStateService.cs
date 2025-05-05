@@ -14,6 +14,7 @@ using EliteInfoPanel.Core.EliteInfoPanel.Core;
 using EliteInfoPanel.Core.Models;
 using EliteInfoPanel.Util;
 using Serilog;
+using Serilog.Core;
 
 namespace EliteInfoPanel.Core
 {
@@ -22,136 +23,65 @@ namespace EliteInfoPanel.Core
 
         #region Private Fields
 
+        private const string CarrierCargoFilePath = "carrier_cargo.json";
         private const string RouteProgressFile = "RouteProgress.json";
-        private bool _isUpdating = false;
-        private HashSet<string> _pendingNotifications = new HashSet<string>();
         private static readonly SolidColorBrush CountdownGoldBrush = new SolidColorBrush(Colors.Gold);
-  
         private static readonly SolidColorBrush CountdownGreenBrush = new SolidColorBrush(Colors.Green);
-        private ColonizationData _currentColonization;
         private static readonly SolidColorBrush CountdownRedBrush = new SolidColorBrush(Colors.Red);
+        private readonly CarrierCargoTracker _carrierCargoTracker = new();
+        private const string CarrierCargoFile = "CarrierCargo.json";
 
-        private string _carrierJumpDestinationBody;
-        private bool _isCarrierJumping = false;
-        private string _carrierJumpDestinationSystem;
-        private int _combatRank;
-        private int _tradeRank;
-        private int _explorationRank;
-        private int _cqcRank;
-        private int _exobiologistRank;
-        private int _mercenaryRank;
         private readonly string ColonizationDataFile = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "EliteInfoPanel",
             "ColonizationData.json");
-        public int CombatRank
-        {
-            get => _combatRank;
-            private set => SetProperty(ref _combatRank, value);
-        }
 
-        public int TradeRank
-        {
-            get => _tradeRank;
-            private set => SetProperty(ref _tradeRank, value);
-        }
-
-        public int ExplorationRank
-        {
-            get => _explorationRank;
-            private set => SetProperty(ref _explorationRank, value);
-        }
-
-        public int CqcRank
-        {
-            get => _cqcRank;
-            private set => SetProperty(ref _cqcRank, value);
-        }
-
-        public int ExobiologistRank
-        {
-            get => _exobiologistRank;
-            private set => SetProperty(ref _exobiologistRank, value);
-        }
-
-        public int MercenaryRank
-        {
-            get => _mercenaryRank;
-            private set => SetProperty(ref _mercenaryRank, value);
-        }
-        private enum DockingState
-        {
-            NotDocking,
-            DockingRequested,
-            DockingGranted,
-            Docked
-        }
-
-        private DockingState _currentDockingState = DockingState.NotDocking;
-
+        private Dictionary<string, int> _carrierCargo = new();
+        private string _carrierJumpDestinationBody;
+        private string _carrierJumpDestinationSystem;
         private DateTime? _carrierJumpScheduledTime;
-
+        private int _combatRank;
         private string _commanderName;
-
+        private int _cqcRank;
         private BackpackJson _currentBackpack;
-
         private CargoJson _currentCargo;
-
+        private List<CarrierCargoItem> _currentCarrierCargo = new();
+        private ColonizationData _currentColonization;
+        private DockingState _currentDockingState = DockingState.NotDocking;
         private LoadoutJson _currentLoadout;
-
         private FCMaterialsJson _currentMaterials;
-
         private NavRouteJson _currentRoute;
-
         private string _currentStationName;
-
         private StatusJson _currentStatus;
-
         private string _currentSystem;
-
         private (double X, double Y, double Z)? _currentSystemCoordinates;
-
         private CancellationTokenSource _dockingCts = new CancellationTokenSource();
-
+        private int _exobiologistRank;
+        private int _explorationRank;
         private bool _firstLoadCompleted = false;
-
-       
-
         private bool _fleetCarrierJumpInProgress;
-
         private DateTime? _fleetCarrierJumpTime;
-
         private string _hyperspaceDestination;
-
         private string _hyperspaceStarClass;
-
         private CancellationTokenSource _hyperspaceTimeoutCts;
-
+        private bool _isCarrierJumping = false;
         private bool _isDocking;
-
         private bool _isHyperspaceJumping;
-
         private bool _isInHyperspace = false;
-
         private bool _isInitializing = true;
-
         private bool _isOnFleetCarrier;
-
         private bool _isRouteLoaded = false;
-
+        private bool _isUpdating = false;
         private bool _jumpArrived;
-
         // Add this field to track changes
         private int _lastCarrierJumpCountdown = -1;
 
         private string _lastFsdTargetSystem;
-
         private string _lastVisitedSystem;
-
         private string _legalState = "Clean";
-
         private double _maxJumpRange;
-
+        private int _mercenaryRank;
+        private HashSet<string> _pendingNotifications = new HashSet<string>();
         private int? _remainingJumps;
 
         private RouteProgressState _routeProgress = new();
@@ -163,6 +93,8 @@ namespace EliteInfoPanel.Core
         private string _shipName;
 
         private string _squadronName;
+
+        private int _tradeRank;
 
         private string _userShipId;
 
@@ -176,6 +108,93 @@ namespace EliteInfoPanel.Core
 
         private string latestJournalPath;
 
+        private enum DockingState
+        {
+            NotDocking,
+            DockingRequested,
+            DockingGranted,
+            Docked
+        }
+
+        public Dictionary<string, int> CarrierCargo
+        {
+            get => _carrierCargo;
+            private set
+            {
+                _carrierCargo = value;
+                OnPropertyChanged(nameof(CarrierCargo)); // ← ADD THIS
+            }
+        }
+        public int CombatRank
+        {
+            get => _combatRank;
+            private set => SetProperty(ref _combatRank, value);
+        }
+
+        public int CqcRank
+        {
+            get => _cqcRank;
+            private set => SetProperty(ref _cqcRank, value);
+        }
+
+        public List<CarrierCargoItem> CurrentCarrierCargo
+        {
+            get => _currentCarrierCargo;
+            private set => SetProperty(ref _currentCarrierCargo, value);
+        }
+
+        public int ExobiologistRank
+        {
+            get => _exobiologistRank;
+            private set => SetProperty(ref _exobiologistRank, value);
+        }
+
+        public int ExplorationRank
+        {
+            get => _explorationRank;
+            private set => SetProperty(ref _explorationRank, value);
+        }
+
+        public int MercenaryRank
+        {
+            get => _mercenaryRank;
+            private set => SetProperty(ref _mercenaryRank, value);
+        }
+
+        public int TradeRank
+        {
+            get => _tradeRank;
+            private set => SetProperty(ref _tradeRank, value);
+        }
+
+        private void LoadCarrierCargoFromDisk()
+        {
+            try
+            {
+                if (File.Exists(CarrierCargoFilePath))
+                {
+                    var json = File.ReadAllText(CarrierCargoFilePath);
+                    _carrierCargo = JsonSerializer.Deserialize<Dictionary<string, int>>(json) ?? new();
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Information(ex, "Failed to load CarrierCargo");
+                _carrierCargo = new(); // Fallback
+            }
+        }
+
+        private void SaveCarrierCargoToDisk()
+        {
+            try
+            {
+                File.WriteAllText(CarrierCargoFilePath, JsonSerializer.Serialize(_carrierCargo));
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to save CarrierCargo");
+            }
+        }
         #endregion Private Fields
 
         #region Public Constructors
@@ -218,134 +237,10 @@ namespace EliteInfoPanel.Core
 
         #region Public Properties
 
+        // Add this field to track the special condition
+        private bool _jumpCountdownJustReachedZero = false;
+
         public long? Balance => CurrentStatus?.Balance;
-        public ColonizationData CurrentColonization
-        {
-            get => _currentColonization;
-            private set
-            {
-                if (SetProperty(ref _currentColonization, value))
-                {
-                    // Save the data whenever it's updated
-                    SaveColonizationData();
-                }
-            }
-        }
-        /// <summary>
-        /// Begins a batch update operation that defers property change notifications
-        /// </summary>
-        private IDisposable BeginUpdate()
-        {
-            _isUpdating = true;
-            return new UpdateScope(this);
-        }
-
-        /// <summary>
-        /// Helper class to manage batch update scope
-        /// </summary>
-        private class UpdateScope : IDisposable
-        {
-            private readonly GameStateService _service;
-
-            public UpdateScope(GameStateService service)
-            {
-                _service = service;
-            }
-
-            public void Dispose()
-            {
-                _service._isUpdating = false;
-                _service.SendPendingNotifications();
-            }
-        }
-
-        /// <summary>
-        /// Sends all pending property change notifications at once
-        /// </summary>
-        private void SendPendingNotifications()
-        {
-            if (_pendingNotifications.Count == 0)
-                return;
-
-            foreach (var prop in _pendingNotifications)
-            {
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(prop));
-            }
-
-            _pendingNotifications.Clear();
-        }
-        private void SaveColonizationData()
-        {
-            try
-            {
-                if (CurrentColonization == null)
-                    return;
-
-                // Ensure directory exists
-                Directory.CreateDirectory(Path.GetDirectoryName(ColonizationDataFile));
-
-                // Serialize and save
-                string json = JsonSerializer.Serialize(CurrentColonization, new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                });
-                File.WriteAllText(ColonizationDataFile, json);
-
-                Log.Information("Saved colonization data to file: Progress={Progress:P2}, Resources={Count}",
-                    CurrentColonization.ConstructionProgress,
-                    CurrentColonization.ResourcesRequired?.Count ?? 0);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error saving colonization data");
-            }
-        }
-
-        private void LoadPersistedColonizationData()
-        {
-            try
-            {
-                if (!File.Exists(ColonizationDataFile))
-                {
-                    Log.Information("No persisted colonization data file found");
-                    return;
-                }
-
-                string json = File.ReadAllText(ColonizationDataFile);
-                if (string.IsNullOrWhiteSpace(json))
-                {
-                    Log.Warning("Colonization data file is empty");
-                    return;
-                }
-
-                var data = JsonSerializer.Deserialize<ColonizationData>(json);
-                if (data == null)
-                {
-                    Log.Warning("Failed to deserialize colonization data");
-                    return;
-                }
-
-                // Only use the data if it's still active (not complete or failed)
-                if (!data.ConstructionComplete && !data.ConstructionFailed)
-                {
-                    CurrentColonization = data;
-                    Log.Information("Loaded persisted colonization data: Progress={Progress:P2}, Resources={Count}, LastUpdated={LastUpdated}",
-                        data.ConstructionProgress,
-                        data.ResourcesRequired?.Count ?? 0,
-                        data.LastUpdated);
-                }
-                else
-                {
-                    Log.Information("Persisted colonization data is no longer active (Complete={Complete}, Failed={Failed})",
-                        data.ConstructionComplete,
-                        data.ConstructionFailed);
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error loading persisted colonization data");
-            }
-        }
         public int CarrierJumpCountdownSeconds
         {
             get
@@ -381,10 +276,6 @@ namespace EliteInfoPanel.Core
                 return 0;
             }
         }
-
-        // Add this field to track the special condition
-        private bool _jumpCountdownJustReachedZero = false;
-    
 
         public string CarrierJumpDestinationBody
         {
@@ -422,6 +313,18 @@ namespace EliteInfoPanel.Core
             private set => SetProperty(ref _currentCargo, value);
         }
 
+        public ColonizationData CurrentColonization
+        {
+            get => _currentColonization;
+            private set
+            {
+                if (SetProperty(ref _currentColonization, value))
+                {
+                    // Save the data whenever it's updated
+                    SaveColonizationData();
+                }
+            }
+        }
         public LoadoutJson CurrentLoadout
         {
             get => _currentLoadout;
@@ -483,8 +386,6 @@ namespace EliteInfoPanel.Core
 
         public bool FirstLoadCompleted => _firstLoadCompleted;
 
-      
-
         public bool FleetCarrierJumpInProgress
         {
             get => _fleetCarrierJumpInProgress;
@@ -520,37 +421,7 @@ namespace EliteInfoPanel.Core
             get => _isDocking;
             private set => SetProperty(ref _isDocking, value);
         }
-        private void ProcessDockingEvent(string eventType, JsonElement root)
-        {
-            switch (eventType)
-            {
-                case "DockingRequested":
-                    _currentDockingState = DockingState.DockingRequested;
-                    IsDocking = true;
-                    Log.Debug("Docking requested - IsDocking set to true");
-                    break;
 
-                case "DockingGranted":
-                    _currentDockingState = DockingState.DockingGranted;
-                    IsDocking = true;
-                    Log.Debug("Docking granted - IsDocking set to true");
-                    break;
-
-                case "Docked":
-                    _currentDockingState = DockingState.Docked;
-                    IsDocking = false;
-                    Log.Debug("Docked - IsDocking set to false");
-                    break;
-
-                case "DockingCancelled":
-                case "DockingDenied":
-                case "DockingTimeout":
-                    _currentDockingState = DockingState.NotDocking;
-                    IsDocking = false;
-                    Log.Debug($"{eventType} - IsDocking set to false");
-                    break;
-            }
-        }
         public bool IsHyperspaceJumping
         {
             get => _isHyperspaceJumping;
@@ -586,7 +457,7 @@ namespace EliteInfoPanel.Core
         }
 
         public TimeSpan? JumpCountdown => FleetCarrierJumpTime.HasValue ?
-            FleetCarrierJumpTime.Value.ToLocalTime() - DateTime.Now : null;
+                    FleetCarrierJumpTime.Value.ToLocalTime() - DateTime.Now : null;
 
         public string LastFsdTargetSystem
         {
@@ -653,10 +524,10 @@ namespace EliteInfoPanel.Core
                              CarrierJumpDestinationSystem ?? "null");
                     if (_jumpCountdownJustReachedZero && IsOnFleetCarrier &&
                         !string.IsNullOrEmpty(CarrierJumpDestinationSystem))
-                            {
-                                Log.Information("Jump animation starting - forced overlay display");
-                                return true;
-                            }
+                    {
+                        Log.Information("Jump animation starting - forced overlay display");
+                        return true;
+                    }
                     // Updated logic with extra safety checks
                     bool result = FleetCarrierJumpInProgress &&
                                  IsOnFleetCarrier &&
@@ -688,22 +559,6 @@ namespace EliteInfoPanel.Core
                     Log.Error(ex, "Error in ShowCarrierJumpOverlay getter");
                     return false;
                 }
-            }
-        }
-        public void ResetFleetCarrierJumpState()
-        {
-            if (FleetCarrierJumpInProgress &&
-                (!IsOnFleetCarrier || JumpArrived || CarrierJumpScheduledTime?.ToLocalTime() < DateTime.Now.AddMinutes(-5)))
-            {
-                Log.Information("Resetting stale carrier jump state - JumpInProgress={0}, OnCarrier={1}, JumpArrived={2}",
-                    FleetCarrierJumpInProgress, IsOnFleetCarrier, JumpArrived);
-
-                FleetCarrierJumpInProgress = false;
-                CarrierJumpScheduledTime = null;
-                CarrierJumpDestinationSystem = null;
-                CarrierJumpDestinationBody = null;
-                _lastCarrierJumpCountdown = -1;
-                JumpArrived = false;
             }
         }
 
@@ -748,6 +603,183 @@ namespace EliteInfoPanel.Core
             set => SetProperty(ref _userShipName, value);
         }
 
+        public void ResetFleetCarrierJumpState()
+        {
+            if (FleetCarrierJumpInProgress &&
+                (!IsOnFleetCarrier || JumpArrived || CarrierJumpScheduledTime?.ToLocalTime() < DateTime.Now.AddMinutes(-5)))
+            {
+                Log.Information("Resetting stale carrier jump state - JumpInProgress={0}, OnCarrier={1}, JumpArrived={2}",
+                    FleetCarrierJumpInProgress, IsOnFleetCarrier, JumpArrived);
+
+                FleetCarrierJumpInProgress = false;
+                CarrierJumpScheduledTime = null;
+                CarrierJumpDestinationSystem = null;
+                CarrierJumpDestinationBody = null;
+                _lastCarrierJumpCountdown = -1;
+                JumpArrived = false;
+            }
+        }
+
+        /// <summary>
+        /// Begins a batch update operation that defers property change notifications
+        /// </summary>
+        private IDisposable BeginUpdate()
+        {
+            _isUpdating = true;
+            return new UpdateScope(this);
+        }
+
+        private void LoadPersistedColonizationData()
+        {
+            try
+            {
+                if (!File.Exists(ColonizationDataFile))
+                {
+                    Log.Information("No persisted colonization data file found");
+                    return;
+                }
+
+                string json = File.ReadAllText(ColonizationDataFile);
+                if (string.IsNullOrWhiteSpace(json))
+                {
+                    Log.Warning("Colonization data file is empty");
+                    return;
+                }
+
+                var data = JsonSerializer.Deserialize<ColonizationData>(json);
+                if (data == null)
+                {
+                    Log.Warning("Failed to deserialize colonization data");
+                    return;
+                }
+
+                // Only use the data if it's still active (not complete or failed)
+                if (!data.ConstructionComplete && !data.ConstructionFailed)
+                {
+                    CurrentColonization = data;
+                    Log.Information("Loaded persisted colonization data: Progress={Progress:P2}, Resources={Count}, LastUpdated={LastUpdated}",
+                        data.ConstructionProgress,
+                        data.ResourcesRequired?.Count ?? 0,
+                        data.LastUpdated);
+                }
+                else
+                {
+                    Log.Information("Persisted colonization data is no longer active (Complete={Complete}, Failed={Failed})",
+                        data.ConstructionComplete,
+                        data.ConstructionFailed);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error loading persisted colonization data");
+            }
+        }
+
+        private void ProcessDockingEvent(string eventType, JsonElement root)
+        {
+            switch (eventType)
+            {
+                case "DockingRequested":
+                    _currentDockingState = DockingState.DockingRequested;
+                    IsDocking = true;
+                    Log.Debug("Docking requested - IsDocking set to true");
+                    break;
+
+                case "DockingGranted":
+                    _currentDockingState = DockingState.DockingGranted;
+                    IsDocking = true;
+                    Log.Debug("Docking granted - IsDocking set to true");
+                    break;
+
+                case "Docked":
+                    _currentDockingState = DockingState.Docked;
+                    IsDocking = false;
+                    Log.Debug("Docked - IsDocking set to false");
+                    break;
+
+                case "DockingCancelled":
+                case "DockingDenied":
+                case "DockingTimeout":
+                    _currentDockingState = DockingState.NotDocking;
+                    IsDocking = false;
+                    Log.Debug($"{eventType} - IsDocking set to false");
+                    break;
+            }
+        }
+
+        private void SaveColonizationData()
+        {
+            try
+            {
+                if (CurrentColonization == null)
+                    return;
+
+                // Ensure directory exists
+                Directory.CreateDirectory(Path.GetDirectoryName(ColonizationDataFile));
+
+                // Serialize and save
+                string json = JsonSerializer.Serialize(CurrentColonization, new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                });
+                File.WriteAllText(ColonizationDataFile, json);
+
+                Log.Information("Saved colonization data to file: Progress={Progress:P2}, Resources={Count}",
+                    CurrentColonization.ConstructionProgress,
+                    CurrentColonization.ResourcesRequired?.Count ?? 0);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error saving colonization data");
+            }
+        }
+
+        /// <summary>
+        /// Sends all pending property change notifications at once
+        /// </summary>
+        private void SendPendingNotifications()
+        {
+            if (_pendingNotifications.Count == 0)
+                return;
+
+            foreach (var prop in _pendingNotifications)
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(prop));
+            }
+
+            _pendingNotifications.Clear();
+        }
+
+        /// <summary>
+        /// Helper class to manage batch update scope
+        /// </summary>
+        private class UpdateScope : IDisposable
+        {
+            #region Private Fields
+
+            private readonly GameStateService _service;
+
+            #endregion Private Fields
+
+            #region Public Constructors
+
+            public UpdateScope(GameStateService service)
+            {
+                _service = service;
+            }
+
+            #endregion Public Constructors
+
+            #region Public Methods
+
+            public void Dispose()
+            {
+                _service._isUpdating = false;
+                _service.SendPendingNotifications();
+            }
+
+            #endregion Public Methods
+        }
         #endregion Public Properties
 
         #region Public Methods
@@ -823,6 +855,19 @@ namespace EliteInfoPanel.Core
         #endregion Protected Methods
 
         #region Private Methods
+
+        public void BatchUpdate(Action updateAction)
+        {
+            using (BeginUpdate())
+            {
+                updateAction?.Invoke();
+            }
+        }
+
+        public void ClearJumpCountdownFlag()
+        {
+            _jumpCountdownJustReachedZero = false;
+        }
 
         private bool BackpacksEqual(BackpackJson bp1, BackpackJson bp2)
         {
@@ -925,6 +970,33 @@ namespace EliteInfoPanel.Core
             return true;
         }
 
+        private void HandleCarrierCargoTransfer(JsonElement root)
+        {
+            if (!root.TryGetProperty("Transfers", out var transfers)) return;
+
+            foreach (var transfer in transfers.EnumerateArray())
+            {
+                if (transfer.TryGetProperty("Type", out var typeProp) &&
+                    transfer.TryGetProperty("Count", out var countProp))
+                {
+                    string type = typeProp.GetString();
+                    int count = countProp.GetInt32();
+
+                    if (!string.IsNullOrWhiteSpace(type))
+                    {
+                        if (CarrierCargo.ContainsKey(type))
+                            CarrierCargo[type] += count;
+                        else
+                            CarrierCargo[type] = count;
+
+                        Log.Information("CarrierCargo updated: {Type} = {Count}", type, CarrierCargo[type]);
+                    }
+                }
+            }
+
+            OnPropertyChanged(nameof(CarrierCargo));
+        }
+
         private void InferClassAndRatingFromItem(LoadoutModule module)
         {
             if (!string.IsNullOrEmpty(module.Item))
@@ -1011,6 +1083,7 @@ namespace EliteInfoPanel.Core
                     .FirstOrDefault();
 
                 LoadRouteProgress();
+                LoadCarrierCargoFromDisk(); // ← Add this near LoadRouteProgress();
 
                 Task.Run(async () => await ProcessJournalAsync()).Wait();
                 if (CurrentColonization != null)
@@ -1044,13 +1117,6 @@ namespace EliteInfoPanel.Core
             {
                 Log.Error(ex, "GameStateService: Error during initial data load");
                 throw; // Re-throw to ensure the application handles this error
-            }
-        }
-        public void BatchUpdate(Action updateAction)
-        {
-            using (BeginUpdate())
-            {
-                updateAction?.Invoke();
             }
         }
         private bool LoadBackpackData()
@@ -1101,6 +1167,69 @@ namespace EliteInfoPanel.Core
             {
                 Log.Error(ex, "Error loading cargo data");
                 return false;
+            }
+        }
+
+        // Improved file loading method for GameStateService.cs
+        private T LoadJsonFile<T>(string fileName, T currentValue, Func<T, T, bool> comparer = null) where T : class, new()
+        {
+            string filePath = Path.Combine(gamePath, fileName);
+
+            try
+            {
+                if (!File.Exists(filePath))
+                {
+                    Log.Debug("File not found: {FilePath}", filePath);
+                    return currentValue;
+                }
+
+                // Use FileShare.ReadWrite to safely access files that might be written by the game
+                using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                if (stream.Length == 0)
+                {
+                    Log.Debug("File is empty: {FilePath}", filePath);
+                    return currentValue;
+                }
+
+                using var reader = new StreamReader(stream);
+                string json = reader.ReadToEnd();
+
+                if (string.IsNullOrWhiteSpace(json))
+                {
+                    Log.Debug("File contains no data: {FilePath}", filePath);
+                    return currentValue;
+                }
+
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var newValue = JsonSerializer.Deserialize<T>(json, options) ?? new T();
+
+                // If no custom comparer provided, just check if values are different
+                bool hasChanged = comparer != null
+                    ? !comparer(currentValue, newValue)
+                    : !JsonEquals(currentValue, newValue);
+
+                if (hasChanged)
+                {
+                    Log.Debug("File {FileName} has changed, updating data", fileName);
+                    return newValue;
+                }
+
+                return currentValue;
+            }
+            catch (IOException ex)
+            {
+                Log.Warning(ex, "IOException reading {FilePath}", filePath);
+                return currentValue;
+            }
+            catch (JsonException ex)
+            {
+                Log.Warning(ex, "JSON parsing error in {FilePath}", filePath);
+                return currentValue;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Unexpected error reading {FilePath}", filePath);
+                return currentValue;
             }
         }
 
@@ -1192,68 +1321,6 @@ namespace EliteInfoPanel.Core
                 Log.Warning(ex, "Failed to load RouteProgress.json");
             }
         }
-        // Improved file loading method for GameStateService.cs
-        private T LoadJsonFile<T>(string fileName, T currentValue, Func<T, T, bool> comparer = null) where T : class, new()
-        {
-            string filePath = Path.Combine(gamePath, fileName);
-
-            try
-            {
-                if (!File.Exists(filePath))
-                {
-                    Log.Debug("File not found: {FilePath}", filePath);
-                    return currentValue;
-                }
-
-                // Use FileShare.ReadWrite to safely access files that might be written by the game
-                using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                if (stream.Length == 0)
-                {
-                    Log.Debug("File is empty: {FilePath}", filePath);
-                    return currentValue;
-                }
-
-                using var reader = new StreamReader(stream);
-                string json = reader.ReadToEnd();
-
-                if (string.IsNullOrWhiteSpace(json))
-                {
-                    Log.Debug("File contains no data: {FilePath}", filePath);
-                    return currentValue;
-                }
-
-                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                var newValue = JsonSerializer.Deserialize<T>(json, options) ?? new T();
-
-                // If no custom comparer provided, just check if values are different
-                bool hasChanged = comparer != null
-                    ? !comparer(currentValue, newValue)
-                    : !JsonEquals(currentValue, newValue);
-
-                if (hasChanged)
-                {
-                    Log.Debug("File {FileName} has changed, updating data", fileName);
-                    return newValue;
-                }
-
-                return currentValue;
-            }
-            catch (IOException ex)
-            {
-                Log.Warning(ex, "IOException reading {FilePath}", filePath);
-                return currentValue;
-            }
-            catch (JsonException ex)
-            {
-                Log.Warning(ex, "JSON parsing error in {FilePath}", filePath);
-                return currentValue;
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Unexpected error reading {FilePath}", filePath);
-                return currentValue;
-            }
-        }
         private bool LoadStatusData()
         {
             var oldStatus = CurrentStatus;
@@ -1311,6 +1378,17 @@ namespace EliteInfoPanel.Core
             return FCMaterialItemsEqual(mat1.Items, mat2.Items);
         }
 
+        private void OnCarrierJumpComplete()
+        {
+            // Set the flag to indicate the jump has completed
+            FleetCarrierJumpInProgress = false;
+            JumpArrived = true;
+
+            // Ensure the overlay is triggered
+            OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // This will re-evaluate the ShowCarrierJumpOverlay property
+            Log.Information("Carrier jump completed, overlay should be shown now.");
+        }
+
         private async Task ProcessJournalAsync()
         {
             if (string.IsNullOrEmpty(latestJournalPath))
@@ -1344,6 +1422,10 @@ namespace EliteInfoPanel.Core
 
                             string eventType = eventProp.GetString();
                             Log.Debug("Processing journal event: {Event}", eventType);
+                            _carrierCargoTracker.Process(root);
+                            CarrierCargo = new Dictionary<string, int>(_carrierCargoTracker.Cargo);
+
+
 
                             // All the existing switch cases and handling logic remains the same
                             // Full expanded and grouped switch statement with all original logic
@@ -1420,7 +1502,7 @@ namespace EliteInfoPanel.Core
                                     }
                                     break;
                                 #endregion
-
+                                #region 🚀 Ship Events
                                 case "LoadGame":
                                     if (root.TryGetProperty("Ship", out var shipProperty))
                                     {
@@ -1670,6 +1752,52 @@ namespace EliteInfoPanel.Core
                                 #endregion
 
                                 #region 🛠 Fleet Carrier Events
+                                case "CargoDepot":
+                                case "MarketBuy":
+                                case "MarketSell":
+                                case "CarrierTradeOrder":
+                                    UpdateCarrierCargo(root); // implement this method
+                                    break;
+                                case "CargoTransfer":
+                                    {
+                                        if (root.TryGetProperty("Transfers", out var transfersProp) &&
+                                            transfersProp.ValueKind == JsonValueKind.Array)
+                                        {
+                                            foreach (var transfer in transfersProp.EnumerateArray())
+                                            {
+                                                var type = transfer.GetProperty("Type").GetString();
+                                                var count = transfer.GetProperty("Count").GetInt32();
+                                                var direction = transfer.GetProperty("Direction").GetString(); // "toCarrier" or "fromCarrier"
+
+                                                if (!string.IsNullOrWhiteSpace(type))
+                                                {
+                                                    if (direction == "toCarrier")
+                                                    {
+                                                        if (!CarrierCargo.ContainsKey(type))
+                                                            CarrierCargo[type] = 0;
+
+                                                        CarrierCargo[type] += count;
+                                                    }
+                                                    else if (direction == "fromCarrier")
+                                                    {
+                                                        if (CarrierCargo.ContainsKey(type))
+                                                        {
+                                                            CarrierCargo[type] -= count;
+                                                            if (CarrierCargo[type] <= 0)
+                                                                CarrierCargo.Remove(type);
+                                                        }
+                                                    }
+
+                                                    Log.Information("CarrierCargo updated: {Type} = {Count}", type, CarrierCargo.GetValueOrDefault(type));
+                                                }
+                                            }
+
+                                            OnPropertyChanged(nameof(CarrierCargo));
+                                            OnPropertyChanged(nameof(CurrentCarrierCargo)); // in case it's bound separately
+                                        }
+                                    }
+
+                                        break;
                                 case "CarrierCancelJump":
                                     FleetCarrierJumpTime = null;
                                     CarrierJumpScheduledTime = null;
@@ -1944,20 +2072,6 @@ namespace EliteInfoPanel.Core
                 Log.Warning(ex, "Error reading journal file");
             }
         }
-        private void OnCarrierJumpComplete()
-        {
-            // Set the flag to indicate the jump has completed
-            FleetCarrierJumpInProgress = false;
-            JumpArrived = true;
-
-            // Ensure the overlay is triggered
-            OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // This will re-evaluate the ShowCarrierJumpOverlay property
-            Log.Information("Carrier jump completed, overlay should be shown now.");
-        }
-        public void ClearJumpCountdownFlag()
-        {
-            _jumpCountdownJustReachedZero = false;
-        }
         private void ProcessLegalStateEvent(JsonElement root, string eventType)
         {
             try
@@ -2060,6 +2174,7 @@ namespace EliteInfoPanel.Core
                 Log.Error(ex, "Error processing legal state from event {0}", eventType);
             }
         }
+
         private void SaveRouteProgress()
         {
             try
@@ -2288,6 +2403,23 @@ namespace EliteInfoPanel.Core
             }
         }
 
-      
+        private void UpdateCarrierCargo(JsonElement root)
+        {
+            // Example logic — you'll refine this with exact fields
+            if (root.TryGetProperty("Commodity", out var commodityProp) &&
+                root.TryGetProperty("Count", out var countProp))
+            {
+                string name = commodityProp.GetString();
+                int count = countProp.GetInt32();
+
+                if (!string.IsNullOrWhiteSpace(name))
+                {
+                    CarrierCargo[name] = count;
+                    OnPropertyChanged(nameof(CarrierCargo));
+                    OnPropertyChanged(nameof(CurrentCarrierCargo)); // optional, if you use both
+                }
+            }
+        }
     }
-}
+} 
+#endregion
