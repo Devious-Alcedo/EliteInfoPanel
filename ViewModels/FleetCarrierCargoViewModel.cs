@@ -40,28 +40,26 @@ namespace EliteInfoPanel.ViewModels
 
         private void UpdateCargo()
         {
-
             App.Current.Dispatcher.Invoke(() =>
             {
-                var newCargo = _gameState.CarrierCargo
-                    .Where(kv => kv.Value > 0)
-                    .OrderByDescending(kv => kv.Value)
-                    .ToList();
-
-                Log.Information("UpdateCargo: Evaluated {Count} items in _gameState.CarrierCargo", newCargo.Count);
-
-                if (newCargo.Count == 0)
+                var cargoItems = _gameState.CurrentCarrierCargo;
+                if (cargoItems == null || !cargoItems.Any())
                 {
-                    Log.Warning("UpdateCargo: Skipped update because CarrierCargo is empty — potential race condition?");
+                    Log.Warning("UpdateCargo: No carrier cargo items available");
                     return;
                 }
 
                 Cargo.Clear();
-                foreach (var kv in newCargo)
+                foreach (var item in cargoItems)
                 {
-                    Cargo.Add(new CarrierCargoItem { Name = kv.Key, Quantity = kv.Value });
-                    Log.Information("  {Name} = {Quantity}", kv.Key, kv.Value);
+                    Cargo.Add(item);
+                    Log.Debug("  {Name} = {Quantity}", item.Name, item.Quantity);
                 }
+
+                // Always ensure the card is visible if we have cargo
+                SetContextVisibility(true);
+
+                Log.Information("Fleet carrier cargo updated with {Count} items", Cargo.Count);
             });
         }
 

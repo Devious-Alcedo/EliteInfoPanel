@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using Serilog;
+using System.Collections.Generic;
 using System.Text.Json;
 
 namespace EliteInfoPanel.Core
@@ -94,6 +95,7 @@ namespace EliteInfoPanel.Core
             }
         }
 
+        // In CarrierCargoTracker.cs
         private void ProcessTransfer(JsonElement root)
         {
             if (!root.TryGetProperty("Transfers", out var transfersProp) || transfersProp.ValueKind != JsonValueKind.Array)
@@ -102,17 +104,53 @@ namespace EliteInfoPanel.Core
             foreach (var transfer in transfersProp.EnumerateArray())
             {
                 if (transfer.TryGetProperty("Type", out var typeProp) &&
-                    transfer.TryGetProperty("Count", out var countProp))
+                    transfer.TryGetProperty("Count", out var countProp) &&
+                    transfer.TryGetProperty("Direction", out var directionProp))
                 {
                     string name = typeProp.GetString();
                     int count = countProp.GetInt32();
+                    string direction = directionProp.GetString();
 
-                    if (!string.IsNullOrWhiteSpace(name))
+                    if (string.IsNullOrWhiteSpace(name)) continue;
+
+                    // CORRECTED LOGIC:
+                    // "tocarrier" means adding TO the carrier (from ship)
+                    // "toship" means removing FROM the carrier (to ship)
+                    Log.Information("CarrierCargoTracker processing transfer: {Direction} {Count} of {Type}",
+                        direction, count, name);
+
+                    if (direction == "tocarrier")
                     {
-                        if (_cargo.TryGetValue(name, out var existing))
-                            _cargo[name] = existing + count;
+                        // Adding TO carrier
+                        if (!_cargo.ContainsKey(name))
+                            _cargo[name] = 0;
+
+                        _cargo[name] += count;
+                        Log.Information("  -> Added to carrier: {Type} now at {Count}", name, _cargo[name]);
+                    }
+                    else if (direction == "toship")
+                    {
+                        // Removing FROM carrier
+                        if (_cargo.ContainsKey(name))
+                        {
+                            _cargo[name] -= count;
+                            Log.Information("  -> Removed from carrier: {Type} now at {Count}", name, _cargo[name]);
+
+                            if (_cargo[name] <= 0)
+                            {
+                                _cargo.Remove(name);
+                                Log.Information("  -> Removed {Type} completely from carrier tracking", name);
+                            }
+                        }
                         else
-                            _cargo[name] = count;
+                        {
+                            Log.Warning("  -> Attempted to remove {Count} of {Type} from carrier, but none in inventory",
+                                count, name);
+                        }
+                    }
+                    else
+                    {
+                        Log.Warning("  -> Unknown transfer direction: {Direction}", direction);
                     }
                 }
             }

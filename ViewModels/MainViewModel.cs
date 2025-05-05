@@ -339,7 +339,7 @@ namespace EliteInfoPanel.ViewModels
             ColonizationCard.IsUserEnabled = settings.ShowColonisation; // Let user setting control visibility
                                                                         // Fleet Carrier Cargo card (user controlled only)
             FleetCarrierCard.SetContextVisibility(true); // Always context-visible
-            FleetCarrierCard.IsUserEnabled = settings.ShowFleetCarrierCargoCard; // Respect user setting
+            FleetCarrierCard.IsUserEnabled = settings.ShowFleetCarrierCargoCard;  // Respect user setting
             Log.Information("FleetCarrierCard.SetContextVisibility({Visible}), IsUserEnabled: {Enabled}",
                 true, settings.ShowFleetCarrierCargoCard);
 
@@ -425,17 +425,19 @@ namespace EliteInfoPanel.ViewModels
 
             }
         }
+        // In MainViewModel.UpdateCarrierCargoVisibility or similar
         private void UpdateCarrierCargoVisibility()
         {
-            bool shouldShow = _gameState.CurrentCarrierCargo?.Any() == true && !_gameState.IsHyperspaceJumping;
+            bool hasCarrierCargo = _gameState.CurrentCarrierCargo?.Any() == true;
+            bool isJumping = _gameState.IsHyperspaceJumping;
 
-            if (FleetCarrierCard.IsVisible != shouldShow)
-            {
-                typeof(CardViewModel)
-                    .GetProperty("IsVisible", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-                    ?.SetValue(FleetCarrierCard, shouldShow);
-                UpdateCardLayout();
-            }
+            bool shouldShow = hasCarrierCargo && !isJumping &&
+                             SettingsManager.Load().ShowFleetCarrierCargoCard;
+
+            Log.Information("Fleet Carrier card visibility check: HasCargo={HasCargo}, IsJumping={IsJumping}, ShouldShow={ShouldShow}",
+                hasCarrierCargo, isJumping, shouldShow);
+
+            FleetCarrierCard.SetContextVisibility(shouldShow);
         }
 
         // Add this method back to MainViewModel

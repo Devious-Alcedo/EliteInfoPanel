@@ -152,7 +152,10 @@ namespace EliteInfoPanel.Util
 
             // Add fleet carrier cargo
             if (_viewModel.FleetCarrierCard.IsVisible)
+            {
                 result.Add(_viewModel.FleetCarrierCard);
+                Log.Debug("Including FleetCarrierCard in layout");
+            }
 
             // Add flags last
             if (_viewModel.FlagsCard.IsVisible)

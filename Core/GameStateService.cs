@@ -1766,51 +1766,50 @@ namespace EliteInfoPanel.Core
                                 case "MarketBuy":
                                 case "MarketSell":
                                 case "CarrierTradeOrder":
-                                    UpdateCarrierCargo(root); // implement this method
+                                    _carrierCargoTracker.Process(root);
+                                    CarrierCargo = new Dictionary<string, int>(_carrierCargoTracker.Cargo);
+                                    UpdateCurrentCarrierCargoFromDictionary();
+                                    Log.Information("{EventType} processed: {Count} items in carrier cargo",
+                                        eventType, CarrierCargo.Count);
                                     break;
                                 case "CargoTransfer":
                                     {
+                                        Log.Debug("*** PROCESSING CARGO TRANSFER EVENT ***");
+
                                         if (root.TryGetProperty("Transfers", out var transfersProp) &&
                                             transfersProp.ValueKind == JsonValueKind.Array)
                                         {
+                                            // Log ALL transfers for debugging
                                             foreach (var transfer in transfersProp.EnumerateArray())
                                             {
-                                                var type = transfer.GetProperty("Type").GetString();
-                                                var count = transfer.GetProperty("Count").GetInt32();
-                                                var direction = transfer.GetProperty("Direction").GetString(); // "toCarrier" or "fromCarrier"
-                                                Log.Information("CargoTransfer detected: {Direction} {Count} of {Type}", direction, count, type);
-                                                Log.Information("Updated CarrierCargo[{Type}] = {CountNow}", type, CarrierCargo.GetValueOrDefault(type));
-                                                if (!string.IsNullOrWhiteSpace(type))
-                                                {
-                                                    if (direction == "toCarrier")
-                                                    {
-                                                        if (!CarrierCargo.ContainsKey(type))
-                                                            CarrierCargo[type] = 0;
+                                                string type = transfer.GetProperty("Type").GetString();
+                                                int count = transfer.GetProperty("Count").GetInt32();
+                                                string direction = transfer.GetProperty("Direction").GetString();
 
-                                                        CarrierCargo[type] += count;
-                                                    }
-                                                    else if (direction == "fromCarrier")
-                                                    {
-                                                        if (CarrierCargo.ContainsKey(type))
-                                                        {
-                                                            CarrierCargo[type] -= count;
-                                                            if (CarrierCargo[type] <= 0)
-                                                                CarrierCargo.Remove(type);
-                                                        }
-                                                    }
-
-                                                    Log.Information("CarrierCargo updated: {Type} = {Count}", type, CarrierCargo.GetValueOrDefault(type));
-                                                }
+                                                Log.Debug("Transfer found: {Direction} {Count} of {Type}",
+                                                    direction, count, type);
                                             }
-                                            Log.Information("OnPropertyChanged called for CarrierCargo");
-                                            OnPropertyChanged(nameof(CarrierCargo));
-                                            Log.Information("OnPropertyChanged called for CurrentCarrierCargo");
-                                            OnPropertyChanged(nameof(CurrentCarrierCargo)); // in case it's bound separately
+
+                                            // Update through CarrierCargoTracker
+                                            _carrierCargoTracker.Process(root);
+
+                                            // Log cargo tracker state after processing
+                                            Log.Debug("CarrierCargoTracker after processing:");
+                                            foreach (var item in _carrierCargoTracker.Cargo)
+                                            {
+                                                Log.Debug("  - {Name}: {Count}", item.Key, item.Value);
+                                            }
+
+                                            // Update the Dictionary from the tracker
+                                            CarrierCargo = new Dictionary<string, int>(_carrierCargoTracker.Cargo);
+
+                                            // Update the List representation for UI binding
+                                            UpdateCurrentCarrierCargoFromDictionary();
+
+                                            Log.Information("CargoTransfer processed: {Count} items in carrier cargo",
+                                                CarrierCargo.Count);
                                         }
                                     }
-                                 
-
-
                                     break;
                                 case "CarrierCancelJump":
                                     FleetCarrierJumpTime = null;
@@ -2442,6 +2441,24 @@ namespace EliteInfoPanel.Core
                     OnPropertyChanged(nameof(CarrierCargo));
                 }
             }
+        }
+        private void UpdateCurrentCarrierCargoFromDictionary()
+        {
+            var items = new List<CarrierCargoItem>();
+
+            foreach (var pair in CarrierCargo.Where(kv => kv.Value > 0))
+            {
+                items.Add(new CarrierCargoItem
+                {
+                    Name = pair.Key,
+                    Quantity = pair.Value
+                });
+            }
+
+            CurrentCarrierCargo = items.OrderByDescending(item => item.Quantity).ToList();
+
+            // Explicitly call OnPropertyChanged to ensure UI updates
+            OnPropertyChanged(nameof(CurrentCarrierCargo));
         }
 
     }
