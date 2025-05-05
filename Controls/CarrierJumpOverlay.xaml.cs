@@ -246,7 +246,7 @@ namespace EliteInfoPanel.Controls
             int dx = Math.Abs(x1 - x0), dy = Math.Abs(y1 - y0);
             int sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
             int err = dx - dy, e2, index;
-            double alpha = 0.25;
+            double alpha = 0.50;
 
             while (true)
             {
