@@ -976,26 +976,36 @@ namespace EliteInfoPanel.Core
 
             foreach (var transfer in transfers.EnumerateArray())
             {
-                if (transfer.TryGetProperty("Type", out var typeProp) &&
-                    transfer.TryGetProperty("Count", out var countProp))
+                var type = transfer.GetProperty("Type").GetString();
+                var count = transfer.GetProperty("Count").GetInt32();
+                var direction = transfer.GetProperty("Direction").GetString(); // "toCarrier" or "fromCarrier"
+
+                if (string.IsNullOrWhiteSpace(type)) continue;
+
+                if (direction == "toCarrier")
                 {
-                    string type = typeProp.GetString();
-                    int count = countProp.GetInt32();
+                    if (!_carrierCargo.ContainsKey(type))
+                        _carrierCargo[type] = 0;
 
-                    if (!string.IsNullOrWhiteSpace(type))
+                    _carrierCargo[type] += count;
+                }
+                else if (direction == "fromCarrier")
+                {
+                    if (_carrierCargo.ContainsKey(type))
                     {
-                        if (CarrierCargo.ContainsKey(type))
-                            CarrierCargo[type] += count;
-                        else
-                            CarrierCargo[type] = count;
-
-                        Log.Information("CarrierCargo updated: {Type} = {Count}", type, CarrierCargo[type]);
+                        _carrierCargo[type] -= count;
+                        if (_carrierCargo[type] <= 0)
+                            _carrierCargo.Remove(type);
                     }
                 }
+
+                Log.Information("➡️ Transfer {Direction}: {Type} = {_carrierCargoValue}",
+                    direction, type, _carrierCargo.GetValueOrDefault(type));
             }
 
             OnPropertyChanged(nameof(CarrierCargo));
         }
+
 
         private void InferClassAndRatingFromItem(LoadoutModule module)
         {
@@ -2405,7 +2415,6 @@ namespace EliteInfoPanel.Core
 
         private void UpdateCarrierCargo(JsonElement root)
         {
-            // Example logic — you'll refine this with exact fields
             if (root.TryGetProperty("Commodity", out var commodityProp) &&
                 root.TryGetProperty("Count", out var countProp))
             {
@@ -2414,12 +2423,23 @@ namespace EliteInfoPanel.Core
 
                 if (!string.IsNullOrWhiteSpace(name))
                 {
-                    CarrierCargo[name] = count;
+                    // Only update if this is a full refresh (e.g. CarrierTradeOrder)
+                    // Not a transfer
+                    if (count > 0)
+                    {
+                        _carrierCargo[name] = count;
+                    }
+                    else if (_carrierCargo.ContainsKey(name))
+                    {
+                        _carrierCargo.Remove(name);
+                    }
+
+                    Log.Information("📦 UpdateCarrierCargo: {Name} = {Count}", name, count);
                     OnPropertyChanged(nameof(CarrierCargo));
-                    OnPropertyChanged(nameof(CurrentCarrierCargo)); // optional, if you use both
                 }
             }
         }
+
     }
 } 
 #endregion
