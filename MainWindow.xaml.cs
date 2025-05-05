@@ -17,7 +17,7 @@ using EliteInfoPanel.ViewModels;
 using Serilog;
 using WpfScreenHelper;
 using System.Diagnostics;
-using EliteInfoPanel.Core.Services;
+
 
 namespace EliteInfoPanel
 {
@@ -71,8 +71,7 @@ namespace EliteInfoPanel
 
             _viewModel.SetMainGrid(MainGrid);
             DataContext = _viewModel;
-            services.AddSingleton<OAuthTokenManager>(sp => new OAuthTokenManager("3bfcf536-646a-482d-9ccd-1ae8a0fe135e"));
-            services.AddTransient<FCCarrierService>();
+       
             // Connect OpenOptionsCommand to event handler
             _viewModel.OpenOptionsCommand = new RelayCommand(_ => OpenOptions());
 
