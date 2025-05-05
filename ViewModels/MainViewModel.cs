@@ -289,13 +289,13 @@ namespace EliteInfoPanel.ViewModels
 
             if (!globalShowCondition)
             {
-                // Hide all cards when global condition fails
-                foreach (var card in Cards.Where(c => !(c is ColonizationViewModel)))
+                foreach (var card in Cards.Where(c => !(c is ColonizationViewModel) && !(c is FleetCarrierCargoViewModel)))
                 {
                     card.SetContextVisibility(false);
                 }
                 return;
             }
+
 
             // Now evaluate each card once - in a specific order
 
@@ -340,6 +340,8 @@ namespace EliteInfoPanel.ViewModels
                                                                         // Fleet Carrier Cargo card (user controlled only)
             FleetCarrierCard.SetContextVisibility(true); // Always context-visible
             FleetCarrierCard.IsUserEnabled = settings.ShowFleetCarrierCargoCard; // Respect user setting
+            Log.Information("FleetCarrierCard.SetContextVisibility({Visible}), IsUserEnabled: {Enabled}",
+                true, settings.ShowFleetCarrierCargoCard);
 
         }
         public void SetMainGrid(Grid mainGrid)

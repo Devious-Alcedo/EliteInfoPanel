@@ -36,23 +36,34 @@ namespace EliteInfoPanel.ViewModels
         {
             UpdateCargo();
         }
-    
+
 
         private void UpdateCargo()
         {
+
             App.Current.Dispatcher.Invoke(() =>
             {
+                var newCargo = _gameState.CarrierCargo
+                    .Where(kv => kv.Value > 0)
+                    .OrderByDescending(kv => kv.Value)
+                    .ToList();
+
+                Log.Information("UpdateCargo: Evaluated {Count} items in _gameState.CarrierCargo", newCargo.Count);
+
+                if (newCargo.Count == 0)
+                {
+                    Log.Warning("UpdateCargo: Skipped update because CarrierCargo is empty — potential race condition?");
+                    return;
+                }
+
                 Cargo.Clear();
-                foreach (var kv in _gameState.CarrierCargo.OrderByDescending(kv => kv.Value))
+                foreach (var kv in newCargo)
                 {
                     Cargo.Add(new CarrierCargoItem { Name = kv.Key, Quantity = kv.Value });
-                }
-                Log.Information("UpdateCargo: Loaded {Count} items", Cargo.Count);
-                foreach (var item in Cargo)
-                {
-                    Log.Information("  {Name} = {Quantity}", item.Name, item.Quantity);
+                    Log.Information("  {Name} = {Quantity}", kv.Key, kv.Value);
                 }
             });
         }
+
     }
 }

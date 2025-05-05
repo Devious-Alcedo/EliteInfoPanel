@@ -1778,7 +1778,8 @@ namespace EliteInfoPanel.Core
                                                 var type = transfer.GetProperty("Type").GetString();
                                                 var count = transfer.GetProperty("Count").GetInt32();
                                                 var direction = transfer.GetProperty("Direction").GetString(); // "toCarrier" or "fromCarrier"
-
+                                                Log.Information("CargoTransfer detected: {Direction} {Count} of {Type}", direction, count, type);
+                                                Log.Information("Updated CarrierCargo[{Type}] = {CountNow}", type, CarrierCargo.GetValueOrDefault(type));
                                                 if (!string.IsNullOrWhiteSpace(type))
                                                 {
                                                     if (direction == "toCarrier")
@@ -1801,13 +1802,16 @@ namespace EliteInfoPanel.Core
                                                     Log.Information("CarrierCargo updated: {Type} = {Count}", type, CarrierCargo.GetValueOrDefault(type));
                                                 }
                                             }
-
+                                            Log.Information("OnPropertyChanged called for CarrierCargo");
                                             OnPropertyChanged(nameof(CarrierCargo));
+                                            Log.Information("OnPropertyChanged called for CurrentCarrierCargo");
                                             OnPropertyChanged(nameof(CurrentCarrierCargo)); // in case it's bound separately
                                         }
                                     }
+                                 
 
-                                        break;
+
+                                    break;
                                 case "CarrierCancelJump":
                                     FleetCarrierJumpTime = null;
                                     CarrierJumpScheduledTime = null;
