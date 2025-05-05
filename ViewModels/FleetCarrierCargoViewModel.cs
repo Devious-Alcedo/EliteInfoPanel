@@ -14,10 +14,11 @@ namespace EliteInfoPanel.ViewModels
     {
         private readonly GameStateService _gameState;
         private readonly string _cargoSavePath;
-        private bool _ignoreJournalUpdates = false;
+        private bool _initialSyncComplete = false;
         private string _newCommodityName;
         private int _newCommodityQuantity = 1;
-        private bool _isInitializing = true;
+        private Dictionary<string, int> _lastKnownGameState = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
         public ObservableCollection<CarrierCargoItem> Cargo { get; } = new();
 
         public string NewCommodityName
@@ -54,167 +55,138 @@ namespace EliteInfoPanel.ViewModels
 
             // First try to load saved data
             bool hasSavedData = LoadSavedCargoData();
-            Log.Information("Saved cargo data loaded: {Success}, {Count} items",
-                hasSavedData, Cargo.Count);
 
-            // ONLY NOW subscribe to property changes - AFTER loading saved data
+            if (hasSavedData)
+            {
+                Log.Information("Loaded {Count} cargo items from saved data", Cargo.Count);
+                SetContextVisibility(Cargo.Count > 0);
+            }
+
+            // Capture initial game state for delta tracking
+            CaptureGameState();
+
+            // NOW subscribe to property changes
             _gameState.PropertyChanged += GameState_PropertyChanged;
 
-            // Initialization complete - now we'll handle journal updates
-            _isInitializing = false;
-            Log.Information("Fleet carrier cargo initialization complete");
+            // Mark initialization as complete
+            _initialSyncComplete = true;
+            Log.Information("Fleet carrier cargo initialization complete - real-time updates enabled");
         }
 
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(GameStateService.CurrentCarrierCargo))
+            if (e.PropertyName == nameof(GameStateService.CurrentCarrierCargo) && _initialSyncComplete)
             {
-                Log.Information("FleetCarrierCargoViewModel received CurrentCarrierCargo update");
-
-                // Skip updates during initialization
-                if (_isInitializing)
-                {
-                    Log.Information("Ignoring carrier cargo update during initialization");
-                    return;
-                }
-
-                // Now synchronize with the game state
-                UpdateFromGameState();
+                // We only want to process real-time changes since initialization
+                ProcessRealTimeChanges();
             }
         }
-        private void UpdateFromGameState()
+
+        private void CaptureGameState()
         {
-            App.Current.Dispatcher.Invoke(() =>
+            _lastKnownGameState.Clear();
+
+            if (_gameState.CurrentCarrierCargo != null)
             {
-                var gameItems = _gameState.CurrentCarrierCargo;
-                if (gameItems == null || !gameItems.Any())
+                foreach (var item in _gameState.CurrentCarrierCargo)
                 {
-                    Log.Warning("UpdateFromGameState: No carrier cargo items available");
-                    return;
+                    _lastKnownGameState[item.Name] = item.Quantity;
                 }
+                Log.Debug("Captured initial game state with {Count} items", _lastKnownGameState.Count);
+            }
+        }
 
-                Log.Debug("Updating UI from game state: {Count} items", gameItems.Count);
+        private void ProcessRealTimeChanges()
+        {
+            var currentGameState = _gameState.CurrentCarrierCargo;
+            if (currentGameState == null || !currentGameState.Any())
+            {
+                return;
+            }
 
-                // Process all items from game state
-                var itemsToUpdate = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                foreach (var item in gameItems)
+            bool madeChanges = false;
+
+            // Build current game state dictionary
+            var currentStateDict = currentGameState.ToDictionary(
+                i => i.Name,
+                i => i.Quantity,
+                StringComparer.OrdinalIgnoreCase);
+
+            // Look for differences from last known state
+            foreach (var pair in currentStateDict)
+            {
+                if (!_lastKnownGameState.TryGetValue(pair.Key, out int previousQuantity) ||
+                    previousQuantity != pair.Value)
                 {
-                    itemsToUpdate[item.Name] = item.Quantity;
-                }
+                    // This is a real change in quantity
+                    int delta = _lastKnownGameState.TryGetValue(pair.Key, out previousQuantity) ?
+                        pair.Value - previousQuantity : pair.Value;
 
-                // Update UI collection
-                foreach (var pair in itemsToUpdate)
-                {
+                    Log.Debug("Real-time change detected: {Item} changed by {Delta} ({OldValue} → {NewValue})",
+                        pair.Key, delta, previousQuantity, pair.Value);
+
+                    // Apply this change to our UI model
                     var existingItem = Cargo.FirstOrDefault(i =>
                         string.Equals(i.Name, pair.Key, StringComparison.OrdinalIgnoreCase));
 
                     if (existingItem != null)
                     {
-                        // Update quantity of existing item
-                        if (existingItem.Quantity != pair.Value)
+                        // Update existing item
+                        existingItem.Quantity += delta;
+                        if (existingItem.Quantity <= 0)
                         {
-                            Log.Debug("  Updating {Name}: {OldQty} → {NewQty}",
-                                pair.Key, existingItem.Quantity, pair.Value);
-                            existingItem.Quantity = pair.Value;
+                            Cargo.Remove(existingItem);
                         }
+                        madeChanges = true;
+
+                        Log.Debug("Updated item in UI: {Item} now at {Quantity}",
+                            existingItem.Name, existingItem.Quantity);
                     }
-                    else
+                    else if (delta > 0)
                     {
-                        // Add new item
-                        Log.Debug("  Adding new item: {Name} = {Qty}", pair.Key, pair.Value);
+                        // New item
                         Cargo.Add(new CarrierCargoItem
                         {
                             Name = pair.Key,
-                            Quantity = pair.Value
+                            Quantity = delta
                         });
+                        madeChanges = true;
+
+                        Log.Debug("Added new item to UI: {Item} = {Quantity}", pair.Key, delta);
                     }
                 }
+            }
 
-                // Remove items that are no longer in the game state
-                for (int i = Cargo.Count - 1; i >= 0; i--)
-                {
-                    var item = Cargo[i];
-                    if (!itemsToUpdate.ContainsKey(item.Name) || itemsToUpdate[item.Name] <= 0)
-                    {
-                        Log.Debug("  Removing item: {Name}", item.Name);
-                        Cargo.RemoveAt(i);
-                    }
-                }
+            // Look for items that were removed
+            var removedItems = _lastKnownGameState.Keys
+                .Where(key => !currentStateDict.ContainsKey(key))
+                .ToList();
 
-                // Save updated data
-                SaveCargoData();
-
-                // Update visibility
-                SetContextVisibility(Cargo.Count > 0);
-
-                Log.Information("Fleet carrier cargo updated from game state: {Count} items", Cargo.Count);
-            });
-        }
-        private void UpdateCargo()
-        {
-            App.Current.Dispatcher.Invoke(() =>
+            foreach (var key in removedItems)
             {
-                var cargoItems = _gameState.CurrentCarrierCargo;
-                if (cargoItems == null || !cargoItems.Any())
+                var existingItem = Cargo.FirstOrDefault(i =>
+                    string.Equals(i.Name, key, StringComparison.OrdinalIgnoreCase));
+
+                if (existingItem != null)
                 {
-                    Log.Warning("UpdateCargo: No carrier cargo items available");
-                    return;
+                    Cargo.Remove(existingItem);
+                    madeChanges = true;
+                    Log.Debug("Removed item from UI: {Item}", key);
                 }
+            }
 
-                Log.Debug("UpdateCargo: Processing {Count} items from game state", cargoItems.Count);
+            // Update last known state
+            _lastKnownGameState = new Dictionary<string, int>(currentStateDict, StringComparer.OrdinalIgnoreCase);
 
-                // Track which items we've seen for removal purposes
-                var seenItems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                // Process all items in CurrentCarrierCargo
-                foreach (var gameItem in cargoItems)
-                {
-                    seenItems.Add(gameItem.Name);
-
-                    // Try to find existing item in our UI collection
-                    var existingItem = Cargo.FirstOrDefault(i =>
-                        string.Equals(i.Name, gameItem.Name, StringComparison.OrdinalIgnoreCase));
-
-                    if (existingItem != null)
-                    {
-                        // Update quantity
-                        if (existingItem.Quantity != gameItem.Quantity)
-                        {
-                            Log.Debug("Updating {0}: {1} → {2}",
-                                gameItem.Name, existingItem.Quantity, gameItem.Quantity);
-                            existingItem.Quantity = gameItem.Quantity;
-                        }
-                    }
-                    else
-                    {
-                        // Add new item
-                        Log.Debug("Adding new item: {0} = {1}", gameItem.Name, gameItem.Quantity);
-                        Cargo.Add(new CarrierCargoItem
-                        {
-                            Name = gameItem.Name,
-                            Quantity = gameItem.Quantity
-                        });
-                    }
-                }
-
-                // Remove items that aren't in the game state
-                for (int i = Cargo.Count - 1; i >= 0; i--)
-                {
-                    var item = Cargo[i];
-                    if (!seenItems.Contains(item.Name))
-                    {
-                        Log.Debug("Removing item not in game state: {0}", item.Name);
-                        Cargo.RemoveAt(i);
-                    }
-                }
-
-                // Set visibility and save data
-                SetContextVisibility(Cargo.Count > 0);
+            // Save if changes were made
+            if (madeChanges)
+            {
                 SaveCargoData();
-
-                Log.Information("Fleet carrier cargo updated: {0} items in UI", Cargo.Count);
-            });
+                SetContextVisibility(Cargo.Count > 0);
+                Log.Information("Applied real-time changes to fleet carrier cargo - now {Count} items", Cargo.Count);
+            }
         }
+
         private bool LoadSavedCargoData()
         {
             try
@@ -227,7 +199,7 @@ namespace EliteInfoPanel.ViewModels
                     if (savedItems != null && savedItems.Any())
                     {
                         Cargo.Clear();
-                        foreach (var item in savedItems)
+                        foreach (var item in savedItems.Where(i => i.Quantity > 0))
                         {
                             Cargo.Add(item);
                         }
@@ -250,7 +222,9 @@ namespace EliteInfoPanel.ViewModels
         {
             try
             {
-                var cargoList = Cargo.ToList();
+                // Only save items with quantity > 0
+                var cargoList = Cargo.Where(i => i.Quantity > 0).ToList();
+
                 string json = JsonSerializer.Serialize(cargoList, new JsonSerializerOptions
                 {
                     WriteIndented = true
@@ -302,9 +276,9 @@ namespace EliteInfoPanel.ViewModels
         {
             if (!CanAddCommodity()) return;
 
-            // Check if commodity already exists
+            // Check if commodity already exists (case-insensitive)
             var existingItem = Cargo.FirstOrDefault(i =>
-                i.Name.Equals(NewCommodityName, StringComparison.OrdinalIgnoreCase));
+                string.Equals(i.Name, NewCommodityName, StringComparison.OrdinalIgnoreCase));
 
             if (existingItem != null)
             {
