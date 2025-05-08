@@ -318,43 +318,19 @@ namespace EliteInfoPanel.ViewModels
             var existingItem = Cargo.FirstOrDefault(i =>
                 string.Equals(i.Name, normalizedName, StringComparison.OrdinalIgnoreCase));
 
-            // Calculate final quantity
-            int finalQuantity = newQuantity;
-            if (existingItem != null)
-            {
-                // Adding to existing quantity
-                finalQuantity = existingItem.Quantity + newQuantity;
-                Log.Debug("Adding to existing: {Old} + {Add} = {New}",
-                    existingItem.Quantity, newQuantity, finalQuantity);
-            }
-
             // Update GameState FIRST
-            _gameState.UpdateCarrierCargoItem(normalizedName, finalQuantity);
-
-            // Update UI model based on whether item already existed
-            if (existingItem != null)
-            {
-                // Update existing item
-                existingItem.Quantity = finalQuantity;
-            }
-            else
-            {
-                // Add as new item
-                Cargo.Add(new CarrierCargoItem
-                {
-                    Name = normalizedName,
-                    Quantity = finalQuantity
-                });
-            }
+            _gameState.UpdateCarrierCargoItem(normalizedName, existingItem != null
+                ? existingItem.Quantity + newQuantity
+                : newQuantity);
 
             // Clear input fields
             NewCommodityName = "";
             NewCommodityQuantity = 1;
 
-            // Save data
-            SaveCargoData();
+            // NOTE: We don't need to manually update our UI model or save
+            // The PropertyChanged event from GameState will trigger our ProcessRealTimeChanges
+            // which will update our UI model and save the data
         }
-
         private bool CanAddCommodity()
         {
             return !string.IsNullOrWhiteSpace(NewCommodityName) && NewCommodityQuantity > 0;
