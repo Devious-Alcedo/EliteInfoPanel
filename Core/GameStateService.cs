@@ -30,7 +30,7 @@ namespace EliteInfoPanel.Core
         private static readonly SolidColorBrush CountdownRedBrush = new SolidColorBrush(Colors.Red);
         private readonly CarrierCargoTracker _carrierCargoTracker = new();
         private const string CarrierCargoFile = "CarrierCargo.json";
-
+        private bool _cargoTrackingInitialized = false;
         private readonly string ColonizationDataFile = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "EliteInfoPanel",
@@ -972,6 +972,7 @@ namespace EliteInfoPanel.Core
 
         private void HandleCarrierCargoTransfer(JsonElement root)
         {
+            if (!_cargoTrackingInitialized) return;
             if (!root.TryGetProperty("Transfers", out var transfers)) return;
 
             foreach (var transfer in transfers.EnumerateArray())
@@ -1764,6 +1765,11 @@ namespace EliteInfoPanel.Core
                                 case "MarketBuy":
                                 case "MarketSell":
                                 case "CarrierTradeOrder":
+                                    if (!_cargoTrackingInitialized)
+                                    {
+                                        Log.Debug("Skipping historical cargo event {EventType} during initialization", eventType);
+                                        continue;
+                                    }
                                     _carrierCargoTracker.Process(root);
                                     CarrierCargo = new Dictionary<string, int>(_carrierCargoTracker.Cargo);
                                     UpdateCurrentCarrierCargoFromDictionary();
@@ -1772,6 +1778,11 @@ namespace EliteInfoPanel.Core
                                     break;
                                 case "CargoTransfer":
                                     {
+                                        if (!_cargoTrackingInitialized)
+                                        {
+                                            Log.Debug("Skipping historical cargo event {EventType} during initialization", eventType);
+                                            continue;
+                                        }
                                         if (root.TryGetProperty("Transfers", out var transfersProp) &&
                                             transfersProp.ValueKind == JsonValueKind.Array)
                                         {
@@ -2064,6 +2075,37 @@ namespace EliteInfoPanel.Core
             catch (Exception ex)
             {
                 Log.Warning(ex, "Error reading journal file");
+            }
+        }
+        // Add to GameStateService.cs
+        // Update GameStateService.cs method
+        public void InitializeCargoFromSavedData(Dictionary<string, int> savedCargo)
+        {
+            using (BeginUpdate())
+            {
+                // Clear any current cargo data
+                _carrierCargo.Clear();
+
+                // Copy the saved cargo data
+                foreach (var item in savedCargo)
+                {
+                    _carrierCargo[item.Key] = item.Value;
+                }
+
+                // Initialize the tracker with our saved state
+                _carrierCargoTracker.Initialize(savedCargo);
+
+                // Update the UI-friendly list
+                UpdateCurrentCarrierCargoFromDictionary();
+
+                // NOW enable tracking of new cargo events
+                _cargoTrackingInitialized = true;
+
+                // Notify of change
+                OnPropertyChanged(nameof(CarrierCargo));
+                OnPropertyChanged(nameof(CurrentCarrierCargo));
+
+                Log.Information("Carrier cargo initialized from saved data with {Count} items", savedCargo.Count);
             }
         }
         private void ProcessLegalStateEvent(JsonElement root, string eventType)
@@ -2399,6 +2441,7 @@ namespace EliteInfoPanel.Core
 
         private void UpdateCarrierCargo(JsonElement root)
         {
+            if (!_cargoTrackingInitialized) return;
             if (root.TryGetProperty("Commodity", out var commodityProp) &&
                 root.TryGetProperty("Count", out var countProp))
             {

@@ -12,6 +12,7 @@ namespace EliteInfoPanel.Core
 
         public void Process(JsonElement root)
         {
+           
             if (!root.TryGetProperty("event", out var eventTypeProp)) return;
             string eventType = eventTypeProp.GetString();
 
@@ -41,7 +42,24 @@ namespace EliteInfoPanel.Core
                     break;
             }
         }
+        public void Reset()
+        {
+            _cargo.Clear();
+            Log.Debug("CarrierCargoTracker state reset");
+        }
+        public void Initialize(Dictionary<string, int> savedCargo)
+        {
+            // Clear existing data
+            _cargo.Clear();
 
+            // Copy the saved cargo data
+            foreach (var item in savedCargo)
+            {
+                _cargo[item.Key] = item.Value;
+            }
+
+            Log.Information("CarrierCargoTracker initialized with {Count} saved cargo items", _cargo.Count);
+        }
         private void ProcessCommodityCount(JsonElement root)
         {
             if (root.TryGetProperty("Commodity", out var commodityProp) &&

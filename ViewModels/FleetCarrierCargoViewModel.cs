@@ -56,6 +56,14 @@ namespace EliteInfoPanel.ViewModels
             // First try to load saved data
             bool hasSavedData = LoadSavedCargoData();
 
+            var savedData = Cargo.ToDictionary(
+                    i => i.Name,
+                    i => i.Quantity,
+                    StringComparer.OrdinalIgnoreCase);  // Use case-insensitive keys
+
+            // Initialize GameStateService with our saved data
+            _gameState.InitializeCargoFromSavedData(savedData);
+
             if (hasSavedData)
             {
                 Log.Information("Loaded {Count} cargo items from saved data", Cargo.Count);
