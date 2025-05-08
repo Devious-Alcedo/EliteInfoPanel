@@ -134,59 +134,67 @@ namespace EliteInfoPanel.Core
 
                     if (string.IsNullOrWhiteSpace(name)) continue;
 
-                    // Fix case sensitivity issues by standardizing the name
-                    string lowerName = name.ToLowerInvariant();
+                    // IMPORTANT: For lookups, use case-insensitive and space-insensitive comparison
+                    // But preserve the exact name for storage
+                    string normalizedForLookup = name.ToLowerInvariant().Replace(" ", "");
 
-                    Log.Information("CarrierCargoTracker processing transfer: {Direction} {Count} of {Type} (normalized: {NormalizedType})",
-                        direction, count, name, lowerName);
+                    // Log the exact and normalized names to help debug
+                    Log.Information("CarrierCargoTracker processing transfer: {Direction} {Count} of \"{ExactName}\" (normalized: \"{NormalizedName}\")",
+                        direction, count, name, normalizedForLookup);
 
-                    // IMPORTANT: For lookups, use case-insensitive comparison
-                    bool hasItem = _cargo.Keys.Any(k => string.Equals(k, name, StringComparison.OrdinalIgnoreCase));
-                    string exactKey = hasItem ? _cargo.Keys.First(k => string.Equals(k, name, StringComparison.OrdinalIgnoreCase)) : name;
+                    // Find existing item with the same normalized name (ignoring spaces and case)
+                    string existingKey = null;
+                    foreach (var key in _cargo.Keys)
+                    {
+                        string keyNormalized = key.ToLowerInvariant().Replace(" ", "");
+                        if (keyNormalized == normalizedForLookup)
+                        {
+                            existingKey = key;
+                            break;
+                        }
+                    }
 
                     if (direction == "tocarrier")
                     {
-                        // Fix #1: Get current amount first
-                        int currentAmount = 0;
-                        if (hasItem)
+                        if (existingKey != null)
                         {
-                            currentAmount = _cargo[exactKey];
-                            // Update using the existing key to maintain case consistency
-                            _cargo[exactKey] = currentAmount + count;
+                            // Use the existing key to maintain consistency
+                            int currentAmount = _cargo[existingKey];
+                            _cargo[existingKey] = currentAmount + count;
+                            Log.Information("  -> Added to carrier: \"{ExistingName}\" now at {Count} (was {Previous})",
+                                existingKey, _cargo[existingKey], currentAmount);
                         }
                         else
                         {
-                            // This is a new item
+                            // This is a new item - use the EXACT name from the game
                             _cargo[name] = count;
+                            Log.Information("  -> Added new item to carrier: \"{Name}\" = {Count}", name, count);
                         }
-
-                        Log.Information("  -> Added to carrier: {Type} now at {Count} (was {Previous})",
-                            name, _cargo.TryGetValue(exactKey, out int newValue) ? newValue : count, currentAmount);
                     }
                     else if (direction == "toship")
                     {
-                        if (hasItem)
+                        if (existingKey != null)
                         {
-                            int currentAmount = _cargo[exactKey];
+                            int currentAmount = _cargo[existingKey];
                             // Subtract from current amount
                             int newAmount = Math.Max(0, currentAmount - count);
 
                             if (newAmount > 0)
                             {
-                                _cargo[exactKey] = newAmount;
-                                Log.Information("  -> Removed from carrier: {Type} now at {Count} (was {Previous})",
-                                    name, newAmount, currentAmount);
+                                _cargo[existingKey] = newAmount;
+                                Log.Information("  -> Removed from carrier: \"{ExistingName}\" now at {Count} (was {Previous})",
+                                    existingKey, newAmount, currentAmount);
                             }
                             else
                             {
-                                _cargo.Remove(exactKey);
-                                Log.Information("  -> Removed {Type} completely from carrier tracking (was {Previous})",
-                                    name, currentAmount);
+                                _cargo.Remove(existingKey);
+                                Log.Information("  -> Removed \"{ExistingName}\" completely from carrier (was {Previous})",
+                                    existingKey, currentAmount);
                             }
                         }
                         else
                         {
-                            Log.Warning("  -> Attempted to remove {Count} of {Type} from carrier, but none in inventory",
+                            Log.Warning("  -> Attempted to remove {Count} of \"{Name}\" from carrier, but none in inventory",
                                 count, name);
                         }
                     }
