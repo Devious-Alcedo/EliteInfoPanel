@@ -54,6 +54,8 @@ namespace EliteInfoPanel.ViewModels
             ExportToCsvCommand = new RelayCommand(_ => ExportToCsv());
             // Initial update
             UpdateColonizationDataInternal();
+            Log.Information("ColonizationViewModel initialized with GameState: {HasGameState}",
+                _gameState != null);
         }
 
         #endregion Public Constructors
@@ -280,7 +282,8 @@ namespace EliteInfoPanel.ViewModels
 
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(GameStateService.CurrentColonization))
+            if (e.PropertyName == nameof(GameStateService.CurrentColonization) ||
+                e.PropertyName == nameof(GameStateService.CurrentCarrierCargo))
             {
                 UpdateColonizationDataInternal();
             }
@@ -395,7 +398,8 @@ namespace EliteInfoPanel.ViewModels
                 RunOnUIThread(() =>
                 {
                     HasActiveColonization = hasActiveData;
-
+                    Log.Information("UpdateColonizationDataInternal called - Carrier cargo count: {Count}",
+    _gameState.CurrentCarrierCargo?.Count ?? 0);
                     // Update properties
                     ProgressPercentage = colonizationData.ConstructionProgress;
                     LastUpdated = colonizationData.LastUpdated;
@@ -428,6 +432,12 @@ namespace EliteInfoPanel.ViewModels
                     // Add all items at once
                     foreach (var resource in resources)
                     {
+                        int carrierQty = _gameState.CurrentCarrierCargo?
+       .FirstOrDefault(i => string.Equals(i.Name, resource.DisplayName, StringComparison.OrdinalIgnoreCase))
+       ?.Quantity ?? 0;
+
+                        Log.Debug("Resource: {Resource}, Carrier cargo: {Quantity}",
+                            resource.DisplayName, carrierQty);
                         Items.Add(new ColonizationItemViewModel
                         {
                             Name = resource.DisplayName,

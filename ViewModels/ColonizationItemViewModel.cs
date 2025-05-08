@@ -48,14 +48,26 @@ namespace EliteInfoPanel.ViewModels
             }
         }
 
+        // In ColonizationItemViewModel.cs - add debug logging to CarrierCargoQuantity
         public int CarrierCargoQuantity
         {
             get
             {
-                if (GameState?.CurrentCarrierCargo == null) return 0;
+                if (GameState?.CurrentCarrierCargo != null)
+                {
+                    Log.Debug("Available cargo items: {Items}",
+                        string.Join(", ", GameState.CurrentCarrierCargo.Select(i => $"\"{i.Name}\"")));
 
-                return GameState.CurrentCarrierCargo
-                    .FirstOrDefault(i => string.Equals(i.Name, Name, StringComparison.OrdinalIgnoreCase))?.Quantity ?? 0;
+                    Log.Debug("Looking for: \"{ResourceName}\"", Name);
+                }
+
+                var match = GameState.CurrentCarrierCargo
+                    .FirstOrDefault(i => string.Equals(i.Name, Name, StringComparison.OrdinalIgnoreCase));
+
+                Log.Debug("Checking carrier cargo for {Name}: Found match? {HasMatch}, Quantity: {Quantity}",
+                    Name, match != null, match?.Quantity ?? 0);
+
+                return match?.Quantity ?? 0;
             }
         }
         public bool HasAvailableCargo => ShipCargoQuantity > 0 || CarrierCargoQuantity > 0;
