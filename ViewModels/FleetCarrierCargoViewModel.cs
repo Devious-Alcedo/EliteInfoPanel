@@ -304,33 +304,33 @@ namespace EliteInfoPanel.ViewModels
             }
         }
 
-private void AddCommodity()
-{
-    if (!CanAddCommodity()) return;
+        private void AddCommodity()
+        {
+            if (!CanAddCommodity()) return;
 
-    // Normalize name to handle case sensitivity
-    string normalizedName = NewCommodityName.Trim().ToLowerInvariant().Replace(" ", "");
-    int newQuantity = NewCommodityQuantity;
+            // Normalize name to handle case sensitivity
+            string normalizedName = NewCommodityName.Trim();
+            int newQuantity = NewCommodityQuantity;
 
-    Log.Debug("Adding commodity: {Name} = {Quantity}", normalizedName, newQuantity);
+            Log.Debug("Adding commodity: {Name} = {Quantity}", normalizedName, newQuantity);
 
-    // Check if commodity already exists (case-insensitive)
-    var existingItem = Cargo.FirstOrDefault(i =>
-        string.Equals(i.Name, normalizedName, StringComparison.OrdinalIgnoreCase));
+            // Check if commodity already exists (case-insensitive)
+            var existingItem = Cargo.FirstOrDefault(i =>
+                string.Equals(i.Name, normalizedName, StringComparison.OrdinalIgnoreCase));
 
-    // Update GameState FIRST
-    _gameState.UpdateCarrierCargoItem(normalizedName, existingItem != null 
-        ? existingItem.Quantity + newQuantity 
-        : newQuantity);
+            // Update GameState FIRST
+            _gameState.UpdateCarrierCargoItem(normalizedName, existingItem != null 
+                ? existingItem.Quantity + newQuantity 
+                : newQuantity);
 
-    // Clear input fields
-    NewCommodityName = "";
-    NewCommodityQuantity = 1;
+            // Clear input fields
+            NewCommodityName = "";
+            NewCommodityQuantity = 1;
 
-    // NOTE: We don't need to manually update our UI model or save
-    // The PropertyChanged event from GameState will trigger our ProcessRealTimeChanges
-    // which will update our UI model and save the data
-}
+            // NOTE: We don't need to manually update our UI model or save
+            // The PropertyChanged event from GameState will trigger our ProcessRealTimeChanges
+            // which will update our UI model and save the data
+        }
         private bool CanAddCommodity()
         {
             return !string.IsNullOrWhiteSpace(NewCommodityName) && NewCommodityQuantity > 0;
