@@ -1803,28 +1803,30 @@ namespace EliteInfoPanel.Core
                                     break;
                                 case "CargoTransfer":
                                     {
-                                        if (!_cargoTrackingInitialized)
                                         {
-                                            Log.Debug("Skipping historical cargo event {EventType} during initialization", eventType);
-                                            continue;
-                                        }
-                                        if (root.TryGetProperty("Transfers", out var transfersProp) &&
-                                            transfersProp.ValueKind == JsonValueKind.Array)
-                                        {
-                                            using (BeginUpdate())
+                                            if (!_cargoTrackingInitialized)
                                             {
-                                                // Update through CarrierCargoTracker
-                                                _carrierCargoTracker.Process(root);
-
-                                                // Update the Dictionary from the tracker
-                                                CarrierCargo = new Dictionary<string, int>(_carrierCargoTracker.Cargo);
-
-                                                // Update the List representation for UI binding
-                                                UpdateCurrentCarrierCargoFromDictionary();
+                                                Log.Debug("Skipping historical cargo event {EventType} during initialization", eventType);
+                                                continue;
                                             }
+                                            if (root.TryGetProperty("Transfers", out var transfersProp) &&
+                                                transfersProp.ValueKind == JsonValueKind.Array)
+                                            {
+                                                using (BeginUpdate())
+                                                {
+                                                    // Update through CarrierCargoTracker
+                                                    _carrierCargoTracker.Process(root);
 
-                                            Log.Information("CargoTransfer processed: {Count} items in carrier cargo",
-                                                CarrierCargo.Count);
+                                                    // Update the Dictionary from the tracker
+                                                    CarrierCargo = new Dictionary<string, int>(_carrierCargoTracker.Cargo);
+
+                                                    // Update the List representation for UI binding
+                                                    UpdateCurrentCarrierCargoFromDictionary();
+                                                }
+
+                                                Log.Information("CargoTransfer processed: {Count} items in carrier cargo",
+                                                    CarrierCargo.Count);
+                                            }
                                         }
                                     }
                                     break;
@@ -2493,6 +2495,7 @@ namespace EliteInfoPanel.Core
         }
         // In GameStateService.cs - Fix the UpdateCurrentCarrierCargoFromDictionary method
 
+        // In GameStateService.cs - Fix the UpdateCurrentCarrierCargoFromDictionary method
         private void UpdateCurrentCarrierCargoFromDictionary()
         {
             try

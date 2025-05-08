@@ -116,6 +116,7 @@ namespace EliteInfoPanel.Core
         // In CarrierCargoTracker.cs
         // In CarrierCargoTracker.cs - Fix the ProcessTransfer method
 
+        // In CarrierCargoTracker.cs - Fix the ProcessTransfer method
         private void ProcessTransfer(JsonElement root)
         {
             if (!root.TryGetProperty("Transfers", out var transfersProp) || transfersProp.ValueKind != JsonValueKind.Array)
