@@ -280,11 +280,14 @@ namespace EliteInfoPanel.ViewModels
             }
         }
 
+        // In ColonizationViewModel.cs - GameState_PropertyChanged method
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(GameStateService.CurrentColonization) ||
-                e.PropertyName == nameof(GameStateService.CurrentCarrierCargo))
+                e.PropertyName == nameof(GameStateService.CurrentCarrierCargo) ||  // Add this line
+                e.PropertyName == nameof(GameStateService.CurrentCargo))           // Add this line
             {
+                Log.Information("ColonizationViewModel: Updating due to changes in {Property}", e.PropertyName);
                 UpdateColonizationDataInternal();
             }
         }

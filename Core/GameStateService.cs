@@ -822,7 +822,32 @@ namespace EliteInfoPanel.Core
         {
             CurrentLoadout = loadout;
         }
+        // In GameStateService.cs
+        public void UpdateCarrierCargoItem(string itemName, int quantity)
+        {
+            Log.Debug("UpdateCarrierCargoItem called: {Item} = {Quantity}", itemName, quantity);
 
+            // Capture old value for logging
+            int oldValue = _carrierCargo.TryGetValue(itemName, out int existing) ? existing : 0;
+
+            using (BeginUpdate())
+            {
+                if (quantity > 0)
+                {
+                    _carrierCargo[itemName] = quantity;
+                }
+                else if (_carrierCargo.ContainsKey(itemName))
+                {
+                    _carrierCargo.Remove(itemName);
+                }
+
+                // Update the UI-friendly list
+                UpdateCurrentCarrierCargoFromDictionary();
+            }
+
+            Log.Information("Carrier cargo updated: {Item} {OldValue} → {NewValue}",
+                itemName, oldValue, quantity);
+        }
         #endregion Public Methods
 
         #region Protected Methods

@@ -7,6 +7,7 @@ using EliteInfoPanel.Util;
 using Serilog;
 using System.IO;
 using System.Text.Json;
+using static MaterialDesignThemes.Wpf.Theme.ToolBar;
 
 namespace EliteInfoPanel.ViewModels
 {
@@ -230,8 +231,17 @@ namespace EliteInfoPanel.ViewModels
         {
             try
             {
-                // Only save items with quantity > 0
+                // Only save items with quantity > 0 and don't trigger any UI updates
                 var cargoList = Cargo.Where(i => i.Quantity > 0).ToList();
+
+                // Clean up the Cargo collection if needed (shouldn't be needed if we're maintaining it correctly)
+                for (int i = Cargo.Count - 1; i >= 0; i--)
+                {
+                    if (Cargo[i].Quantity <= 0)
+                    {
+                        Cargo.RemoveAt(i);
+                    }
+                }
 
                 string json = JsonSerializer.Serialize(cargoList, new JsonSerializerOptions
                 {
@@ -247,12 +257,23 @@ namespace EliteInfoPanel.ViewModels
             }
         }
 
+        // In FleetCarrierCargoViewModel.cs - Update IncrementCommodity
+        // In FleetCarrierCargoViewModel.cs
         private void IncrementCommodity(object parameter)
         {
             if (parameter is CarrierCargoItem item)
             {
-                item.Quantity++;
-                Log.Debug("Manually incremented: {Name} to {Quantity}", item.Name, item.Quantity);
+                // Calculate new quantity first
+                int newQuantity = item.Quantity + 1;
+                Log.Debug("Incrementing {Name}: {OldQty} → {NewQty}", item.Name, item.Quantity, newQuantity);
+
+                // Update GameState FIRST (this will trigger UI updates)
+                _gameState.UpdateCarrierCargoItem(item.Name, newQuantity);
+
+                // Update our local UI model to match
+                item.Quantity = newQuantity;
+
+                // Save data after all updates
                 SaveCargoData();
             }
         }
@@ -261,51 +282,69 @@ namespace EliteInfoPanel.ViewModels
         {
             if (parameter is CarrierCargoItem item && item.Quantity > 0)
             {
-                item.Quantity--;
-                Log.Debug("Manually decremented: {Name} to {Quantity}", item.Name, item.Quantity);
+                // Calculate new quantity first
+                int newQuantity = item.Quantity - 1;
+                Log.Debug("Decrementing {Name}: {OldQty} → {NewQty}", item.Name, item.Quantity, newQuantity);
 
-                // Remove the item if quantity is zero
-                if (item.Quantity == 0)
+                // Update GameState FIRST
+                _gameState.UpdateCarrierCargoItem(item.Name, newQuantity);
+
+                // Update our local model
+                item.Quantity = newQuantity;
+
+                // Remove item from UI if quantity is zero
+                if (newQuantity == 0)
                 {
                     Cargo.Remove(item);
-                    Log.Debug("Removed {Name} due to zero quantity", item.Name);
+                    Log.Debug("Removed {Name} from UI list due to zero quantity", item.Name);
                 }
 
+                // Save data after all updates
                 SaveCargoData();
             }
-        }
-
-        private bool CanAddCommodity()
-        {
-            return !string.IsNullOrWhiteSpace(NewCommodityName) && NewCommodityQuantity > 0;
         }
 
         private void AddCommodity()
         {
             if (!CanAddCommodity()) return;
 
+            // Normalize name to handle case sensitivity
+            string normalizedName = NewCommodityName.Trim();
+            int newQuantity = NewCommodityQuantity;
+
+            Log.Debug("Adding commodity: {Name} = {Quantity}", normalizedName, newQuantity);
+
             // Check if commodity already exists (case-insensitive)
             var existingItem = Cargo.FirstOrDefault(i =>
-                string.Equals(i.Name, NewCommodityName, StringComparison.OrdinalIgnoreCase));
+                string.Equals(i.Name, normalizedName, StringComparison.OrdinalIgnoreCase));
 
+            // Calculate final quantity
+            int finalQuantity = newQuantity;
+            if (existingItem != null)
+            {
+                // Adding to existing quantity
+                finalQuantity = existingItem.Quantity + newQuantity;
+                Log.Debug("Adding to existing: {Old} + {Add} = {New}",
+                    existingItem.Quantity, newQuantity, finalQuantity);
+            }
+
+            // Update GameState FIRST
+            _gameState.UpdateCarrierCargoItem(normalizedName, finalQuantity);
+
+            // Update UI model based on whether item already existed
             if (existingItem != null)
             {
                 // Update existing item
-                existingItem.Quantity += NewCommodityQuantity;
-                Log.Debug("Added to existing cargo: {Name} now at {Quantity}",
-                    existingItem.Name, existingItem.Quantity);
+                existingItem.Quantity = finalQuantity;
             }
             else
             {
-                // Add new item
-                var newItem = new CarrierCargoItem
+                // Add as new item
+                Cargo.Add(new CarrierCargoItem
                 {
-                    Name = NewCommodityName,
-                    Quantity = NewCommodityQuantity
-                };
-
-                Cargo.Add(newItem);
-                Log.Debug("Added new cargo: {Name} = {Quantity}", newItem.Name, newItem.Quantity);
+                    Name = normalizedName,
+                    Quantity = finalQuantity
+                });
             }
 
             // Clear input fields
@@ -315,5 +354,11 @@ namespace EliteInfoPanel.ViewModels
             // Save data
             SaveCargoData();
         }
+
+        private bool CanAddCommodity()
+        {
+            return !string.IsNullOrWhiteSpace(NewCommodityName) && NewCommodityQuantity > 0;
+        }
+
     }
 }
