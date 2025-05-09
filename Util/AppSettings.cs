@@ -14,6 +14,8 @@ namespace EliteInfoPanel.Util
         public bool ShowSummary { get; set; }
         public bool ShowFlags { get; set; }
         public bool ShowCargo { get; set; }
+        public bool ShowFleetCarrierCargoCard { get; set; } = true;
+
         public double ColonizationWindowWidth { get; set; } = 500;
         public double ColonizationWindowHeight { get; set; } = 600;
         public double ColonizationWindowLeft { get; set; } = 100;

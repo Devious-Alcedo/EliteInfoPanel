@@ -84,36 +84,8 @@
                                  Margin="20"
                                  FontSize="20" />
 
-        <!-- Options Button -->
-        <Button Width="56" Height="56"
-                Background="Transparent"
-                BorderBrush="Transparent"
-                HorizontalAlignment="Right"
-                VerticalAlignment="Bottom"
-                Margin="16"
-                ToolTip="Options"
-                Command="{Binding OpenOptionsCommand}">
-            <materialDesign:PackIcon Kind="Cog"
-                                     Width="24"
-                                     Height="24"
-                                     Foreground="Orange" />
-        </Button>
 
-        <!-- Close Button -->
-        <Button Width="56"
-                Height="56"
-                Background="Transparent"
-                BorderBrush="Transparent"
-                HorizontalAlignment="Right"
-                VerticalAlignment="Top"
-                Margin="16,8,16,0"
-                ToolTip="Close"
-                Click="CloseButton_Click"
-                Visibility="{Binding IsFullScreenMode, Converter={StaticResource BoolToVis}}">
-            <materialDesign:PackIcon Kind="Close"
-                                     Width="24"
-                                     Height="24"
-                                     Foreground="Orange" />
-        </Button>
+        <!-- Add this near the bottom of your MainWindow.xaml, inside the main Grid -->
+      
     </Grid>
 </Window>

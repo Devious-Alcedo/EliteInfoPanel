@@ -1,4 +1,5 @@
-﻿using System.Configuration;
+﻿
+using System.Configuration;
 using System.Data;
 using System.Diagnostics;
 using System.Windows;
@@ -16,7 +17,7 @@ public partial class App : Application
     {
         PresentationTraceSources.DataBindingSource.Switch.Level = SourceLevels.Error;
         PresentationTraceSources.DataBindingSource.Listeners.Add(new ConsoleTraceListener());
-      
+
 
     }
     /// <summary>

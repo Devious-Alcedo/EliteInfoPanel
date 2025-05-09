@@ -326,20 +326,12 @@ namespace EliteInfoPanel.Dialogs
 
         private void PositionWindowOnScreen(AppSettings settings)
         {
-            var mainWindowHandle = new System.Windows.Interop.WindowInteropHelper(Application.Current.MainWindow).Handle;
-            var mainScreen = Screen.FromHandle(mainWindowHandle);
-            var allScreens = Screen.AllScreens;
-
-            // Try to restore last used screen
-            var targetScreen = allScreens.FirstOrDefault(s => s.DeviceName == settings.LastOptionsScreenId);
-
-            // If not found or not valid, choose a different one than main, or fallback to main
-            if (targetScreen == null || targetScreen.DeviceName == mainScreen.DeviceName)
-                targetScreen = allScreens.FirstOrDefault(s => s.DeviceName != mainScreen.DeviceName) ?? mainScreen;
+            // Instead of using logic to find the last screen, just use the primary screen
+            var primaryScreen = WpfScreenHelper.Screen.PrimaryScreen;
 
             WindowStartupLocation = WindowStartupLocation.Manual;
-            this.Left = targetScreen.WpfBounds.Left + (targetScreen.WpfBounds.Width - this.Width) / 2;
-            this.Top = targetScreen.WpfBounds.Top + (targetScreen.WpfBounds.Height - this.Height) / 2;
+            this.Left = primaryScreen.WpfBounds.Left + (primaryScreen.WpfBounds.Width - this.Width) / 2;
+            this.Top = primaryScreen.WpfBounds.Top + (primaryScreen.WpfBounds.Height - this.Height) / 2;
         }
         private void PopulateCardOptions()
         {
@@ -358,7 +350,8 @@ namespace EliteInfoPanel.Dialogs
                 { nameof(appSettings.ShowBackpack), "Backpack" },
                 { nameof(appSettings.ShowRoute), "Route" },
                 { nameof(appSettings.ShowModules), "Modules" },
-                { nameof(appSettings.ShowColonisation), "Colonisation" }
+                { nameof(appSettings.ShowColonisation), "Colonisation" },
+                { nameof(appSettings.ShowFleetCarrierCargoCard), "Fleet Carrier Cargo"   }
             };
 
             foreach (var entry in cardMap)
