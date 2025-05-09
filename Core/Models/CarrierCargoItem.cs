@@ -8,7 +8,7 @@ namespace EliteInfoPanel.Core.Models
     {
         private string _name;
         private int _quantity;
-
+        private int _fontSize = 14;
         public string Name
         {
             get => _name;
@@ -21,7 +21,18 @@ namespace EliteInfoPanel.Core.Models
                 }
             }
         }
-
+        public int FontSize
+        {
+            get => _fontSize;
+            set
+            {
+                if (_fontSize != value)
+                {
+                    _fontSize = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
         public int Quantity
         {
             get => _quantity;

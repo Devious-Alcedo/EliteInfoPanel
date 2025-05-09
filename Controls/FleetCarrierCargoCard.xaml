@@ -3,15 +3,36 @@
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:EliteInfoPanel.ViewModels">
-   
-    <StackPanel Margin="8">
-        <!-- Use CardTitleStyle for consistent styling with other cards -->
+
+    <!-- Use Grid as root element to enable proper vertical scaling -->
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <!-- Title -->
+            <RowDefinition Height="*"/>
+            <!-- Scrollable content (will expand to fill space) -->
+            <RowDefinition Height="Auto"/>
+            <!-- Add new item section -->
+            <RowDefinition Height="Auto"/>
+            <!-- Status message -->
+        </Grid.RowDefinitions>
+
+        <!-- Title - Grid.Row 0 -->
         <TextBlock Text="{Binding Title}" 
                    Style="{StaticResource CardTitleStyle}"
+                   Grid.Row="0"
                    Margin="0,0,0,8"/>
 
-        <!-- Cargo List with inline editing -->
-        <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="350">
+        <!-- Cargo List - Grid.Row 1 (will expand to fill space) -->
+        <ScrollViewer Grid.Row="1"
+                     VerticalScrollBarVisibility="Auto" 
+                     HorizontalScrollBarVisibility="Disabled"
+                     VerticalAlignment="Stretch" 
+                     HorizontalAlignment="Stretch"
+                     Margin="0,0,0,8"
+                     Background="#11FFFFFF"
+                     BorderBrush="#33FFFFFF"
+                     BorderThickness="1">
             <ItemsControl ItemsSource="{Binding Cargo}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
@@ -24,27 +45,45 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- Commodity Name -->
-                                <TextBlock Text="{Binding Name}" Grid.Column="0" VerticalAlignment="Center"/>
+                                <!-- Commodity Name - use FontSize binding and set Foreground to white -->
+                                <TextBlock Text="{Binding Name}" 
+                                           Grid.Column="0" 
+                                           VerticalAlignment="Center"
+                                           Foreground="White"
+                                           TextWrapping="NoWrap"
+                                           TextTrimming="CharacterEllipsis"
+                                           FontSize="{Binding FontSize}"/>
 
-                                <!-- Quantity -->
+                                <!-- Quantity - use FontSize binding and set Foreground to white -->
                                 <TextBlock Text="{Binding Quantity}" 
                                            Grid.Column="1" 
                                            Margin="8,0,8,0" 
                                            MinWidth="30" 
-                                          
-                                           TextAlignment="Right" VerticalAlignment="Center"/>
+                                           TextAlignment="Right" 
+                                           VerticalAlignment="Center"
+                                           Foreground="White"
+                                           FontSize="{Binding FontSize}"/>
 
                                 <!-- Adjustment Buttons -->
-                                <Button Grid.Column="2" Style="{DynamicResource MaterialDesignIconFlatButton}" 
+                                <Button Grid.Column="2" 
+                                        Style="{DynamicResource MaterialDesignIconFlatButton}" 
                                         Command="{Binding DataContext.DecrementCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="{Binding}" Width="30" Height="30" Padding="0" Margin="2,0">
+                                        CommandParameter="{Binding}" 
+                                        Width="30" 
+                                        Height="30" 
+                                        Padding="0" 
+                                        Margin="2,0">
                                     <materialDesign:PackIcon Kind="Minus" Height="18" Width="18"/>
                                 </Button>
 
-                                <Button Grid.Column="3" Style="{DynamicResource MaterialDesignIconFlatButton}"
+                                <Button Grid.Column="3" 
+                                        Style="{DynamicResource MaterialDesignIconFlatButton}"
                                         Command="{Binding DataContext.IncrementCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="{Binding}" Width="30" Height="30" Padding="0" Margin="2,0">
+                                        CommandParameter="{Binding}" 
+                                        Width="30" 
+                                        Height="30" 
+                                        Padding="0" 
+                                        Margin="2,0">
                                     <materialDesign:PackIcon Kind="Plus" Height="18" Width="18"/>
                                 </Button>
                             </Grid>
@@ -54,29 +93,45 @@
             </ItemsControl>
         </ScrollViewer>
 
-        <!-- Add New Section -->
-        <Grid Margin="0,8,0,0">
+        <!-- Add New Section - Grid.Row 2 -->
+        <Grid Grid.Row="2" Margin="0,8,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <TextBox Grid.Column="0" materialDesign:HintAssist.Hint="Commodity name" 
-                     Text="{Binding NewCommodityName, UpdateSourceTrigger=PropertyChanged}"/>
+            <!-- Use FontSize from ViewModel and set proper foreground -->
+            <TextBox Grid.Column="0" 
+                     materialDesign:HintAssist.Hint="Commodity name" 
+                     Text="{Binding NewCommodityName, UpdateSourceTrigger=PropertyChanged}"
+                     FontSize="{Binding FontSize}"
+                     Foreground="White"
+                     Background="#22FFFFFF"/>
 
-            <TextBox Grid.Column="1" materialDesign:HintAssist.Hint="Qty" Width="60" Margin="8,0"
-                     Text="{Binding NewCommodityQuantity, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBox Grid.Column="1" 
+                     materialDesign:HintAssist.Hint="Qty" 
+                     Width="60" 
+                     Margin="8,0"
+                     Text="{Binding NewCommodityQuantity, UpdateSourceTrigger=PropertyChanged}"
+                     FontSize="{Binding FontSize}"
+                     Foreground="White"
+                     Background="#22FFFFFF"/>
 
-            <Button Grid.Column="2" Style="{StaticResource MaterialDesignRaisedButton}"
+            <Button Grid.Column="2" 
+                    Style="{StaticResource MaterialDesignRaisedButton}"
                     Command="{Binding AddCommodityCommand}">
                 <materialDesign:PackIcon Kind="Plus"/>
             </Button>
         </Grid>
 
-        <!-- Status Message -->
-        <TextBlock Text="(Tracking live transfers)" FontStyle="Italic"
-                   FontSize="10" Foreground="Gray" Margin="0,6,0,0" 
+        <!-- Status Message - Grid.Row 3 -->
+        <TextBlock Grid.Row="3"
+                   Text="(Tracking live transfers)" 
+                   FontStyle="Italic"
+                   FontSize="{Binding FontSize, Converter={StaticResource ScaleToFontSizeConverter}, ConverterParameter=0.8}"
+                   Foreground="#AAFFFFFF" 
+                   Margin="0,6,0,0" 
                    HorizontalAlignment="Right"/>
-    </StackPanel>
+    </Grid>
 </UserControl>

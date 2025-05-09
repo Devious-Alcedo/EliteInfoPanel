@@ -21,6 +21,23 @@ namespace EliteInfoPanel.ViewModels
         private Dictionary<string, int> _lastKnownGameState = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
         public ObservableCollection<CarrierCargoItem> Cargo { get; } = new();
+        public override double FontSize
+        {
+            get => base.FontSize;
+            set
+            {
+                if (base.FontSize != value)
+                {
+                    base.FontSize = value;
+
+                    // Update font size for all cargo items
+                    foreach (var item in Cargo)
+                    {
+                        item.FontSize = (int)value;
+                    }
+                }
+            }
+        }
 
         public string NewCommodityName
         {
@@ -160,8 +177,9 @@ namespace EliteInfoPanel.ViewModels
                         // New item with positive quantity
                         Cargo.Add(new CarrierCargoItem
                         {
-                            Name = pair.Key, // Use original name with spaces
-                            Quantity = pair.Value
+                            Name = pair.Key,
+                            Quantity = pair.Value,
+                            FontSize = (int)this.FontSize // Add this line
                         });
                         madeChanges = true;
                         Log.Debug("Added new item to UI: {Item} = {Quantity}", pair.Key, pair.Value);
