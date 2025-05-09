@@ -5,35 +5,76 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:local="clr-namespace:EliteInfoPanel.Controls"
              mc:Ignorable="d">
+    <UserControl.Resources>
+        <DropShadowEffect x:Key="ShadowEffect"
+                      Color="#80000000"
+                      BlurRadius="20"
+                      ShadowDepth="0"
+                      Opacity="0.6" />
+    </UserControl.Resources>
 
     <Grid x:Name="RootGrid" 
-          Background="#DD000020"
+          Background="#FF04071A"
           HorizontalAlignment="Stretch"
           VerticalAlignment="Stretch"
           Visibility="Collapsed">
+
+        <!-- Starfield Canvas -->
+        <Canvas x:Name="StarfieldCanvas" 
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch">
+            <!-- Stars will be generated in code -->
+        </Canvas>
+
+        <!-- Central content with text information -->
         <StackPanel HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     Orientation="Vertical"
                     Margin="20">
-            <TextBlock x:Name="JumpDestinationText"
-                       Text="Hyperspace Jump in Progress..."
-                       Foreground="#80FFFFFF"
-                       FontSize="48"
-                       FontWeight="Light"
-                       TextAlignment="Center"
-                       Margin="0,0,0,20" />
-            <TextBlock x:Name="StarClassText"
-                       Text="Star Class: Unknown"
-                       Foreground="#40FFFFFF"
-                       FontSize="28"
-                       FontWeight="Light"
-                       TextAlignment="Center"
-                       Margin="0,0,0,40" />
-            <ProgressBar Width="400"
-                         Height="8"
-                         IsIndeterminate="True"
-                         Foreground="#60FFFFFF"
-                         Background="Transparent" />
+            <!-- Elite-style container for text -->
+            <Border Background="#AA000000" 
+                CornerRadius="12"
+        Padding="30,20"
+        BorderThickness="1"
+        BorderBrush="#30FFFFFF"
+        Effect="{DynamicResource ShadowEffect}">
+                <StackPanel>
+                    <!-- Jump destination text -->
+                    <TextBlock x:Name="JumpDestinationText"
+                   Text="Hyperspace Jump in Progress..."
+                   Foreground="#FFFFFF"
+                   FontSize="48"
+                   FontWeight="Light"
+                   TextAlignment="Center"
+                   Margin="0,0,0,20" />
+
+                    <!-- Star class info -->
+                    <TextBlock x:Name="StarClassText"
+                   Text="Star Class: Unknown"
+                   Foreground="#FFFFFF"
+                   FontSize="28"
+                   FontWeight="Light"
+                   TextAlignment="Center"
+                   Margin="0,0,0,20" />
+
+                    <!-- Legal status info -->
+                    <TextBlock x:Name="LegalStateText"
+                   Text="Legal Status: Clean"
+                   Foreground="#A0FFFFFF"
+                   FontSize="24"
+                   FontWeight="Light"
+                   TextAlignment="Center"
+                   Margin="0,0,0,30" />
+
+                    <!-- Animated progress bar -->
+                    <ProgressBar x:Name="JumpProgressBar"
+                     Height="10"
+                     Width="400"
+                     IsIndeterminate="True"
+                     Foreground="#80FFFFFF"
+                     Background="#20FFFFFF" />
+                </StackPanel>
+            </Border>
         </StackPanel>
     </Grid>
 </UserControl>

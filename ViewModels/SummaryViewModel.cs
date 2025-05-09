@@ -2,8 +2,11 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Reflection;
+using System.Text;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
@@ -16,7 +19,7 @@ namespace EliteInfoPanel.ViewModels
     {
         #region Private Fields
         private readonly GameStateService _gameState;
-        private DispatcherTimer _carrierCountdownTimer;
+        private System.Timers.Timer _carrierCountdownTimer;
         private SummaryItemViewModel _carrierCountdownItem;
         private string _fuelPanelTitle;
         private bool _showFuelBar;
@@ -32,7 +35,7 @@ namespace EliteInfoPanel.ViewModels
 
         #region Public Properties
         public ObservableCollection<SummaryItemViewModel> Items { get; } = new();
-
+        public ObservableCollection<EliteRankViewModel> EliteRanks { get; } = new();
         public override double FontSize
         {
             get => base.FontSize;
@@ -100,8 +103,10 @@ namespace EliteInfoPanel.ViewModels
             System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() => {
                 // Just call InitializeAllItems directly
                 InitializeAllItems();
+               
             }), System.Windows.Threading.DispatcherPriority.Background);
         }
+
         #endregion
 
         #region Public Methods
@@ -113,6 +118,7 @@ namespace EliteInfoPanel.ViewModels
         #endregion
 
         #region Private Methods
+       
         private SummaryItemViewModel FindItemByTag(string tag)
         {
             return Items.FirstOrDefault(x => x.Tag == tag);
@@ -164,33 +170,36 @@ namespace EliteInfoPanel.ViewModels
 
         private void RemoveNonCustomItems()
         {
-            Log.Debug("🧹 Running RemoveNonCustomItems...");
-
-            for (int i = Items.Count - 1; i >= 0; i--)
+            try
             {
-                var item = Items[i];
-                Log.Debug("🔍 Inspecting item at index {Index}: Tag = {Tag}, Content = {Content}", i, item.Tag, item.Content);
+                // We don't need to check for UI thread here because this is only called from
+                // InitializeAllItems which is already ensuring we're on the UI thread
 
-                if (item.Tag == "CarrierJumpCountdown")
+                Log.Debug("🧹 Running RemoveNonCustomItems...");
+
+                for (int i = Items.Count - 1; i >= 0; i--)
                 {
-                    Log.Debug("✅ Keeping CarrierJumpCountdown item");
-                    continue;
+                    var item = Items[i];
+                    Log.Debug("🔍 Inspecting item at index {Index}: Tag = {Tag}, Content = {Content}", i, item.Tag, item.Content);
+
+                    if (item.Tag == "CarrierJumpCountdown")
+                    {
+                        Log.Debug("✅ Keeping CarrierJumpCountdown item");
+                        continue;
+                    }
+
+                    Log.Debug("❌ Removing item with Tag = {Tag}", item.Tag);
+                    Items.RemoveAt(i);
                 }
 
-                Log.Debug("❌ Removing item with Tag = {Tag}", item.Tag);
-                Items.RemoveAt(i);
+                Log.Debug("📦 Items after cleanup: {Count}", Items.Count);
             }
-
-            Log.Debug("📦 Items after cleanup: {Count}", Items.Count);
-        }
-        private void OnLoadoutUpdated()
-        {
-            if (!_initialized)
+            catch (Exception ex)
             {
-                Log.Information("📦 SummaryViewModel received LoadoutUpdated event — checking readiness...");
-               
+                Log.Error(ex, "Error in RemoveNonCustomItems");
             }
         }
+
 
 
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -210,6 +219,8 @@ namespace EliteInfoPanel.ViewModels
                 case nameof(GameStateService.CurrentLoadout):
                 case nameof(GameStateService.CurrentStatus):
                     _hasFuel = _gameState.CurrentLoadout != null && _gameState.CurrentStatus?.Fuel != null;
+                    break;
+             
                     break;
             }
 
@@ -255,33 +266,38 @@ namespace EliteInfoPanel.ViewModels
 
         private void InitializeAllItems()
         {
+            SetContextVisibility(SettingsManager.Load().ShowSummary);
             try
             {
-                Log.Information("SummaryViewModel: InitializeAllItems called");
-                RemoveNonCustomItems();
-
-                // Even if CurrentStatus is null, still try to update the other items
-                // that might have data available
-
-                UpdateCommanderItem();
-                UpdateSquadronItem();
-                UpdateShipItem();
-                UpdateBalanceItem();
-                UpdateSystemItem();
-
-                // These are more dependent on CurrentStatus, so check before calling
-                if (_gameState.CurrentStatus != null)
+                RunOnUIThread(() =>
                 {
+                    Log.Information("SummaryViewModel: InitializeAllItems called");
+                    RemoveNonCustomItems();
+
+                    // Remember original carrier jump state
+                    bool wasJumpInProgress = _gameState.FleetCarrierJumpInProgress;
+                    bool hadJumpArrived = _gameState.JumpArrived;
+
+                    // Regular initialization code...
+                    UpdateCommanderItem();
+                    UpdateSquadronItem();
+                    UpdateShipItem();
+                    UpdateBalanceItem();
+                    UpdateSystemItem();
                     UpdateFuelInfo();
-                    UpdateCarrierCountdown();
-                }
+                   
 
-                // Log final state
-                Log.Debug("📋 Final Summary Items after initialization: {Count} items", Items.Count);
-                foreach (var item in Items)
-                {
-                    Log.Debug("  - Tag: {Tag}, Content: {Content}", item.Tag, item.Content);
-                }
+                    // Special case for carrier countdown - preserve state
+                    if (wasJumpInProgress)
+                    {
+                        // Use existing state without modifying it
+                        UpdateCarrierCountdown(preserveState: true);
+                    }
+                    else
+                    {
+                        UpdateCarrierCountdown();
+                    }
+                });
             }
             catch (Exception ex)
             {
@@ -311,6 +327,46 @@ namespace EliteInfoPanel.ViewModels
                 {
                     item.Content = $"CMDR {_gameState.CommanderName}";
                     Log.Debug("Updated existing Commander item: {Content}", item.Content);
+
+                    // Update elite ranks directly on the item
+                    item.EliteRanks.Clear();
+                    if (_gameState.CombatRank >= 8)
+                    {
+                        item.EliteRanks.Add(new EliteRankInfo("Combat",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Combat_Elite_icon.png"));
+                        Log.Debug("Added Combat Elite rank to Commander item");
+                    }
+                    if (_gameState.TradeRank >= 8)
+                    {
+                        item.EliteRanks.Add(new EliteRankInfo("Trade",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Trader_Elite_icon.png"));
+                        Log.Debug("Added Trade Elite rank to Commander item");
+                    }
+                    if (_gameState.ExplorationRank >= 8)
+                    {
+                        item.EliteRanks.Add(new EliteRankInfo("Exploration",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Explorer_Elite_icon.png"));
+                        Log.Debug("Added Exploration Elite rank to Commander item");
+                    }
+                    if (_gameState.CqcRank >= 8)
+                    {
+                        item.EliteRanks.Add(new EliteRankInfo("CQC",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/CQC_Elite_icon.png"));
+                        Log.Debug("Added CQC Elite rank to Commander item");
+                    }
+                    if (_gameState.ExobiologistRank >= 8)
+                    {
+                        item.EliteRanks.Add(new EliteRankInfo("Exobiology",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Exobiologist_Elite_icon.png"));
+                        Log.Debug("Added Exobiology Elite rank to Commander item");
+                    }
+                    if (_gameState.MercenaryRank >= 8)
+                    {
+                        item.EliteRanks.Add(new EliteRankInfo("Mercenary",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Mercenary_Elite_icon.png"));
+                        Log.Debug("Added Mercenary Elite rank to Commander item");
+                    }
+                    Log.Debug("Updated Commander item with {Count} elite ranks", item.EliteRanks.Count);
                 }
                 else
                 {
@@ -323,8 +379,40 @@ namespace EliteInfoPanel.ViewModels
                         FontSize = (int)this.FontSize
                     };
 
+                    // Add elite ranks to the new Commander item
+                    if (_gameState.CombatRank >= 8)
+                    {
+                        newItem.EliteRanks.Add(new EliteRankInfo("Combat",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Combat_Elite_icon.png"));
+                    }
+                    if (_gameState.TradeRank >= 8)
+                    {
+                        newItem.EliteRanks.Add(new EliteRankInfo("Trade",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Trader_Elite_icon.png"));
+                    }
+                    if (_gameState.ExplorationRank >= 8)
+                    {
+                        newItem.EliteRanks.Add(new EliteRankInfo("Exploration",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Explorer_Elite_icon.png"));
+                    }
+                    if (_gameState.CqcRank >= 8)
+                    {
+                        newItem.EliteRanks.Add(new EliteRankInfo("CQC",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/CQC_Elite_icon.png"));
+                    }
+                    if (_gameState.ExobiologistRank >= 8)
+                    {
+                        newItem.EliteRanks.Add(new EliteRankInfo("Exobiology",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Exobiologist_Elite_icon.png"));
+                    }
+                    if (_gameState.MercenaryRank >= 8)
+                    {
+                        newItem.EliteRanks.Add(new EliteRankInfo("Mercenary",
+                            "pack://application:,,,/EliteInfoPanel;component/Assets/Ranks/Mercenary_Elite_icon.png"));
+                    }
+
                     Items.Add(newItem);
-                    Log.Debug("Added new Commander item: {Content}", newItem.Content);
+                    Log.Debug("Added new Commander item with {Count} elite ranks", newItem.EliteRanks.Count);
                 }
             }
             catch (Exception ex)
@@ -375,6 +463,14 @@ namespace EliteInfoPanel.ViewModels
         {
             try
             {
+                // Debug log to see what values we're working with
+                Log.Information("UpdateShipItem called with values: ShipName={ShipName}, ShipLocalised={ShipLocalised}, " +
+                         "UserShipName={UserShipName}, UserShipId={UserShipId}",
+                         _gameState.ShipName,
+                         _gameState.ShipLocalised,
+                         _gameState.UserShipName,
+                         _gameState.UserShipId);
+
                 if (string.IsNullOrEmpty(_gameState.ShipName))
                     return;
 
@@ -382,23 +478,30 @@ namespace EliteInfoPanel.ViewModels
                     ? _gameState.ShipLocalised
                     : ShipNameHelper.GetLocalisedName(_gameState.ShipName);
 
-                string shipText = shipDisplayName;
+                // Build the full text with all ship information
+                var fullShipText = new StringBuilder();
+                fullShipText.Append(shipDisplayName);
 
-                if (!string.IsNullOrEmpty(_gameState.UserShipName) || !string.IsNullOrEmpty(_gameState.UserShipId))
+                // Add user ship name if available
+                if (!string.IsNullOrEmpty(_gameState.UserShipName))
                 {
-                    shipText += " - ";
-
-                    if (!string.IsNullOrEmpty(_gameState.UserShipName))
-                        shipText += _gameState.UserShipName;
-
-                    if (!string.IsNullOrEmpty(_gameState.UserShipId))
-                        shipText += $" [{_gameState.UserShipId}]";
+                    fullShipText.Append(" \"").Append(_gameState.UserShipName).Append("\"");
                 }
+
+                // Add ship ID if available
+                if (!string.IsNullOrEmpty(_gameState.UserShipId))
+                {
+                    fullShipText.Append(" [").Append(_gameState.UserShipId).Append("]");
+                }
+
+                string shipText = fullShipText.ToString();
+                Log.Debug("Final ship text: {ShipText}", shipText);
 
                 var item = FindItemByTag("Ship");
                 if (item != null)
                 {
                     item.Content = shipText;
+                    Log.Debug("Updated existing Ship item");
                 }
                 else
                 {
@@ -410,6 +513,7 @@ namespace EliteInfoPanel.ViewModels
                     {
                         FontSize = (int)this.FontSize
                     });
+                    Log.Debug("Added new Ship item");
                 }
             }
             catch (Exception ex)
@@ -417,7 +521,6 @@ namespace EliteInfoPanel.ViewModels
                 Log.Error(ex, "Error updating Ship item");
             }
         }
-
         private void UpdateBalanceItem()
         {
             try
@@ -489,10 +592,17 @@ namespace EliteInfoPanel.ViewModels
             return $"Carrier Jump: {timeText}\nto {destination}";
         }
 
-        private void UpdateCarrierCountdown()
+        private void UpdateCarrierCountdown(bool preserveState = false)
         {
             try
             {
+                // Skip state changes if preserveState is true and a countdown is already active
+                if (preserveState && _carrierCountdownItem != null && Items.Contains(_carrierCountdownItem))
+                {
+                    Log.Debug("🛑 Preserving existing carrier countdown state");
+                    return;
+                }
+
                 if (_gameState.JumpCountdown is TimeSpan countdown && countdown.TotalSeconds > 0)
                 {
                     StartCarrierCountdown(countdown, _gameState.CarrierJumpDestinationSystem);
@@ -544,7 +654,6 @@ namespace EliteInfoPanel.ViewModels
                 _carrierCountdownItem = existing;
                 _carrierCountdownItem.Content = FormatCountdownText(initialCountdown, destination);
 
-                // Only reset color if not red or green
                 if (_carrierCountdownItem.Foreground != Brushes.Red &&
                     _carrierCountdownItem.Foreground != Brushes.LightGreen)
                 {
@@ -555,85 +664,104 @@ namespace EliteInfoPanel.ViewModels
                 Log.Debug("🔁 Reusing existing CarrierJumpCountdown item.");
             }
 
-            // Move to end of list (if not already last)
             if (Items.IndexOf(_carrierCountdownItem) != Items.Count - 1)
             {
                 Items.Remove(_carrierCountdownItem);
                 Items.Add(_carrierCountdownItem);
             }
 
-            Log.Debug("🚀 CarrierJumpCountdown item state:");
+            Log.Debug("🚀 CarrierJumpCountdown item initialized");
             Log.Debug("   - Content: {Content}", _carrierCountdownItem.Content);
             Log.Debug("   - Foreground: {Foreground}", _carrierCountdownItem.Foreground.ToString());
             Log.Debug("   - Pulse: {Pulse}", _carrierCountdownItem.Pulse);
-            Log.Debug("   - Items count (post-add if new): {Count}", Items.Count);
+            Log.Debug("   - Items count: {Count}", Items.Count);
 
             if (_carrierCountdownTimer != null)
                 return;
 
-            _carrierCountdownTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromSeconds(1)
-            };
-
             var targetTime = DateTime.UtcNow.Add(initialCountdown);
 
-            _carrierCountdownTimer.Tick += (s, e) =>
+            _carrierCountdownTimer = new System.Timers.Timer(1000);
+            _carrierCountdownTimer.AutoReset = true;
+
+            _carrierCountdownTimer.Elapsed += (s, e) =>
             {
                 var remaining = targetTime - DateTime.UtcNow;
 
                 if (remaining <= TimeSpan.Zero)
                 {
-                    StopCarrierCountdown();
+                    _carrierCountdownTimer.Stop();
+                    _carrierCountdownTimer.Dispose();
+                    _carrierCountdownTimer = null;
 
-                    var status = _gameState.CurrentStatus;
-                    var station = _gameState.CurrentStationName;
-                    var carrierDest = _gameState.CarrierJumpDestinationSystem;
-
-                    if (status?.Flags.HasFlag(Flag.Docked) == true &&
-                        !string.IsNullOrEmpty(station) &&
-                        !string.IsNullOrEmpty(carrierDest) &&
-                        _gameState.CurrentSystem == carrierDest)
+                    Application.Current.Dispatcher.Invoke(() =>
                     {
-                        App.Current.Dispatcher.Invoke(() =>
+                        StopCarrierCountdown();
+                        Log.Information("Carrier jump countdown reached zero — notifying GameStateService");
+
+                        // Force a property change notification on CarrierJumpCountdownSeconds
+                        OnPropertyChanged(nameof(_gameState.CarrierJumpCountdownSeconds));
+                        OnPropertyChanged(nameof(_gameState.ShowCarrierJumpOverlay));
+
+                        var status = _gameState.CurrentStatus;
+                        var station = _gameState.CurrentStationName;
+                        var carrierDest = _gameState.CarrierJumpDestinationSystem;
+
+                        if (status?.Flags.HasFlag(Flag.Docked) == true &&
+                            !string.IsNullOrEmpty(station) &&
+                            !string.IsNullOrEmpty(carrierDest) &&
+                            _gameState.IsOnFleetCarrier)
                         {
-                            if (App.Current.MainWindow?.DataContext is MainViewModel mainVm)
-                            {
-                                mainVm.IsCarrierJumping = true;
-                            }
-                        });
-                    }
+                            Log.Information("✅ Conditions met for carrier jump overlay");
+
+                            // Explicitly set properties to ensure overlay shows
+                            _gameState.GetType()
+                                .GetProperty("CarrierJumpCountdownSeconds", BindingFlags.NonPublic | BindingFlags.Instance)
+                                ?.SetValue(_gameState, 0);
+
+                            // Notify that ShowCarrierJumpOverlay may have changed
+                            _gameState.GetType()
+                                .GetMethod("OnPropertyChanged", BindingFlags.NonPublic | BindingFlags.Instance)
+                                ?.Invoke(_gameState, new object[] { nameof(_gameState.ShowCarrierJumpOverlay) });
+                        }
+                    });
 
                     return;
                 }
 
-                _carrierCountdownItem.Content = FormatCountdownText(remaining, destination);
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    // 🛑 Skip if destination is gone (likely jump has completed)
+                    if (_gameState.CarrierJumpDestinationSystem == null)
+                        return;
 
-                // Style logic
-                if (remaining.TotalMinutes <= 2.75)
-                {
-                    if (_carrierCountdownItem.Foreground != Brushes.Red)
+                    _carrierCountdownItem.Content = FormatCountdownText(remaining, _gameState.CarrierJumpDestinationSystem);
+
+                    if (remaining.TotalMinutes <= 3.0)
                     {
-                        _carrierCountdownItem.Foreground = Brushes.Red;
-                        _carrierCountdownItem.Pulse = true;
+                        if (_carrierCountdownItem.Foreground != Brushes.Red)
+                        {
+                            _carrierCountdownItem.Foreground = Brushes.Red;
+                            _carrierCountdownItem.Pulse = true;
+                        }
                     }
-                }
-                else if (remaining.TotalMinutes <= 10)
-                {
-                    if (_carrierCountdownItem.Foreground != Brushes.Gold)
+                    else if (remaining.TotalMinutes <= 10)
                     {
-                        _carrierCountdownItem.Foreground = Brushes.Gold;
-                        _carrierCountdownItem.Pulse = false;
+                        if (_carrierCountdownItem.Foreground != Brushes.Gold)
+                        {
+                            _carrierCountdownItem.Foreground = Brushes.Gold;
+                            _carrierCountdownItem.Pulse = false;
+                        }
                     }
-                }
-                else
-                {
-                    if (_carrierCountdownItem.Foreground != Brushes.LightGreen)
+                    else
                     {
-                        _carrierCountdownItem.Foreground = Brushes.LightGreen;
-                        _carrierCountdownItem.Pulse = false;
+                        if (_carrierCountdownItem.Foreground != Brushes.LightGreen)
+                        {
+                            _carrierCountdownItem.Foreground = Brushes.LightGreen;
+                            _carrierCountdownItem.Pulse = false;
+                        }
                     }
-                }
+                });
 
             };
 

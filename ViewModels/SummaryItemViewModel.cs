@@ -1,4 +1,5 @@
 ﻿using MaterialDesignThemes.Wpf;
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Media;
 
@@ -20,7 +21,7 @@ namespace EliteInfoPanel.ViewModels
             get => _fontSize;
             set => SetProperty(ref _fontSize, value);
         }
-
+        public ObservableCollection<EliteRankInfo> EliteRanks { get; } = new();
         private bool _pulse;
         public bool Pulse
         {
@@ -34,6 +35,10 @@ namespace EliteInfoPanel.ViewModels
             set => SetProperty(ref _foreground, value);
         }
 
+        public bool IsCommander
+        {
+            get { return Tag == "Commander"; }
+        }
         public PackIconKind Icon { get; set; }
 
         public SummaryItemViewModel(string tag, string content, Brush foreground, PackIconKind icon)
@@ -45,5 +50,17 @@ namespace EliteInfoPanel.ViewModels
         }
       
     
+    }
+    // Simple class to represent an Elite rank
+    public class EliteRankInfo
+    {
+        public string RankName { get; set; }
+        public string IconPath { get; set; }
+
+        public EliteRankInfo(string rankName, string iconPath)
+        {
+            RankName = rankName;
+            IconPath = iconPath;
+        }
     }
 }

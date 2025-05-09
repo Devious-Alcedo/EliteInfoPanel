@@ -123,7 +123,8 @@ namespace EliteInfoPanel.ViewModels
                 bool isJumping = _gameState.IsHyperspaceJumping;
 
                 // Should show only if: (has route OR has destination) AND not jumping
-                bool shouldShow = (hasRoute || hasDestination) && !isJumping;
+                bool shouldShow = SettingsManager.Load().ShowRoute && (hasRoute || hasDestination) && !isJumping;
+
 
                 Log.Debug("RouteViewModel: Visibility check - HasRoute:{HasRoute}, HasDestination:{HasDestination}, " +
                          "Jumping:{Jumping}, ShouldShow:{ShouldShow}",
@@ -131,7 +132,7 @@ namespace EliteInfoPanel.ViewModels
 
                 if (IsVisible != shouldShow)
                 {
-                    IsVisible = shouldShow;
+                    SetContextVisibility(shouldShow);
                     Log.Debug("RouteViewModel: Changed visibility to {Visibility}", shouldShow);
                     UpdateTitle();
                 }
@@ -267,10 +268,9 @@ namespace EliteInfoPanel.ViewModels
 
             bool destinationInSystem = hasDestination &&
                                        (!hasRoute);
-
             if (destinationInSystem)
             {
-                Title = "Nav Route (In-System Target)";
+                Title = "Nav Route\n(In-System Target)";
             }
             else if (hasRoute && _gameState.TotalRemainingJumps > 0)
             {
@@ -356,7 +356,7 @@ namespace EliteInfoPanel.ViewModels
                     _gameState.ResetRouteActivity();
                 }
 
-                Log.Information("RouteViewModel: Updating route - CurrentSystem={CurrentSystem}, LastFsdTargetSystem={Target}, RemainingJumps={Jumps}, HasDestination={HasDest}",
+                Log.Debug("RouteViewModel: Updating route - CurrentSystem={CurrentSystem}, LastFsdTargetSystem={Target}, RemainingJumps={Jumps}, HasDestination={HasDest}",
      _gameState.CurrentSystem,
      _gameState.LastFsdTargetSystem,
      _gameState.RemainingJumps,
@@ -525,7 +525,7 @@ namespace EliteInfoPanel.ViewModels
                                 ShowRefuelHint = showRefuelHint
                             };
 
-                            Log.Information("Adding RouteItem: {System} | StarClass: {Class} | Scoopable: {Scoopable} | IconColor: {Color}",
+                            Log.Debug("Adding RouteItem: {System} | StarClass: {Class} | Scoopable: {Scoopable} | IconColor: {Color}",
                                 jump.StarSystem, jump.StarClass, isScoopable, routeItem.IconColor.ToString());
 
                             Items.Add(routeItem);

@@ -40,6 +40,9 @@ namespace EliteInfoPanel.ViewModels
             SaveCommand = new RelayCommand(_ => SaveSettings());
             CancelCommand = new RelayCommand(_ => { /* Will be handled by view */ });
             ChangeDisplayCommand = new RelayCommand(_ => RequestDisplayChange());
+           
+            // Add more dynamically if needed
+
         }
 
         #endregion Public Constructors
@@ -57,6 +60,7 @@ namespace EliteInfoPanel.ViewModels
         #endregion Public Events
 
         #region Public Properties
+        public ObservableCollection<CardViewModel> AvailableCards { get; } = new();
 
         public bool AlwaysOnTop
         {
@@ -92,6 +96,18 @@ namespace EliteInfoPanel.ViewModels
 
                 // Also notify that the scale percentage text has changed
                 OnPropertyChanged(nameof(ScalePercentage));
+            }
+        }
+        public bool ShowFleetCarrierCargoCard
+        {
+            get => _appSettings.ShowFleetCarrierCargoCard;
+            set
+            {
+                if (_appSettings.ShowFleetCarrierCargoCard != value)
+                {
+                    _appSettings.ShowFleetCarrierCargoCard = value;
+                    OnPropertyChanged();
+                }
             }
         }
 

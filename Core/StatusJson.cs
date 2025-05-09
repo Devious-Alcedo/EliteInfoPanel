@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Text.Json.Serialization;
+using System.Windows.Media;
 
 namespace EliteInfoPanel.Core
 {
@@ -72,6 +73,37 @@ namespace EliteInfoPanel.Core
         TelepresenceMulticrew = 1 << 17,
         PhysicalMulticrew = 1 << 18,
         FsdHyperdriveCharging = 1 << 19
+    }
+    public static class Flags2VisualHelper
+    {
+        public static Dictionary<Flags2, (string Icon, string Tooltip, Brush Color)> Flags2Visuals = new()
+    {
+        { Flags2.OnFoot, ("Walk", "On foot", Brushes.LightBlue) },
+        { Flags2.InTaxi, ("Taxi", "In Taxi/Dropship/Shuttle", Brushes.Orange) },
+        { Flags2.InMulticrew, ("AccountMultiple", "In Multicrew", Brushes.MediumPurple) },
+        { Flags2.OnFootInStation, ("Building", "On foot in station", Brushes.LightSteelBlue) },
+        { Flags2.OnFootOnPlanet, ("Earth", "On foot on planet", Brushes.SandyBrown) },
+        { Flags2.AimDownSight, ("CrosshairsGps", "Aim down sight", Brushes.Red) },
+        { Flags2.LowOxygen, ("GasCylinder", "Low oxygen", Brushes.CornflowerBlue) },
+        { Flags2.LowHealth, ("Heart", "Low health", Brushes.Red) },
+        { Flags2.Cold, ("Snowflake", "Cold", Brushes.LightBlue) },
+        { Flags2.Hot, ("WeatherSunny", "Hot", Brushes.Orange) },
+        { Flags2.VeryCold, ("SnowflakeAlert", "Very cold", Brushes.DeepSkyBlue) },
+        { Flags2.VeryHot, ("Fire", "Very hot", Brushes.Red) },
+        { Flags2.GlideMode, ("AirplaneTakeoff", "Glide mode", Brushes.CornflowerBlue) },
+        { Flags2.OnFootInHangar, ("Garage", "On foot in hangar", Brushes.DarkGray) },
+        { Flags2.OnFootSocialSpace, ("AccountGroup", "On foot in social space", Brushes.MediumAquamarine) },
+        { Flags2.OnFootExterior, ("Earth", "On foot exterior", Brushes.Tan) },
+        { Flags2.BreathableAtmosphere, ("WeatherWindy", "Breathable atmosphere", Brushes.LightGreen) },
+        { Flags2.TelepresenceMulticrew, ("Remote", "Telepresence multicrew", Brushes.MediumPurple) },
+        { Flags2.PhysicalMulticrew, ("Account", "Physical multicrew", Brushes.MediumPurple) },
+        { Flags2.FsdHyperdriveCharging, ("RocketLaunch", "FSD hyperdrive charging", Brushes.Violet) }
+    };
+
+        public static bool TryGetMetadata(Flags2 flag, out (string Icon, string Tooltip, Brush Color) meta)
+        {
+            return Flags2Visuals.TryGetValue(flag, out meta);
+        }
     }
     public class SRVStatus
     {

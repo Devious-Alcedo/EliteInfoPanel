@@ -50,7 +50,7 @@ namespace EliteInfoPanel.ViewModels
 
             _pageTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromSeconds(5)
+                Interval = TimeSpan.FromSeconds(8)
             };
             _pageTimer.Tick += PageTimer_Tick;
             _pageTimer.Start();
@@ -243,11 +243,11 @@ namespace EliteInfoPanel.ViewModels
 
                     var status = _gameState.CurrentStatus;
 
-                    IsVisible = status != null &&
-                                status.Flags.HasFlag(Flag.InMainShip) &&
-                                !status.OnFoot &&
-                                !status.Flags.HasFlag(Flag.InSRV) &&
-                                !status.Flags.HasFlag(Flag.InFighter);
+                    SetContextVisibility(status != null &&
+                                    status.Flags.HasFlag(Flag.InMainShip) &&
+                                    !status.OnFoot &&
+                                    !status.Flags.HasFlag(Flag.InSRV) &&
+                                    !status.Flags.HasFlag(Flag.InFighter));
 
                     if (!IsVisible || _gameState.CurrentLoadout?.Modules == null)
                         return;

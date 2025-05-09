@@ -16,6 +16,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Assets\Ranks\Combat_Elite_icon.png" />
+    <None Remove="Assets\Ranks\CQC_Elite_icon.png" />
+    <None Remove="Assets\Ranks\Exobiologist_Elite_icon.png" />
+    <None Remove="Assets\Ranks\Explorer_Elite_icon.png" />
+    <None Remove="Assets\Ranks\Mercenary_Elite_icon.png" />
+    <None Remove="Assets\Ranks\Trader_Elite_icon.png" />
     <None Remove="Assets\Stars\A.ico" />
     <None Remove="Assets\Stars\A.png" />
     <None Remove="Assets\Stars\Ae.ico" />
@@ -85,7 +91,8 @@
     <PackageReference Include="MaterialDesignThemes.MahApps" Version="5.2.1" />
     <PackageReference Include="Serilog" Version="4.2.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
-    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageReference Include="System.Windows.Extensions" Version="9.0.4" />
     <PackageReference Include="TextCopy" Version="6.2.1" />
     <PackageReference Include="WpfScreenHelper" Version="2.1.1" />
   </ItemGroup>
@@ -114,6 +121,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="Assets\Ranks\Combat_Elite_icon.png" />
+    <Resource Include="Assets\Ranks\CQC_Elite_icon.png" />
+    <Resource Include="Assets\Ranks\Exobiologist_Elite_icon.png" />
+    <Resource Include="Assets\Ranks\Explorer_Elite_icon.png" />
+    <Resource Include="Assets\Ranks\Mercenary_Elite_icon.png" />
+    <Resource Include="Assets\Ranks\Trader_Elite_icon.png" />
     <Resource Include="Assets\Stars\A.png" />
     <Resource Include="Assets\Stars\Ae.png" />
     <Resource Include="Assets\Stars\B.png" />
@@ -139,6 +152,10 @@
     <Resource Include="Assets\Stars\WRO.png" />
     <Resource Include="Assets\Stars\WRS.png" />
     <Resource Include="Assets\Stars\Y.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Views\" />
   </ItemGroup>
 
 </Project>

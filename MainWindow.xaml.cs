@@ -1,28 +1,53 @@
 ﻿using System;
 using System.ComponentModel;
 using System.Formats.Asn1;
+using System.Windows;
+using System.Windows.Interop;
+using System.Windows.Media;
+
 using System.Linq;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Input;
+using EliteInfoPanel.Controls;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Dialogs;
 using EliteInfoPanel.Util;
 using EliteInfoPanel.ViewModels;
 using Serilog;
 using WpfScreenHelper;
+using System.Diagnostics;
+
 
 namespace EliteInfoPanel
 {
     public partial class MainWindow : Window
     {
+        #region Public Fields
+
+        public readonly GameStateService _gameState;
+
+        #endregion Public Fields
+
+        #region Private Fields
+
+        private readonly AppSettings _appSettings;
         private readonly MainViewModel _viewModel;
         private Screen _currentScreen;
-        private readonly AppSettings _appSettings;
-        public readonly GameStateService _gameState;
+
+        #endregion Private Fields
+
+        #region Public Constructors
+
         public MainWindow()
         {
             InitializeComponent();
+            //RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
 
+            //CompositionTarget.Rendering += (s, ev) =>
+            //{
+            //    System.Diagnostics.Debug.WriteLine("🔄 WPF redraw...");
+            //};
             // Configure logging
             LoggingConfig.Configure(enableDebugLogging: false);
 
@@ -38,15 +63,15 @@ namespace EliteInfoPanel
 
             // Initialize the GameStateService
             var gamePath = EliteDangerousPaths.GetSavedGamesPath();
-            var gameState = new GameStateService(gamePath);
+            _gameState = new GameStateService(gamePath);
 
             // Create and set ViewModel
             var settings = SettingsManager.Load();
-            _viewModel = new MainViewModel(gameState, settings.UseFloatingWindow);
+            _viewModel = new MainViewModel(_gameState, settings.UseFloatingWindow);
 
             _viewModel.SetMainGrid(MainGrid);
             DataContext = _viewModel;
-
+       
             // Connect OpenOptionsCommand to event handler
             _viewModel.OpenOptionsCommand = new RelayCommand(_ => OpenOptions());
 
@@ -57,57 +82,52 @@ namespace EliteInfoPanel
             _viewModel.ApplyWindowModeFromSettings();
         }
 
-        private void MainWindow_Closing(object sender, CancelEventArgs e)
+        #endregion Public Constructors
+
+        #region Public Methods
+
+        public void UpdateFontSizes()
         {
-            SaveWindowPosition();
+            double fontScale = _appSettings.UseFloatingWindow
+                ? _appSettings.FloatingFontScale
+                : _appSettings.FullscreenFontScale;
+
+            double baseFontSize = _appSettings.UseFloatingWindow
+                ? AppSettings.DEFAULT_FLOATING_BASE * fontScale
+                : AppSettings.DEFAULT_FULLSCREEN_BASE * fontScale;
+
+            Log.Debug("Updating font sizes with scale {Scale}, resulting in base size {BaseSize}",
+                fontScale, baseFontSize);
+
+            foreach (var card in _viewModel.Cards)
+            {
+                card.FontSize = baseFontSize;
+            }
+
+            // Update font resources for dynamic styles
+            UpdateFontResources();
+
+            // Force layout update
+            _viewModel.RefreshLayout();
         }
 
-        private void SaveWindowPosition()
+        #endregion Public Methods
+
+        #region Private Methods
+
+        private void ApplyScreenBounds(Screen targetScreen)
         {
-            if (_appSettings.UseFloatingWindow && WindowState == WindowState.Normal)
-            {
-                _appSettings.FloatingWindowLeft = Left;
-                _appSettings.FloatingWindowTop = Top;
-                _appSettings.FloatingWindowWidth = Width;
-                _appSettings.FloatingWindowHeight = Height;
-                SettingsManager.Save(_appSettings);
+            WindowState = WindowState.Normal; // Force out of maximized state
+            WindowStyle = WindowStyle.None;
+            ResizeMode = ResizeMode.NoResize;
 
-                Log.Information("Saved floating window position: {Left}x{Top} {Width}x{Height}",
-                    Left, Top, Width, Height);
-            }
-        }
+            Left = targetScreen.WpfBounds.Left;
+            Top = targetScreen.WpfBounds.Top;
+            Width = targetScreen.WpfBounds.Width;
+            Height = targetScreen.WpfBounds.Height;
 
-        // Find the Window_Loaded method and add the following code:
-
-        // Update the Window_Loaded method in MainWindow.xaml.cs:
-
-        private void Window_Loaded(object sender, RoutedEventArgs e)
-        {
-            // Apply window mode settings
-            ApplyWindowSettings();
-
-            // Initialize the HyperspaceOverlay with the GameStateService from MainViewModel
-            if (HyperspaceOverlay != null && DataContext is MainViewModel vm)
-            {
-                // Force the overlay to be hidden first
-                HyperspaceOverlay.ForceHidden();
-
-                // Then set up the GameState
-                HyperspaceOverlay.SetGameState(vm._gameState);
-
-                // Use a timer to ensure it's in the correct state after all initial processing
-                var startupTimer = new System.Threading.Timer((state) =>
-                {
-                    Dispatcher.Invoke(() =>
-                    {
-                        if (!vm._gameState.IsHyperspaceJumping)
-                        {
-                            HyperspaceOverlay.ForceHidden();
-                            Log.Information("🔴 Startup timer verified hyperspace overlay is hidden");
-                        }
-                    });
-                }, null, 1000, Timeout.Infinite); // One-time check after 1 second
-            }
+            Topmost = true;
+            WindowState = WindowState.Maximized;
         }
 
         private void ApplyWindowSettings()
@@ -171,7 +191,7 @@ namespace EliteInfoPanel
                 ApplyScreenBounds(_currentScreen);
 
                 // Hide the floating title bar in fullscreen mode
-               // FloatingTitleBar.Visibility = Visibility.Collapsed;
+                // FloatingTitleBar.Visibility = Visibility.Collapsed;
 
                 Log.Information("Applied full-screen settings on screen: {Screen}",
                     _currentScreen?.DeviceName ?? "Unknown");
@@ -181,29 +201,22 @@ namespace EliteInfoPanel
             UpdateFontSizes();
         }
 
-        public void UpdateFontSizes()
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
-            double fontScale = _appSettings.UseFloatingWindow
-                ? _appSettings.FloatingFontScale
-                : _appSettings.FullscreenFontScale;
+            // Close the application
+            this.Close();
+        }
 
-            double baseFontSize = _appSettings.UseFloatingWindow
-                ? AppSettings.DEFAULT_FLOATING_BASE * fontScale
-                : AppSettings.DEFAULT_FULLSCREEN_BASE * fontScale;
-
-            Log.Debug("Updating font sizes with scale {Scale}, resulting in base size {BaseSize}",
-                fontScale, baseFontSize);
-
-            foreach (var card in _viewModel.Cards)
+        private void CloseButton_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainViewModel vm)
             {
-                card.FontSize = baseFontSize;
+                Serilog.Log.Information("CloseButton_Loaded → IsFullScreenMode = {Fullscreen}", vm.IsFullScreenMode);
             }
-
-            // Update font resources for dynamic styles
-            UpdateFontResources();
-
-            // Force layout update
-            _viewModel.RefreshLayout();
+            else
+            {
+                Serilog.Log.Warning("CloseButton_Loaded: DataContext not set or incorrect type.");
+            }
         }
 
         private void EnsureWindowIsVisible()
@@ -224,17 +237,54 @@ namespace EliteInfoPanel
             Height = Math.Max(Height, 300);
         }
 
+        private void FloatingTitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            // Enable dragging of the window when user clicks and drags the title bar
+            if (e.ButtonState == MouseButtonState.Pressed)
+            {
+                this.DragMove();
+            }
+        }
+
+        private void MainWindow_Closing(object sender, CancelEventArgs e)
+        {
+            SaveWindowPosition();
+        }
+        // First, let's modify MainWindow.xaml.cs to handle the Escape key properly
+        // First, let's modify MainWindow.xaml.cs to handle the Escape key properly
         private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.F12)
+            if (e.Key == Key.F11)
+            {
+                TestCarrierJump_Click(this, null);
+            }
+            else if (e.Key == Key.F12)
             {
                 OpenCurrentLogFile();
             }
-            else if (e.Key == Key.Escape && _appSettings.UseFloatingWindow)
+            else if (e.Key == Key.F2)
             {
-                // Allow ESC to close in floating window mode
-                Close();
+                // Open settings
+                if (_viewModel.OpenOptionsCommand != null && _viewModel.OpenOptionsCommand.CanExecute(null))
+                {
+                    _viewModel.OpenOptionsCommand.Execute(null);
+                }
             }
+            else if (e.Key == Key.Escape && !_appSettings.UseFloatingWindow)
+            {
+                // In fullscreen mode, Escape switches to floating window mode
+                _appSettings.UseFloatingWindow = true;
+                SettingsManager.Save(_appSettings);
+                ApplyWindowSettings();
+                _viewModel.ApplyWindowModeFromSettings();
+            }
+
+            base.OnKeyDown(e);
+        }
+        private void MinimizeButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Minimize the window
+            this.WindowState = WindowState.Minimized;
         }
 
         private void OpenCurrentLogFile()
@@ -283,38 +333,118 @@ namespace EliteInfoPanel
                 MessageBox.Show($"Could not open log file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-        private void FloatingTitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+
+        private void OpenOptions()
         {
-            // Enable dragging of the window when user clicks and drags the title bar
-            if (e.ButtonState == MouseButtonState.Pressed)
+            var options = new OptionsWindow();
+
+            // Important: Set initial settings reference
+            options.Settings.FloatingFontScale = _appSettings.FloatingFontScale;
+            options.Settings.FullscreenFontScale = _appSettings.FullscreenFontScale;
+
+            // Center on the primary screen
+            var allScreens = WpfScreenHelper.Screen.AllScreens;
+            var primaryScreen = WpfScreenHelper.Screen.PrimaryScreen;
+            if (primaryScreen != null)
             {
-                this.DragMove();
+                // Store the primary screen ID in LastOptionsScreenId
+                _appSettings.LastOptionsScreenId = primaryScreen.DeviceName;
+                SettingsManager.Save(_appSettings);
+            }
+
+            options.ScreenChanged += screen =>
+            {
+                _currentScreen = screen;
+
+                if (!_appSettings.UseFloatingWindow)
+                {
+                    ApplyScreenBounds(screen);
+                }
+            };
+
+            // This is the key handler for real-time updates
+            options.FontSizeChanged += () =>
+            {
+                // Directly update our app settings from the dialog's settings to get real-time values
+                _appSettings.FloatingFontScale = options.Settings.FloatingFontScale;
+                _appSettings.FullscreenFontScale = options.Settings.FullscreenFontScale;
+
+                // Now apply the changes immediately
+                UpdateFontResources();
+                App.RefreshResources();
+                InvalidateVisual();
+                _viewModel.RefreshLayout();
+                UpdateLayout();
+            };
+
+            // If dialog is closed with OK
+            if (options.ShowDialog() == true)
+            {
+                // Since we can't reassign _appSettings, we'll manually update the important properties
+                var updatedSettings = SettingsManager.Load();
+
+                // Check if window mode changed
+                bool modeChanged = updatedSettings.UseFloatingWindow != _appSettings.UseFloatingWindow;
+
+                // Update individual properties instead of the whole object
+                _appSettings.UseFloatingWindow = updatedSettings.UseFloatingWindow;
+                _appSettings.FloatingFontScale = updatedSettings.FloatingFontScale;
+                _appSettings.FullscreenFontScale = updatedSettings.FullscreenFontScale;
+                _appSettings.AlwaysOnTop = updatedSettings.AlwaysOnTop;
+
+                // Update window settings if mode changed
+                if (modeChanged)
+                {
+                    ApplyWindowSettings();
+                    _viewModel.ApplyWindowModeFromSettings();
+                }
+                else
+                {
+                    // Always update font resources to ensure consistency
+                    UpdateFontResources();
+                    App.RefreshResources();
+                    InvalidateVisual();
+                    _viewModel.RefreshLayout();
+                    UpdateLayout();
+                }
             }
         }
 
-        private void MinimizeButton_Click(object sender, RoutedEventArgs e)
+        private void SaveWindowPosition()
         {
-            // Minimize the window
-            this.WindowState = WindowState.Minimized;
-        }
-        private void CloseButton_Loaded(object sender, RoutedEventArgs e)
-        {
-            if (DataContext is MainViewModel vm)
+            if (_appSettings.UseFloatingWindow && WindowState == WindowState.Normal)
             {
-                Serilog.Log.Information("CloseButton_Loaded → IsFullScreenMode = {Fullscreen}", vm.IsFullScreenMode);
-            }
-            else
-            {
-                Serilog.Log.Warning("CloseButton_Loaded: DataContext not set or incorrect type.");
+                _appSettings.FloatingWindowLeft = Left;
+                _appSettings.FloatingWindowTop = Top;
+                _appSettings.FloatingWindowWidth = Width;
+                _appSettings.FloatingWindowHeight = Height;
+                SettingsManager.Save(_appSettings);
+
+                Log.Information("Saved floating window position: {Left}x{Top} {Width}x{Height}",
+                    Left, Top, Width, Height);
             }
         }
 
-        private void CloseButton_Click(object sender, RoutedEventArgs e)
+
+        private void SwitchToWindowedMode_Click(object sender, RoutedEventArgs e)
         {
-            // Close the application
-            this.Close();
+            _appSettings.UseFloatingWindow = true;
+            SettingsManager.Save(_appSettings);
+            ApplyWindowSettings();
+            _viewModel.ApplyWindowModeFromSettings();
         }
-        // Make sure this method exists in MainWindow.xaml.cs:
+
+        private void TestCarrierJump_Click(object sender, RoutedEventArgs e)
+        {
+            _gameState.GetType().GetProperty("IsOnFleetCarrier")?.SetValue(_gameState, true);
+            _gameState.GetType().GetProperty("FleetCarrierJumpInProgress")?.SetValue(_gameState, true);
+            _gameState.GetType().GetProperty("CarrierJumpDestinationSystem")?.SetValue(_gameState, "Simulated System");
+            _gameState.GetType().GetProperty("CarrierJumpDestinationBody")?.SetValue(_gameState, "Simulated Body");
+
+            _gameState.GetType().GetMethod("OnPropertyChanged", BindingFlags.NonPublic | BindingFlags.Instance)
+                ?.Invoke(_gameState, new object[] { "ShowCarrierJumpOverlay" });
+            Log.Information("Simulated carrier jump initiated.");
+        }
 
         private void UpdateFontResources()
         {
@@ -358,98 +488,85 @@ namespace EliteInfoPanel
                 fontScale, baseFontSize, headerFontSize, smallFontSize);
         }
 
-        private void ApplyScreenBounds(Screen targetScreen)
+        private void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            WindowState = WindowState.Normal; // Force out of maximized state
-            WindowStyle = WindowStyle.None;
-            ResizeMode = ResizeMode.NoResize;
+            // Apply window mode settings
+            ApplyWindowSettings();
 
-            Left = targetScreen.WpfBounds.Left;
-            Top = targetScreen.WpfBounds.Top;
-            Width = targetScreen.WpfBounds.Width;
-            Height = targetScreen.WpfBounds.Height;
+            if (DataContext is MainViewModel vm)
+            {
+                // Setup HyperspaceOverlay
+                if (HyperspaceOverlay != null)
+                {
+                    HyperspaceOverlay.ForceHidden();
+                    HyperspaceOverlay.SetGameState(vm._gameState);
 
-            Topmost = true;
-            WindowState = WindowState.Maximized;
+                    // Extra startup check
+                    var startupTimer = new System.Threading.Timer((state) =>
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            if (!vm._gameState.IsHyperspaceJumping)
+                            {
+                                HyperspaceOverlay.ForceHidden();
+                                Log.Information("🔴 Startup timer verified hyperspace overlay is hidden");
+                            }
+                        });
+                    }, null, 1000, Timeout.Infinite);
+                }
+
+                // Setup CarrierJumpOverlay
+                if (CarrierJumpOverlay != null)
+                {
+                    CarrierJumpOverlay.ForceHidden();
+                    CarrierJumpOverlay.SetGameState(vm._gameState);
+
+                    // Watch for ShowCarrierJumpOverlay changes
+                    vm._gameState.PropertyChanged += (s, args) =>
+                    {
+                        if (args.PropertyName == nameof(GameStateService.ShowCarrierJumpOverlay))
+                        {
+                            var show = vm._gameState.ShowCarrierJumpOverlay;
+                            Log.Information("MainWindow detected ShowCarrierJumpOverlay changed to {Value}", show);
+
+                            Dispatcher.Invoke(() => {
+                                if (show)
+                                {
+                                    Log.Information("Explicitly triggering CarrierJumpOverlay visibility update");
+                                    CarrierJumpOverlay.UpdateVisibility();
+                                }
+                            });
+                        }
+                    };
+
+                    // Extra startup check for carrier jump state
+                    var carrierJumpTimer = new System.Threading.Timer((state) =>
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            if (vm._gameState.ShowCarrierJumpOverlay)
+                            {
+                                Log.Information("🚢 Startup timer detected carrier jump should be shown - updating visibility");
+                                CarrierJumpOverlay.UpdateVisibility();
+                            }
+                            else
+                            {
+                                CarrierJumpOverlay.ForceHidden();
+                                Log.Information("🔴 Startup timer verified carrier jump overlay is hidden");
+                            }
+                        });
+                    }, null, 1500, Timeout.Infinite);
+                }
+            }
         }
 
+        #endregion Private Methods
+
+        // Make sure this method exists in MainWindow.xaml.cs:
         // Replace only the OpenOptions() method in MainWindow.xaml.cs with this:
 
         // Replace only the OpenOptions() method in MainWindow.xaml.cs with this:
 
         // Use this version of the OpenOptions() method in MainWindow.xaml.cs
-
-        private void OpenOptions()
-        {
-            var options = new OptionsWindow();
-
-            // Important: Set initial settings reference
-            options.Settings.FloatingFontScale = _appSettings.FloatingFontScale;
-            options.Settings.FullscreenFontScale = _appSettings.FullscreenFontScale;
-
-            options.ScreenChanged += screen =>
-            {
-                _currentScreen = screen;
-
-                if (!_appSettings.UseFloatingWindow)
-                {
-                    ApplyScreenBounds(screen);
-                }
-            };
-
-            // This is the key handler for real-time updates
-            options.FontSizeChanged += () =>
-            {
-                // Directly update our app settings from the dialog's settings to get real-time values
-                _appSettings.FloatingFontScale = options.Settings.FloatingFontScale;
-                _appSettings.FullscreenFontScale = options.Settings.FullscreenFontScale;
-
-                // Now apply the changes immediately
-                UpdateFontResources();
-                App.RefreshResources();
-                InvalidateVisual();
-                _viewModel.RefreshLayout();
-                UpdateLayout();
-
-                Log.Debug("Live font update - Current scale: {0}, Floating: {1}, Fullscreen: {2}",
-                    _appSettings.UseFloatingWindow ? _appSettings.FloatingFontScale : _appSettings.FullscreenFontScale,
-                    _appSettings.FloatingFontScale,
-                    _appSettings.FullscreenFontScale);
-            };
-
-            // If dialog is closed with OK
-            if (options.ShowDialog() == true)
-            {
-                // Since we can't reassign _appSettings, we'll manually update the important properties
-                var updatedSettings = SettingsManager.Load();
-
-                // Check if window mode changed
-                bool modeChanged = updatedSettings.UseFloatingWindow != _appSettings.UseFloatingWindow;
-
-                // Update individual properties instead of the whole object
-                _appSettings.UseFloatingWindow = updatedSettings.UseFloatingWindow;
-                _appSettings.FloatingFontScale = updatedSettings.FloatingFontScale;
-                _appSettings.FullscreenFontScale = updatedSettings.FullscreenFontScale;
-                _appSettings.AlwaysOnTop = updatedSettings.AlwaysOnTop;
-
-                // Update window settings if mode changed
-                if (modeChanged)
-                {
-                    Log.Information("Window mode changed - reapplying window settings");
-                    ApplyWindowSettings();
-                    _viewModel.ApplyWindowModeFromSettings(); // 🔥 Ensure IsFullScreenMode gets updated
-
-                }
-                else
-                {
-                    // Always update font resources to ensure consistency
-                    UpdateFontResources();
-                    App.RefreshResources();
-                    InvalidateVisual();
-                    _viewModel.RefreshLayout();
-                    UpdateLayout();
-                }
-            }
-        }
     }
 }

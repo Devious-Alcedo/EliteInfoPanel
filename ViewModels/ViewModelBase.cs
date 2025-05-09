@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Serilog;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -22,15 +23,29 @@ namespace EliteInfoPanel.ViewModels
         /// <summary>
         /// Sets property value with change tracking and value caching to avoid unnecessary UI updates
         /// </summary>
+        private static readonly HashSet<string> NoisyProperties = new()
+{
+    "Content",
+    "CurrentPage"
+};
+
         protected bool SetProperty<T>(ref T storage, T value, [CallerMemberName] string propertyName = null)
         {
             if (Equals(storage, value))
                 return false;
 
             storage = value;
+
+            if (!NoisyProperties.Contains(propertyName))
+            {
+                Log.Debug("📦 Property changed: {Property} = {Value}", propertyName, value);
+            }
+
             OnPropertyChanged(propertyName);
             return true;
         }
+
+
 
         /// <summary>
         /// Sets property with caching to avoid unnecessary updates
@@ -102,7 +117,7 @@ namespace EliteInfoPanel.ViewModels
                 }
                 catch (Exception ex)
                 {
-                    Serilog.Log.Error(ex, "Error executing action on UI thread");
+                    Log.Error(ex, "Error executing action on UI thread");
                 }
             }
             else
@@ -115,7 +130,7 @@ namespace EliteInfoPanel.ViewModels
                 }
                 catch (Exception ex)
                 {
-                    Serilog.Log.Error(ex, "Error dispatching action to UI thread");
+                    Log.Error(ex, "Error dispatching action to UI thread");
                 }
             }
         }

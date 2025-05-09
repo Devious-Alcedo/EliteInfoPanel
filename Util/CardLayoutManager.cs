@@ -32,20 +32,27 @@ namespace EliteInfoPanel.Util
         #endregion
 
         #region Public Methods
+        // In CardLayoutManager.cs
+
         public void UpdateLayout(bool forceRebuild = false)
         {
+            // If we're already updating, don't stack calls
+            if (_isUpdating && !forceRebuild) return;
+
+            _isUpdating = true;
+
             try
             {
                 var visibleCards = GetVisibleCards();
 
                 bool cardsChanged = !_initialLayoutComplete || forceRebuild ||
-                                    !AreCardListsEqual(_lastVisibleCards, visibleCards);
+                                   !AreCardListsEqual(_lastVisibleCards, visibleCards);
 
                 if (cardsChanged)
                 {
                     Log.Debug("Rebuilding card layout: initial={0}, force={1}, changed={2}",
-                              !_initialLayoutComplete, forceRebuild,
-                              _initialLayoutComplete && !forceRebuild && !AreCardListsEqual(_lastVisibleCards, visibleCards));
+                             !_initialLayoutComplete, forceRebuild,
+                             _initialLayoutComplete && !forceRebuild && !AreCardListsEqual(_lastVisibleCards, visibleCards));
 
                     Application.Current.Dispatcher.Invoke(() =>
                     {
@@ -66,7 +73,14 @@ namespace EliteInfoPanel.Util
             {
                 Log.Error(ex, "Error updating card layout");
             }
+            finally
+            {
+                _isUpdating = false;
+            }
         }
+
+        // Add field
+        private bool _isUpdating = false;
 
         #endregion
 
@@ -136,9 +150,24 @@ namespace EliteInfoPanel.Util
             if (_viewModel.ModulesCard.IsVisible)
                 result.Add(_viewModel.ModulesCard);
 
+            // Add fleet carrier cargo
+            if (_viewModel.FleetCarrierCard.IsVisible)
+            {
+                result.Add(_viewModel.FleetCarrierCard);
+                Log.Debug("Including FleetCarrierCard in layout");
+            }
+
             // Add flags last
             if (_viewModel.FlagsCard.IsVisible)
                 result.Add(_viewModel.FlagsCard);
+
+
+            if (_viewModel.ColonizationCard.IsVisible)
+                result.Add(_viewModel.ColonizationCard);
+            Log.Information("Layout includes {Count} cards: {Cards}",
+       result.Count,
+       string.Join(", ", result.Select(c => c.GetType().Name)));
+
 
             return result;
         }
@@ -189,6 +218,10 @@ namespace EliteInfoPanel.Util
                 cardElement.Content = new EliteInfoPanel.Controls.ModulesCard { DataContext = viewModel };
             else if (viewModel is FlagsViewModel)
                 cardElement.Content = new EliteInfoPanel.Controls.FlagsCard { DataContext = viewModel };
+            else if (viewModel is ColonizationViewModel)
+                cardElement.Content = new EliteInfoPanel.Controls.ColonizationCard { DataContext = viewModel };
+            else if (viewModel is FleetCarrierCargoViewModel)
+                cardElement.Content = new EliteInfoPanel.Controls.FleetCarrierCargoCard { DataContext = viewModel };
 
             // Cache the created element for future use
             _cardCache[vmType] = cardElement;

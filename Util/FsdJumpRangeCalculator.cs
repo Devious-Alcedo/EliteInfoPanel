@@ -165,7 +165,7 @@ namespace EliteInfoPanel.Util
             var (_, max) = CalculateJumpRanges(fsd, loadout, status, cargo);
             return max;
         }
-       
+
         public static double EstimateFuelUsage(LoadoutModule fsd, LoadoutJson loadout, double distance, CargoJson? cargo = null)
         {
             var fsdKey = GetFsdSpecKeyFromItem(fsd.Item);
@@ -175,6 +175,7 @@ namespace EliteInfoPanel.Util
             double optimalMass = specs.OptimalMass;
             double maxFuelPerJump = specs.MaxFuelPerJump;
 
+            // Apply engineering modifiers if available
             var optMassModifier = fsd.Engineering?.Modifiers?
                 .FirstOrDefault(m => m.Label.Equals("FSDOptimalMass", StringComparison.OrdinalIgnoreCase));
             if (optMassModifier != null)
@@ -186,27 +187,36 @@ namespace EliteInfoPanel.Util
             if (ratingConstant == 0 || exponent == 0 || optimalMass == 0 || distance <= 0)
                 return 0;
 
-            // Estimate ship mass including cargo (not including fuel for a single-jump estimate)
+            // Estimate ship mass including cargo
             double cargoMass = cargo?.Inventory?.Sum(i => i.Count) ?? 0;
             double shipMass = loadout.UnladenMass + cargoMass;
 
-            // Reverse the jump range formula with an empirical scaling factor
-            // Original: Range = (100 ^ (1 / exp)) * OptMass / ShipMass * (fuel / rating) ^ (1 / exp)
+            // Calculate maximum jump range without considering fuel used
             double baseConstant = Math.Pow(100, 1 / exponent);
             double massRatio = optimalMass / shipMass;
+            double baseRange = baseConstant * massRatio * Math.Pow(maxFuelPerJump / ratingConstant, 1 / exponent);
 
-            // Estimate fuel usage using reverse formula:
-            double fuel = ratingConstant * Math.Pow(distance / (baseConstant * massRatio), exponent);
+            // Apply experimental effect boost if any (Mass Manager, etc.)
+            double jumpBoost = 0;
+            var experimental = fsd.Engineering?.ExperimentalEffect?.ToLowerInvariant();
+            if (!string.IsNullOrEmpty(experimental) &&
+                (experimental.Contains("mass_manager") || experimental.Contains("fsd") || experimental.Contains("range")))
+            {
+                jumpBoost = 1.0; // Conservative flat bonus
+            }
 
-            // Clamp and curve-match
-            fuel = Math.Clamp(fuel, 0.1, maxFuelPerJump);
+            double maxRange = baseRange + jumpBoost;
 
-            // Apply efficiency fudge factor (~0.88 gets very close to in-game observed values)
-            fuel *= 0.88;
+            // Calculate fuel usage for partial jump
+            // Formula: (jumpDistance/maxJumpRange)^exponent * maxFuelPerJump
+            double fuelNeeded = Math.Pow(distance / maxRange, exponent) * maxFuelPerJump;
 
-            return Math.Round(fuel, 2);
+            // Clamp to valid range and apply efficiency factor
+            fuelNeeded = Math.Clamp(fuelNeeded, 0.1, maxFuelPerJump);
+            fuelNeeded *= 0.91; // Apply empirical efficiency factor
+
+            return Math.Round(fuelNeeded, 2);
         }
-
         private static double GetRatingConstant(char rating)
         {
             return RatingConstants.TryGetValue(rating, out double value) ? value : 0;

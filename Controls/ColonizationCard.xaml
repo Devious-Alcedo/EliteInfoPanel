@@ -1,0 +1,249 @@
+﻿<UserControl x:Class="EliteInfoPanel.Controls.ColonizationCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:local="clr-namespace:EliteInfoPanel.Controls"
+             xmlns:util="clr-namespace:EliteInfoPanel.Util"
+             xmlns:viewModels="clr-namespace:EliteInfoPanel.ViewModels"
+             mc:Ignorable="d" 
+             d:DesignHeight="450" d:DesignWidth="600">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <util:ProgressToWidthMultiConverter x:Key="ProgressToWidthMultiConverter" />
+
+        <!-- Progress Bar Style without animations -->
+        <Style x:Key="NonAnimatedProgressBarStyle" TargetType="ProgressBar">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ProgressBar">
+                        <Grid SnapsToDevicePixels="true">
+                            <Rectangle Fill="{TemplateBinding Background}" Height="{TemplateBinding Height}" />
+                            <Rectangle Fill="{TemplateBinding Foreground}" Height="{TemplateBinding Height}" HorizontalAlignment="Left">
+                                <Rectangle.Width>
+                                    <MultiBinding Converter="{StaticResource ProgressToWidthMultiConverter}">
+                                        <Binding Path="Value" RelativeSource="{RelativeSource TemplatedParent}" />
+                                        <Binding Path="ActualWidth" RelativeSource="{RelativeSource TemplatedParent}" />
+                                        <Binding Path="Maximum" RelativeSource="{RelativeSource TemplatedParent}" />
+                                    </MultiBinding>
+                                </Rectangle.Width>
+                            </Rectangle>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Custom converter for "not" boolean values -->
+        <local:InverseBooleanConverter x:Key="InverseBoolConverter"/>
+    </UserControl.Resources>
+
+    <DockPanel>
+        <!-- Card Title (standalone) -->
+        <TextBlock Text="{Binding Title}" 
+                   Style="{StaticResource CardTitleStyle}"
+                   DockPanel.Dock="Top" 
+                   Margin="0,0,0,8"/>
+
+        <!-- Sort options as a separate row below the title -->
+        <StackPanel DockPanel.Dock="Top" 
+                    Orientation="Horizontal" 
+                    HorizontalAlignment="Right"
+                    Margin="0,0,0,8">
+            <Button Style="{StaticResource MaterialDesignFlatButton}"
+                    Command="{Binding ToggleShowCompleted}"
+                    ToolTip="Toggle showing completed items"
+                    Margin="3,0">
+                <materialDesign:PackIcon Kind="EyeCheck" 
+                                      Width="20" 
+                                      Height="20" 
+                                      Foreground="White"/>
+            </Button>
+            <Button Style="{StaticResource MaterialDesignFlatButton}"
+                    Command="{Binding SortByMissing}" 
+                    ToolTip="Sort by missing amount"
+                    Margin="3,0">
+                <materialDesign:PackIcon Kind="SortNumericDescending" Width="20" Height="20" />
+            </Button>
+            <Button Style="{StaticResource MaterialDesignFlatButton}"
+                    Command="{Binding SortByName}" 
+                    ToolTip="Sort by name"
+                    Margin="3,0">
+                <materialDesign:PackIcon Kind="SortAlphabeticalAscending" Width="20" Height="20" />
+            </Button>
+            <!-- Add this button next to the other buttons in the sort options row -->
+            <Button Style="{StaticResource MaterialDesignFlatButton}"
+        Command="{Binding ExportToCsvCommand}" 
+        ToolTip="Export to CSV"
+        Margin="3,0">
+                <materialDesign:PackIcon Kind="FileExport" Width="20" Height="20" />
+            </Button>
+            <!-- Open in New Window button - Only visible when not already in a popup window -->
+            <Button Style="{StaticResource MaterialDesignFlatButton}"
+        Command="{Binding OpenInNewWindowCommand}" 
+        ToolTip="Open in separate window"
+        Margin="3,0"
+        Visibility="{Binding IsInMainWindow, Converter={StaticResource BoolToVis}}">
+                <materialDesign:PackIcon Kind="OpenInNew" Width="20" Height="20" />
+            </Button>
+        </StackPanel>
+
+        <!-- Overall Progress -->
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+            <TextBlock Text="{Binding CompletionText}" 
+                       Foreground="White"
+                       Margin="0,0,0,4"
+                       FontWeight="SemiBold"
+                       FontSize="{Binding FontSize}" />
+
+            <ProgressBar Height="10" 
+                         Value="{Binding ProgressPercentage}"
+                         Maximum="1.0" 
+                         Foreground="LimeGreen"
+                         Background="#22FFFFFF"
+                         Style="{StaticResource NonAnimatedProgressBarStyle}" />
+
+            <TextBlock Text="{Binding LastUpdated, StringFormat='Last Updated: {0:g}'}"
+                       Foreground="#AAFFFFFF"
+                       FontSize="{Binding FontSize}"
+                       Margin="0,4,0,0" />
+        </StackPanel>
+
+        <!-- Resource Items List -->
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding Items}" 
+                          VirtualizingPanel.IsVirtualizing="True"
+                          Margin="0,0,5,0">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Margin="0,2,0,4" 
+                                Padding="6,4" 
+                                BorderThickness="0,0,0,1" 
+                                BorderBrush="#22FFFFFF">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <!-- Resource Name and Progress -->
+                                <Grid Grid.Column="0" Grid.Row="0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Commodity Name - Always visible -->
+                                    <TextBlock Grid.Column="0"
+                                       Text="{Binding Name}" 
+                                       FontWeight="SemiBold"
+                                       FontSize="{Binding FontSize}"
+                                       Foreground="White"
+                                       VerticalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       TextTrimming="None"/>
+                                    <TextBlock Grid.Column="1"
+                                           Visibility="{Binding IsComplete, Converter={StaticResource InverseBoolConverter}}"
+                                           VerticalAlignment="Center"
+                                           Margin="4,0,0,0">
+                                    <Run Text="(" />
+                                    <Run Text="{Binding Remaining, Mode=OneWay}" Foreground="Orange" FontWeight="Bold" />
+                                    <Run Text=")" />
+                                    </TextBlock>
+
+                                    <!-- Checkmark for completed items -->
+                                    <materialDesign:PackIcon Grid.Column="2"
+                           Kind="Check" 
+                           Foreground="LimeGreen"
+                           Width="18" 
+                           Height="18"
+                           Margin="4,0,0,0"
+                           VerticalAlignment="Center" 
+                           Visibility="{Binding IsComplete, Converter={StaticResource BoolToVis}}" />
+                                </Grid>
+                                <!-- Progress Bar and Numbers -->
+                                <StackPanel Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="1">
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <ProgressBar Height="8" 
+                                                     Value="{Binding CompletionPercentage}" 
+                                                     Maximum="100"
+                                                     Foreground="{Binding ProgressColor}"
+                                                     Background="#22FFFFFF"
+                                                     Style="{StaticResource NonAnimatedProgressBarStyle}"
+                                                     Grid.Column="0"
+                                                     VerticalAlignment="Center" />
+
+                                        <TextBlock Grid.Column="1"
+                                                   Margin="8,0,0,0"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="#AAFFFFFF"
+                                                   FontSize="{Binding FontSize}">
+                                            <Run Text="{Binding Provided, Mode=OneWay}" />
+                                            <Run Text="/" />
+                                            <Run Text="{Binding Required, Mode=OneWay}" />
+                                            <Run Text="{Binding CompletionPercentage, StringFormat=({0:N1}%), Mode=OneWay}" />
+                                        </TextBlock>
+                                    </Grid>
+
+                                    <!-- Additional details -->
+                                    <Grid Margin="0,2,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <!-- Still needed text -->
+                                        <TextBlock Grid.Column="0" Grid.Row="0"
+               FontSize="{Binding FontSize}"
+               Foreground="#CCFFFFFF"
+               Visibility="{Binding IsComplete, Converter={StaticResource BoolToVis}, ConverterParameter=Collapsed}">
+        <Run Text="Still needed:" />
+        <Run Text="{Binding Remaining, Mode=OneWay}" FontWeight="SemiBold" />
+                                        </TextBlock>
+
+                                        <!-- Available cargo (NEW ROW) -->
+                                        <TextBlock Grid.Column="0" Grid.Row="1"
+               FontSize="{Binding FontSize}"
+               Foreground="#AAFFFFFF"
+               Visibility="{Binding HasAvailableCargo, Converter={StaticResource BoolToVis}}">
+        <Run Text="Available: Ship " />
+        <Run Text="{Binding ShipCargoQuantity, Mode=OneWay}" Foreground="LightGreen" FontWeight="SemiBold" />
+        <Run Text=", Carrier " />
+        <Run Text="{Binding CarrierCargoQuantity, Mode=OneWay}" Foreground="LightGreen" FontWeight="SemiBold" />
+                                        </TextBlock>
+
+                                        <!-- Reward text spans both rows -->
+                                        <TextBlock Grid.Column="1" Grid.Row="0" Grid.RowSpan="2"
+               Margin="4,0,0,0"
+               FontSize="{Binding FontSize}"
+               Foreground="#CCFFFFFF">
+        <Run Text="Reward:" />
+        <Run Text="{Binding Payment, StringFormat={}{0:N0} cr/unit, Mode=OneWay}" Foreground="LightGreen" />
+                                        </TextBlock>
+                                    </Grid>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>
