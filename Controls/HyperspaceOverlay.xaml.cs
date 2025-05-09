@@ -22,7 +22,7 @@ namespace EliteInfoPanel.Controls
 
         private GameStateService _gameState;
         private readonly Random _random = new Random();
-        private readonly int _numStars = 150;
+        private readonly int _numStars = 130;
         private bool _starfieldInitialized = false;
         private Point _screenCenter;
         private readonly List<StarInfo> _stars = new();
