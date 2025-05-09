@@ -2508,7 +2508,7 @@ namespace EliteInfoPanel.Core
                 }
             }
         }
-   
+
         private void UpdateCurrentCarrierCargoFromDictionary()
         {
             try
@@ -2520,7 +2520,7 @@ namespace EliteInfoPanel.Core
                 {
                     items.Add(new CarrierCargoItem
                     {
-                        Name = pair.Key, // Preserve original name with spaces
+                        Name = CommodityMapper.GetDisplayName(pair.Key), // Use the existing mapper
                         Quantity = pair.Value
                     });
                 }
