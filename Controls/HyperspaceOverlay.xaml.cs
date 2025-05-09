@@ -22,7 +22,7 @@ namespace EliteInfoPanel.Controls
 
         private GameStateService _gameState;
         private readonly Random _random = new Random();
-        private readonly int _numStars = 130;
+        private readonly int _numStars = 150;
         private bool _starfieldInitialized = false;
         private Point _screenCenter;
         private readonly List<StarInfo> _stars = new();
@@ -35,8 +35,7 @@ namespace EliteInfoPanel.Controls
         private bool _stopRenderThread = false;
         private readonly object _renderLock = new object();
         private long _ticksPerSecond;
-        private const double TargetFrameTimeMs = 1000.0 / 60; // Target 60 FPS
-        private const double FadeFactor = 0.92; // Simplified fade factor
+        private const double TargetFrameTimeMs = 1000.0 / 60; // Target 60 FPS just like CarrierJumpOverlay
 
         // Star color options - blueish-white colors for a realistic space look
         private readonly Color[] _starColors = new[]
@@ -65,9 +64,9 @@ namespace EliteInfoPanel.Controls
         {
             InitializeComponent();
 
-            // Force software rendering mode for better performance
+            // Configure rendering settings - match CarrierJumpOverlay exactly
             RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.NearestNeighbor);
-            RenderOptions.ProcessRenderMode = RenderMode.Default; // Allow hardware acceleration
+            RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
 
             // Get high-performance timer frequency
             QueryPerformanceFrequency(out _ticksPerSecond);
@@ -153,9 +152,8 @@ namespace EliteInfoPanel.Controls
                         Height = ActualHeight
                     };
 
-                    // Use hardware accelerated rendering when possible
+                    // Match CarrierJumpOverlay settings
                     RenderOptions.SetBitmapScalingMode(bitmapImageControl, BitmapScalingMode.NearestNeighbor);
-                    RenderOptions.SetCachingHint(bitmapImageControl, CachingHint.Cache);
 
                     StarfieldCanvas.Children.Clear();
                     StarfieldCanvas.Children.Add(bitmapImageControl);
@@ -165,26 +163,23 @@ namespace EliteInfoPanel.Controls
                 _stars.Clear();
                 _screenCenter = new Point(_bitmapWidth / 2, _bitmapHeight / 2);
 
-                // Create stars with varying characteristics
+                // Create stars with varying characteristics - use same approach as CarrierJumpOverlay
                 for (int i = 0; i < _numStars; i++)
                 {
                     // Choose a new starting angle
                     double angle = _random.NextDouble() * Math.PI * 2;
-                    double initialDist = _random.NextDouble() * (_bitmapWidth / 3);
+                    double dist = _random.NextDouble() * 20; // Start near center like CarrierJumpOverlay
 
-                    // Vary the speed
-                    double speed = 0.7 + _random.NextDouble() * 1.5; // Slightly faster for smoother motion
-                    double radius = 1.0 + _random.NextDouble() * 1.5;
+                    var startX = _screenCenter.X + Math.Cos(angle) * dist;
+                    var startY = _screenCenter.Y + Math.Sin(angle) * dist;
 
-                    // Select a color
-                    int colorIndex = (int)Math.Floor(_random.NextDouble() * _starColors.Length);
+                    double speed = 0.5 + _random.NextDouble() * 3.0; // Match carrier jump overlay
+                    double radius = 1.0 + _random.NextDouble() * 2.0;
+
+                    // Select color with same distribution as CarrierJumpOverlay but keep blue colors
+                    int colorIndex = (int)(_random.NextDouble() * _random.NextDouble() * _starColors.Length);
                     var color = _starColors[colorIndex];
 
-                    // Calculate starting position
-                    var startX = _screenCenter.X + Math.Cos(angle) * initialDist;
-                    var startY = _screenCenter.Y + Math.Sin(angle) * initialDist;
-
-                    // Add to star collection
                     _stars.Add(new StarInfo
                     {
                         Position = new Point(startX, startY),
@@ -246,48 +241,66 @@ namespace EliteInfoPanel.Controls
             if (!_isRendering) return;
 
             _stopRenderThread = true;
-            _renderThread?.Join(500);
+
+            // Match the CarrierJumpOverlay approach to thread stopping
+            if (_renderThread != null && _renderThread.IsAlive)
+            {
+                try
+                {
+                    if (!_renderThread.Join(500))
+                    {
+                        Log.Warning("Render thread join timeout — forcibly interrupting");
+                        _renderThread.Interrupt();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error stopping render thread");
+                }
+            }
+
             _renderThread = null;
             _isRendering = false;
         }
 
         private void RenderLoop()
         {
-            // Initialize timing
+            // Initialize timing - same as CarrierJumpOverlay
             QueryPerformanceCounter(out long lastTicks);
 
             while (!_stopRenderThread)
             {
-                // Get current high-resolution time
-                QueryPerformanceCounter(out long nowTicks);
-                double elapsed = (nowTicks - lastTicks) * 1000.0 / _ticksPerSecond;
-
-                // Throttle frame rate for consistent animation
-                if (elapsed < TargetFrameTimeMs)
-                {
-                    int sleepTime = (int)(TargetFrameTimeMs - elapsed);
-                    if (sleepTime > 1)
-                    {
-                        Thread.Sleep(sleepTime);
-                    }
-                    continue;
-                }
-
-                // Update last time
-                lastTicks = nowTicks;
-
                 try
                 {
+                    // Get current high-resolution time
+                    QueryPerformanceCounter(out long nowTicks);
+                    double elapsed = (nowTicks - lastTicks) * 1000.0 / _ticksPerSecond;
+
+                    // Throttle frame rate for consistent animation - match CarrierJumpOverlay
+                    if (elapsed < TargetFrameTimeMs)
+                    {
+                        int sleepTime = (int)(TargetFrameTimeMs - elapsed);
+                        if (sleepTime > 1)
+                        {
+                            Thread.Sleep(sleepTime);
+                        }
+                        continue;
+                    }
+
+                    // Update last time
+                    lastTicks = nowTicks;
+
+                    // Process everything in a single locked block like CarrierJumpOverlay
                     lock (_renderLock)
                     {
                         // Apply fade to create trails
                         ApplyFade();
 
-                        // Update all stars
+                        // Update and render all stars
                         ProcessStars();
                     }
 
-                    // Write the updated buffer to the bitmap on UI thread
+                    // Update the UI exactly like CarrierJumpOverlay does
                     Dispatcher.BeginInvoke(new Action(() =>
                     {
                         try
@@ -303,9 +316,9 @@ namespace EliteInfoPanel.Controls
                         }
                         catch (Exception ex)
                         {
-                            Log.Error(ex, "Error updating bitmap");
+                            Log.Warning(ex, "Error updating bitmap");
                         }
-                    }), DispatcherPriority.Render);
+                    }));
                 }
                 catch (Exception ex)
                 {
@@ -316,13 +329,13 @@ namespace EliteInfoPanel.Controls
 
         private void ApplyFade()
         {
-            // Apply a simple fade effect - more efficient than lookup tables
+            // Simple fade effect directly matching CarrierJumpOverlay's approach
             for (int i = 0; i < _pixelBuffer.Length; i += 4)
             {
-                _pixelBuffer[i] = (byte)(_pixelBuffer[i] * FadeFactor);         // B
-                _pixelBuffer[i + 1] = (byte)(_pixelBuffer[i + 1] * FadeFactor); // G
-                _pixelBuffer[i + 2] = (byte)(_pixelBuffer[i + 2] * FadeFactor); // R
-                _pixelBuffer[i + 3] = 255; // Alpha always 255
+                _pixelBuffer[i] = (byte)(_pixelBuffer[i] * 0.92);         // B
+                _pixelBuffer[i + 1] = (byte)(_pixelBuffer[i + 1] * 0.92); // G
+                _pixelBuffer[i + 2] = (byte)(_pixelBuffer[i + 2] * 0.92); // R
+                // Alpha is always 255
             }
         }
 
@@ -333,58 +346,47 @@ namespace EliteInfoPanel.Controls
                 // Save previous position
                 star.PreviousPosition = star.Position;
 
-                // Calculate tunnel effect factor
+                // Calculate vector to center
                 Vector toCenter = star.Position - _screenCenter;
-                double distFromCenter = toCenter.Length;
-                double factor = Math.Min(1.0, distFromCenter / (_bitmapWidth * 0.4));
+                double dist = toCenter.Length;
 
-                // Apply position change with perspective speed boost
-                star.Position += star.Velocity * (1.0 + factor * 3.0);
+                // Apply speed boost factor similar to CarrierJumpOverlay
+                double factor = Math.Min(1.0, dist / (_bitmapWidth * 0.4));
+                star.Position += star.Velocity * (1.0 + factor * 4.0);
 
-                // Reset star if offscreen
+                // Reset star if offscreen - match CarrierJumpOverlay logic
                 if (star.Position.X < 0 || star.Position.X >= _bitmapWidth ||
                     star.Position.Y < 0 || star.Position.Y >= _bitmapHeight)
                 {
-                    ResetStar(star);
+                    double angle = _random.NextDouble() * Math.PI * 2;
+                    double speed = 0.5 + _random.NextDouble() * 3.0;
+                    double radius = 1.0 + _random.NextDouble() * 2.0;
+
+                    var newPos = new Point(
+                        _screenCenter.X + Math.Cos(angle) * (_random.NextDouble() * 10),
+                        _screenCenter.Y + Math.Sin(angle) * (_random.NextDouble() * 10)
+                    );
+
+                    star.Position = newPos;
+                    star.PreviousPosition = newPos;
+                    star.Velocity = new Vector(Math.Cos(angle) * speed, Math.Sin(angle) * speed);
+                    star.Radius = radius;
+
+                    int colorIndex = (int)(_random.NextDouble() * _random.NextDouble() * _starColors.Length);
+                    star.Color = _starColors[colorIndex];
                 }
                 else
                 {
-                    // Draw trail line
+                    // Draw trail line using exactly the same method as CarrierJumpOverlay
                     DrawLineWithFade((int)star.PreviousPosition.X, (int)star.PreviousPosition.Y,
-                                     (int)star.Position.X, (int)star.Position.Y, star.Color);
+                                    (int)star.Position.X, (int)star.Position.Y, star.Color);
                 }
             }
         }
 
-        private void ResetStar(StarInfo star)
-        {
-            // Choose a new starting angle
-            double angle = _random.NextDouble() * Math.PI * 2;
-
-            // Vary the speed and size
-            double speed = 0.7 + _random.NextDouble() * 1.5;
-            double radius = 1.0 + _random.NextDouble() * 1.5;
-
-            // Start near center
-            var newPos = new Point(
-                _screenCenter.X + Math.Cos(angle) * (_random.NextDouble() * 10),
-                _screenCenter.Y + Math.Sin(angle) * (_random.NextDouble() * 10)
-            );
-
-            // Update star properties
-            star.Position = newPos;
-            star.PreviousPosition = newPos;
-            star.Velocity = new Vector(Math.Cos(angle) * speed, Math.Sin(angle) * speed);
-            star.Radius = radius;
-
-            // Randomize color
-            int colorIndex = (int)Math.Floor(_random.NextDouble() * _starColors.Length);
-            star.Color = _starColors[colorIndex];
-        }
-
         private void DrawLineWithFade(int x0, int y0, int x1, int y1, Color color)
         {
-            // Use Bresenham's line algorithm with a simple blend
+            // Use Bresenham's line algorithm with a simple blend - match CarrierJumpOverlay
             int dx = Math.Abs(x1 - x0);
             int dy = Math.Abs(y1 - y0);
             int sx = x0 < x1 ? 1 : -1;
@@ -403,7 +405,7 @@ namespace EliteInfoPanel.Controls
                 {
                     int index = (y0 * _bitmapWidth + x0) * 4;
 
-                    // Simple alpha blending
+                    // Use the same blending formula as CarrierJumpOverlay
                     _pixelBuffer[index] = Blend(_pixelBuffer[index], color.B, alpha);
                     _pixelBuffer[index + 1] = Blend(_pixelBuffer[index + 1], color.G, alpha);
                     _pixelBuffer[index + 2] = Blend(_pixelBuffer[index + 2], color.R, alpha);
