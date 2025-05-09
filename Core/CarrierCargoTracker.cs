@@ -137,60 +137,32 @@ namespace EliteInfoPanel.Core
 
                     if (string.IsNullOrWhiteSpace(name)) continue;
 
-                    // IMPORTANT: Only use case-insensitive comparison but PRESERVE SPACES
-                    // This matches how items are looked up in the UI
-                    string existingKey = null;
-                    foreach (var key in _cargo.Keys)
+                    // Process the transfer based on direction
+                    if (string.Equals(direction, "tocarrier", StringComparison.OrdinalIgnoreCase))
                     {
-                        if (string.Equals(key, name, StringComparison.OrdinalIgnoreCase))
-                        {
-                            existingKey = key;
-                            break;
-                        }
+                        // When adding to carrier, just use the name as provided by the game
+                        // This ensures we're tracking items with the same keys the game uses
+                        _cargo[name] = _cargo.TryGetValue(name, out int current) ? current + count : count;
+                        Log.Debug("Added to carrier: {Item} now at {Count}", name, _cargo[name]);
                     }
-
-                    if (direction == "tocarrier")
+                    else if (string.Equals(direction, "toship", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(direction, "fromcarrier", StringComparison.OrdinalIgnoreCase))
                     {
-                        if (existingKey != null)
+                        // When removing from carrier, find the exact key as used in our dictionary
+                        if (_cargo.TryGetValue(name, out int current))
                         {
-                            // Use the existing key to maintain consistency
-                            int currentAmount = _cargo[existingKey];
-                            _cargo[existingKey] = currentAmount + count;
-                            Log.Information("  -> Added to carrier: \"{ExistingName}\" now at {Count} (was {Previous})",
-                                existingKey, _cargo[existingKey], currentAmount);
-                        }
-                        else
-                        {
-                            // This is a new item - use the EXACT name from the game
-                            _cargo[name] = count;
-                            Log.Information("  -> Added new item to carrier: \"{Name}\" = {Count}", name, count);
-                        }
-                    }
-                    else if (direction == "toship")
-                    {
-                        if (existingKey != null)
-                        {
-                            int currentAmount = _cargo[existingKey];
-                            // Subtract from current amount
-                            int newAmount = Math.Max(0, currentAmount - count);
-
+                            int newAmount = Math.Max(0, current - count);
                             if (newAmount > 0)
                             {
-                                _cargo[existingKey] = newAmount;
-                                Log.Information("  -> Removed from carrier: \"{ExistingName}\" now at {Count} (was {Previous})",
-                                    existingKey, newAmount, currentAmount);
+                                _cargo[name] = newAmount;
+                                Log.Debug("Removed from carrier: {Item} now at {Count}", name, newAmount);
                             }
                             else
                             {
-                                _cargo.Remove(existingKey);
-                                Log.Information("  -> Removed \"{ExistingName}\" completely from carrier (was {Previous})",
-                                    existingKey, currentAmount);
+                                // CRITICAL: When quantity reaches zero, remove the item completely
+                                _cargo.Remove(name);
+                                Log.Debug("Removed completely: {Item} (quantity would be 0)", name);
                             }
-                        }
-                        else
-                        {
-                            Log.Warning("  -> Attempted to remove {Count} of \"{Name}\" from carrier, but none in inventory",
-                                count, name);
                         }
                     }
                 }
