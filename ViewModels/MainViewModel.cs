@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -43,6 +44,7 @@ namespace EliteInfoPanel.ViewModels
         public ObservableCollection<CardViewModel> Cards { get; } = new ObservableCollection<CardViewModel>();
 
         public BackpackViewModel BackpackCard { get; }
+        public FleetCarrierCargoViewModel FleetCarrierCard { get; }
 
         public CargoViewModel CargoCard { get; }
         public ColonizationViewModel ColonizationCard { get; }
@@ -94,7 +96,7 @@ namespace EliteInfoPanel.ViewModels
             ModulesCard = new ModulesViewModel(gameState) { Title = "Ship Modules" };
             FlagsCard = new FlagsViewModel(gameState) { Title = "Status Flags" };
             ColonizationCard = new ColonizationViewModel(gameState) { Title = "Colonization Project" };
-
+            FleetCarrierCard = new FleetCarrierCargoViewModel(_gameState) { Title = "Fleet Carrier Cargo" };
             // Add cards to collection
             Cards.Add(SummaryCard);
             Cards.Add(CargoCard);
@@ -103,6 +105,8 @@ namespace EliteInfoPanel.ViewModels
             Cards.Add(ModulesCard);
             Cards.Add(FlagsCard);
             Cards.Add(ColonizationCard);
+            Cards.Add(FleetCarrierCard); // ✅ reuse the existing instance
+
 
             // Subscribe to PropertyChanged events from GameStateService
             _gameState.PropertyChanged += GameState_PropertyChanged;
@@ -192,6 +196,7 @@ namespace EliteInfoPanel.ViewModels
             RouteCard.IsUserEnabled = settings.ShowRoute;
             ModulesCard.IsUserEnabled = settings.ShowModules;
             ColonizationCard.IsUserEnabled = settings.ShowColonisation;
+            FleetCarrierCard.IsUserEnabled = settings.ShowFleetCarrierCargoCard;
 
             // Log the visibility status
             Log.Debug("Card preferences applied - Cargo: {0}, Colonization: {1}",
@@ -284,13 +289,13 @@ namespace EliteInfoPanel.ViewModels
 
             if (!globalShowCondition)
             {
-                // Hide all cards when global condition fails
-                foreach (var card in Cards.Where(c => !(c is ColonizationViewModel)))
+                foreach (var card in Cards.Where(c => !(c is ColonizationViewModel) && !(c is FleetCarrierCargoViewModel)))
                 {
                     card.SetContextVisibility(false);
                 }
                 return;
             }
+
 
             // Now evaluate each card once - in a specific order
 
@@ -332,6 +337,11 @@ namespace EliteInfoPanel.ViewModels
            
             ColonizationCard.SetContextVisibility(true); // Always set the context to true
             ColonizationCard.IsUserEnabled = settings.ShowColonisation; // Let user setting control visibility
+                                                                        // Fleet Carrier Cargo card (user controlled only)
+            FleetCarrierCard.SetContextVisibility(true); // Always context-visible
+            FleetCarrierCard.IsUserEnabled = settings.ShowFleetCarrierCargoCard;  // Respect user setting
+            Log.Information("FleetCarrierCard.SetContextVisibility({Visible}), IsUserEnabled: {Enabled}",
+                true, settings.ShowFleetCarrierCargoCard);
 
         }
         public void SetMainGrid(Grid mainGrid)
@@ -408,9 +418,28 @@ namespace EliteInfoPanel.ViewModels
                     Log.Information("GameStateService.CurrentColonization changed - updating card visibility");
                     UpdateColonizationCardVisibility();
                     break;
+                case nameof(GameStateService.CurrentCarrierCargo):
+                    UpdateCarrierCargoVisibility();
+                    break;
+
 
             }
         }
+        // In MainViewModel.UpdateCarrierCargoVisibility or similar
+        private void UpdateCarrierCargoVisibility()
+        {
+            bool hasCarrierCargo = _gameState.CurrentCarrierCargo?.Any() == true;
+            bool isJumping = _gameState.IsHyperspaceJumping;
+
+            bool shouldShow = hasCarrierCargo && !isJumping &&
+                             SettingsManager.Load().ShowFleetCarrierCargoCard;
+
+            Log.Information("Fleet Carrier card visibility check: HasCargo={HasCargo}, IsJumping={IsJumping}, ShouldShow={ShouldShow}",
+                hasCarrierCargo, isJumping, shouldShow);
+
+            FleetCarrierCard.SetContextVisibility(shouldShow);
+        }
+
         // Add this method back to MainViewModel
         private void UpdateColonizationCardVisibility()
         {
@@ -712,6 +741,15 @@ namespace EliteInfoPanel.ViewModels
             if (oldFlagsVisible != FlagsCard.IsVisible)
                 visibilityChanged = true;
 
+            // carrier cargo visibility
+            bool shouldShowCarrierCargo = shouldShowPanels;
+            bool oldCarrierVisible = FleetCarrierCard.IsVisible;
+            FleetCarrierCard.SetContextVisibility(shouldShowCarrierCargo);
+            if (oldCarrierVisible != FleetCarrierCard.IsVisible)
+                visibilityChanged = true;
+
+
+
             // Only update layout if visibility changed
             if (visibilityChanged)
             {
@@ -853,6 +891,10 @@ namespace EliteInfoPanel.ViewModels
                 // Add modules (will take extra space)
                 if (ModulesCard.IsVisible)
                     visibleCards.Add(ModulesCard);
+                // Add fleet carrier card
+                if (FleetCarrierCard.IsVisible)
+                    visibleCards.Add(FleetCarrierCard);
+                Log.Information("FleetCarrierCard.IsVisible = {Visible}", FleetCarrierCard.IsVisible);
 
                 // Add flags last
                 if (FlagsCard.IsVisible)
@@ -899,6 +941,9 @@ namespace EliteInfoPanel.ViewModels
                         cardElement.Content = new EliteInfoPanel.Controls.FlagsCard { DataContext = card };
                     else if (card == ColonizationCard)
                         cardElement.Content = new EliteInfoPanel.Controls.ColonizationCard { DataContext = card };
+                    else if (card == FleetCarrierCard)
+                        cardElement.Content = new EliteInfoPanel.Controls.FleetCarrierCargoCard { DataContext = card };
+
 
                     // Add to grid
                     Grid.SetColumn(cardElement, i);

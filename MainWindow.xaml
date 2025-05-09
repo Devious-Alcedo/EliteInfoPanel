@@ -84,7 +84,8 @@
                                  Margin="20"
                                  FontSize="20" />
 
-       
-       
+
+        <!-- Add this near the bottom of your MainWindow.xaml, inside the main Grid -->
+      
     </Grid>
 </Window>

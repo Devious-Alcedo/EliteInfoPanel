@@ -98,6 +98,18 @@ namespace EliteInfoPanel.ViewModels
                 OnPropertyChanged(nameof(ScalePercentage));
             }
         }
+        public bool ShowFleetCarrierCargoCard
+        {
+            get => _appSettings.ShowFleetCarrierCargoCard;
+            set
+            {
+                if (_appSettings.ShowFleetCarrierCargoCard != value)
+                {
+                    _appSettings.ShowFleetCarrierCargoCard = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         public double FloatingFontScale
         {

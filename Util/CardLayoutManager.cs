@@ -150,9 +150,17 @@ namespace EliteInfoPanel.Util
             if (_viewModel.ModulesCard.IsVisible)
                 result.Add(_viewModel.ModulesCard);
 
+            // Add fleet carrier cargo
+            if (_viewModel.FleetCarrierCard.IsVisible)
+            {
+                result.Add(_viewModel.FleetCarrierCard);
+                Log.Debug("Including FleetCarrierCard in layout");
+            }
+
             // Add flags last
             if (_viewModel.FlagsCard.IsVisible)
                 result.Add(_viewModel.FlagsCard);
+
 
             if (_viewModel.ColonizationCard.IsVisible)
                 result.Add(_viewModel.ColonizationCard);
@@ -212,6 +220,8 @@ namespace EliteInfoPanel.Util
                 cardElement.Content = new EliteInfoPanel.Controls.FlagsCard { DataContext = viewModel };
             else if (viewModel is ColonizationViewModel)
                 cardElement.Content = new EliteInfoPanel.Controls.ColonizationCard { DataContext = viewModel };
+            else if (viewModel is FleetCarrierCargoViewModel)
+                cardElement.Content = new EliteInfoPanel.Controls.FleetCarrierCargoCard { DataContext = viewModel };
 
             // Cache the created element for future use
             _cardCache[vmType] = cardElement;
