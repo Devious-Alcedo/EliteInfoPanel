@@ -117,6 +117,9 @@ namespace EliteInfoPanel.Core
         // In CarrierCargoTracker.cs - Fix the ProcessTransfer method
 
         // In CarrierCargoTracker.cs - Fix the ProcessTransfer method
+        // 1. Fix in CarrierCargoTracker.ProcessTransfer
+        // - Preserve spaces in names
+        // - Use case-insensitive comparison consistent with the UI
         private void ProcessTransfer(JsonElement root)
         {
             if (!root.TryGetProperty("Transfers", out var transfersProp) || transfersProp.ValueKind != JsonValueKind.Array)
@@ -134,20 +137,12 @@ namespace EliteInfoPanel.Core
 
                     if (string.IsNullOrWhiteSpace(name)) continue;
 
-                    // IMPORTANT: For lookups, use case-insensitive and space-insensitive comparison
-                    // But preserve the exact name for storage
-                    string normalizedForLookup = name.ToLowerInvariant().Replace(" ", "");
-
-                    // Log the exact and normalized names to help debug
-                    Log.Information("CarrierCargoTracker processing transfer: {Direction} {Count} of \"{ExactName}\" (normalized: \"{NormalizedName}\")",
-                        direction, count, name, normalizedForLookup);
-
-                    // Find existing item with the same normalized name (ignoring spaces and case)
+                    // IMPORTANT: Only use case-insensitive comparison but PRESERVE SPACES
+                    // This matches how items are looked up in the UI
                     string existingKey = null;
                     foreach (var key in _cargo.Keys)
                     {
-                        string keyNormalized = key.ToLowerInvariant().Replace(" ", "");
-                        if (keyNormalized == normalizedForLookup)
+                        if (string.Equals(key, name, StringComparison.OrdinalIgnoreCase))
                         {
                             existingKey = key;
                             break;

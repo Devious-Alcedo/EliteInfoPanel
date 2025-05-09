@@ -140,52 +140,65 @@ namespace EliteInfoPanel.ViewModels
 
                     if (existingItem != null)
                     {
-                        // Update existing item
-                        existingItem.Quantity += delta;
-                        if (existingItem.Quantity <= 0)
+                        if (pair.Value <= 0)
                         {
+                            // Remove completely if quantity is zero or negative
                             Cargo.Remove(existingItem);
+                            Log.Debug("Removed {Item} from UI due to zero/negative quantity", pair.Key);
+                        }
+                        else
+                        {
+                            // Update existing item
+                            existingItem.Quantity = pair.Value; // Set directly to match game state
+                            Log.Debug("Updated item in UI: {Item} now at {Quantity}",
+                                existingItem.Name, existingItem.Quantity);
                         }
                         madeChanges = true;
-
-                        Log.Debug("Updated item in UI: {Item} now at {Quantity}",
-                            existingItem.Name, existingItem.Quantity);
                     }
-                    else if (delta > 0)
+                    else if (pair.Value > 0)
                     {
-                        // New item
+                        // New item with positive quantity
                         Cargo.Add(new CarrierCargoItem
                         {
-                            Name = pair.Key,
-                            Quantity = delta
+                            Name = pair.Key, // Use original name with spaces
+                            Quantity = pair.Value
                         });
                         madeChanges = true;
-
-                        Log.Debug("Added new item to UI: {Item} = {Quantity}", pair.Key, delta);
+                        Log.Debug("Added new item to UI: {Item} = {Quantity}", pair.Key, pair.Value);
                     }
                 }
             }
 
-            // Look for items that were removed
-            var removedItems = _lastKnownGameState.Keys
-                .Where(key => !currentStateDict.ContainsKey(key))
-                .ToList();
-
-            foreach (var key in removedItems)
+            // IMPORTANT: Remove items that are no longer in the game state
+            foreach (var key in _lastKnownGameState.Keys.ToList())
             {
-                var existingItem = Cargo.FirstOrDefault(i =>
-                    string.Equals(i.Name, key, StringComparison.OrdinalIgnoreCase));
-
-                if (existingItem != null)
+                if (!currentStateDict.ContainsKey(key))
                 {
-                    Cargo.Remove(existingItem);
-                    madeChanges = true;
-                    Log.Debug("Removed item from UI: {Item}", key);
+                    var itemToRemove = Cargo.FirstOrDefault(i =>
+                        string.Equals(i.Name, key, StringComparison.OrdinalIgnoreCase));
+
+                    if (itemToRemove != null)
+                    {
+                        Cargo.Remove(itemToRemove);
+                        madeChanges = true;
+                        Log.Debug("Removed item completely from UI: {Item} (no longer in game state)", key);
+                    }
                 }
             }
 
-            // Update last known state
+            // Update last known state to match current
             _lastKnownGameState = new Dictionary<string, int>(currentStateDict, StringComparer.OrdinalIgnoreCase);
+
+            // Clean up any remaining zero-quantity items
+            for (int i = Cargo.Count - 1; i >= 0; i--)
+            {
+                if (Cargo[i].Quantity <= 0)
+                {
+                    Log.Debug("Cleaning up zero-quantity item: {Item}", Cargo[i].Name);
+                    Cargo.RemoveAt(i);
+                    madeChanges = true;
+                }
+            }
 
             // Save if changes were made
             if (madeChanges)
@@ -195,7 +208,6 @@ namespace EliteInfoPanel.ViewModels
                 Log.Information("Applied real-time changes to fleet carrier cargo - now {Count} items", Cargo.Count);
             }
         }
-
         private bool LoadSavedCargoData()
         {
             try

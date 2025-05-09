@@ -836,9 +836,24 @@ namespace EliteInfoPanel.Core
                 {
                     _carrierCargo[itemName] = quantity;
                 }
-                else if (_carrierCargo.ContainsKey(itemName))
+                else
                 {
-                    _carrierCargo.Remove(itemName);
+                    // If quantity is 0 or negative, remove completely
+                    if (_carrierCargo.ContainsKey(itemName))
+                    {
+                        _carrierCargo.Remove(itemName);
+                        Log.Debug("Removed {Item} from carrier cargo tracking dictionary", itemName);
+                    }
+
+                    // Also ensure it's removed from UI list in CurrentCarrierCargo
+                    var itemToRemove = _currentCarrierCargo.FirstOrDefault(i =>
+                        string.Equals(i.Name, itemName, StringComparison.OrdinalIgnoreCase));
+
+                    if (itemToRemove != null)
+                    {
+                        _currentCarrierCargo.Remove(itemToRemove);
+                        Log.Debug("Removed {Item} from CurrentCarrierCargo UI list", itemName);
+                    }
                 }
 
                 // Update the UI-friendly list
@@ -2493,36 +2508,29 @@ namespace EliteInfoPanel.Core
                 }
             }
         }
-        // In GameStateService.cs - Fix the UpdateCurrentCarrierCargoFromDictionary method
-
-        // In GameStateService.cs - Fix the UpdateCurrentCarrierCargoFromDictionary method
+   
         private void UpdateCurrentCarrierCargoFromDictionary()
         {
             try
             {
                 var items = new List<CarrierCargoItem>();
 
+                // ONLY include positive quantities
                 foreach (var pair in CarrierCargo.Where(kv => kv.Value > 0))
                 {
                     items.Add(new CarrierCargoItem
                     {
-                        Name = pair.Key,
+                        Name = pair.Key, // Preserve original name with spaces
                         Quantity = pair.Value
                     });
                 }
 
-                // Update the property - this will trigger the UI to update
+                // Update the property
                 var sortedItems = items.OrderByDescending(i => i.Quantity).ToList();
                 CurrentCarrierCargo = sortedItems;
 
-                // Log the result
                 Log.Information("UpdateCurrentCarrierCargoFromDictionary: Updated with {Count} items",
                     sortedItems.Count);
-
-                foreach (var item in sortedItems)
-                {
-                    Log.Debug("  - {Name}: {Quantity}", item.Name, item.Quantity);
-                }
             }
             catch (Exception ex)
             {
