@@ -121,7 +121,23 @@ namespace EliteInfoPanel.ViewModels
                 Log.Debug("Captured initial game state with {Count} items", _lastKnownGameState.Count);
             }
         }
+        private string FindInternalName(string displayName)
+        {
+            // Quick check if it's already internal
+            if (_gameState.CarrierCargo.ContainsKey(displayName))
+                return displayName;
 
+            // Search through CarrierCargo dictionary
+            foreach (var kvp in _gameState.CarrierCargo)
+            {
+                if (string.Equals(CommodityMapper.GetDisplayName(kvp.Key), displayName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return kvp.Key;
+                }
+            }
+
+            return displayName; // fallback
+        }
         private void ProcessRealTimeChanges()
         {
             var currentGameState = _gameState.CurrentCarrierCargo;
@@ -132,11 +148,18 @@ namespace EliteInfoPanel.ViewModels
 
             bool madeChanges = false;
 
-            // Build current game state dictionary
-            var currentStateDict = currentGameState.ToDictionary(
-                i => i.Name,
-                i => i.Quantity,
-                StringComparer.OrdinalIgnoreCase);
+            // Build current game state dictionary using INTERNAL names
+            var currentStateDict = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var item in currentGameState)
+            {
+                // Find the internal name for this display name
+                string internalName = FindInternalName(item.Name);
+                if (!string.IsNullOrEmpty(internalName))
+                {
+                    currentStateDict[internalName] = item.Quantity;
+                }
+            }
 
             // Look for differences from last known state
             foreach (var pair in currentStateDict)
@@ -145,15 +168,14 @@ namespace EliteInfoPanel.ViewModels
                     previousQuantity != pair.Value)
                 {
                     // This is a real change in quantity
-                    int delta = _lastKnownGameState.TryGetValue(pair.Key, out previousQuantity) ?
-                        pair.Value - previousQuantity : pair.Value;
+                    string displayName = CommodityMapper.GetDisplayName(pair.Key);
 
                     Log.Debug("Real-time change detected: {Item} changed by {Delta} ({OldValue} → {NewValue})",
-                        pair.Key, delta, previousQuantity, pair.Value);
+                        displayName, pair.Value - previousQuantity, previousQuantity, pair.Value);
 
-                    // Apply this change to our UI model
+                    // Apply this change to our UI model using display names
                     var existingItem = Cargo.FirstOrDefault(i =>
-                        string.Equals(i.Name, pair.Key, StringComparison.OrdinalIgnoreCase));
+                        string.Equals(i.Name, displayName, StringComparison.OrdinalIgnoreCase));
 
                     if (existingItem != null)
                     {
@@ -161,12 +183,12 @@ namespace EliteInfoPanel.ViewModels
                         {
                             // Remove completely if quantity is zero or negative
                             Cargo.Remove(existingItem);
-                            Log.Debug("Removed {Item} from UI due to zero/negative quantity", pair.Key);
+                            Log.Debug("Removed {Item} from UI due to zero/negative quantity", displayName);
                         }
                         else
                         {
                             // Update existing item
-                            existingItem.Quantity = pair.Value; // Set directly to match game state
+                            existingItem.Quantity = pair.Value;
                             Log.Debug("Updated item in UI: {Item} now at {Quantity}",
                                 existingItem.Name, existingItem.Quantity);
                         }
@@ -177,46 +199,31 @@ namespace EliteInfoPanel.ViewModels
                         // New item with positive quantity
                         Cargo.Add(new CarrierCargoItem
                         {
-                            Name = pair.Key,
+                            Name = displayName,
                             Quantity = pair.Value,
-                            FontSize = (int)this.FontSize // Add this line
+                            FontSize = (int)this.FontSize
                         });
                         madeChanges = true;
-                        Log.Debug("Added new item to UI: {Item} = {Quantity}", pair.Key, pair.Value);
+                        Log.Debug("Added new item to UI: {Item} = {Quantity}", displayName, pair.Value);
                     }
                 }
             }
+            var currentDisplayNames = currentStateDict.Keys
+                     .Select(k => CommodityMapper.GetDisplayName(k))
+                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            // IMPORTANT: Remove items that are no longer in the game state
-            foreach (var key in _lastKnownGameState.Keys.ToList())
-            {
-                if (!currentStateDict.ContainsKey(key))
-                {
-                    var itemToRemove = Cargo.FirstOrDefault(i =>
-                        string.Equals(i.Name, key, StringComparison.OrdinalIgnoreCase));
-
-                    if (itemToRemove != null)
-                    {
-                        Cargo.Remove(itemToRemove);
-                        madeChanges = true;
-                        Log.Debug("Removed item completely from UI: {Item} (no longer in game state)", key);
-                    }
-                }
-            }
-
-            // Update last known state to match current
-            _lastKnownGameState = new Dictionary<string, int>(currentStateDict, StringComparer.OrdinalIgnoreCase);
-
-            // Clean up any remaining zero-quantity items
             for (int i = Cargo.Count - 1; i >= 0; i--)
             {
-                if (Cargo[i].Quantity <= 0)
+                if (!currentDisplayNames.Contains(Cargo[i].Name))
                 {
-                    Log.Debug("Cleaning up zero-quantity item: {Item}", Cargo[i].Name);
+                    Log.Debug("Removed item completely from UI: {Item} (no longer in game state)", Cargo[i].Name);
                     Cargo.RemoveAt(i);
                     madeChanges = true;
                 }
             }
+
+            // Update last known state with internal names
+            _lastKnownGameState = new Dictionary<string, int>(currentStateDict, StringComparer.OrdinalIgnoreCase);
 
             // Save if changes were made
             if (madeChanges)
