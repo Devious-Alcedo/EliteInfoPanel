@@ -1,4 +1,5 @@
-﻿using Serilog;
+﻿using EliteInfoPanel.Util;
+using Serilog;
 using System.Collections.Generic;
 using System.Text.Json;
 
@@ -120,6 +121,7 @@ namespace EliteInfoPanel.Core
         // 1. Fix in CarrierCargoTracker.ProcessTransfer
         // - Preserve spaces in names
         // - Use case-insensitive comparison consistent with the UI
+        // In CarrierCargoTracker.cs - Update ProcessTransfer to handle name mapping
         private void ProcessTransfer(JsonElement root)
         {
             if (!root.TryGetProperty("Transfers", out var transfersProp) || transfersProp.ValueKind != JsonValueKind.Array)
@@ -137,31 +139,58 @@ namespace EliteInfoPanel.Core
 
                     if (string.IsNullOrWhiteSpace(name)) continue;
 
-                    // Process the transfer based on direction
+                    // IMPORTANT: CargoTransfer uses internal names, but we need to check if there's 
+                    // an existing entry using the display name key (from manual additions)
+                    string keyToUse = name;
+                    string displayName = CommodityMapper.GetDisplayName(name);
+
+                    // Check if we have this commodity stored under its display name
+                    if (_cargo.ContainsKey(displayName) && !_cargo.ContainsKey(name))
+                    {
+                        // We have it stored as display name, use that key
+                        keyToUse = displayName;
+                        Log.Information("Found existing item stored as display name: '{DisplayName}' for internal '{Internal}'",
+                            displayName, name);
+                    }
+                    else if (_cargo.ContainsKey(name))
+                    {
+                        // We have it stored as internal name, use that
+                        keyToUse = name;
+                    }
+                    else
+                    {
+                        // New item, use internal name (the standard)
+                        keyToUse = name;
+                    }
+
+                    Log.Information("Processing transfer: {Item} ({Key}) - {Direction} {Count}",
+                        displayName, keyToUse, direction, count);
+
+                    // Process the transfer
                     if (string.Equals(direction, "tocarrier", StringComparison.OrdinalIgnoreCase))
                     {
-                        // When adding to carrier, just use the name as provided by the game
-                        // This ensures we're tracking items with the same keys the game uses
-                        _cargo[name] = _cargo.TryGetValue(name, out int current) ? current + count : count;
-                        Log.Debug("Added to carrier: {Item} now at {Count}", name, _cargo[name]);
+                        // Add to existing quantity
+                        _cargo[keyToUse] = _cargo.TryGetValue(keyToUse, out int current) ? current + count : count;
+                        Log.Information("Added to carrier: {Item} now at {NewQty} (was {OldQty})",
+                            displayName, _cargo[keyToUse], current);
                     }
                     else if (string.Equals(direction, "toship", StringComparison.OrdinalIgnoreCase) ||
                              string.Equals(direction, "fromcarrier", StringComparison.OrdinalIgnoreCase))
                     {
-                        // When removing from carrier, find the exact key as used in our dictionary
-                        if (_cargo.TryGetValue(name, out int current))
+                        // Remove from carrier
+                        if (_cargo.TryGetValue(keyToUse, out int current))
                         {
                             int newAmount = Math.Max(0, current - count);
                             if (newAmount > 0)
                             {
-                                _cargo[name] = newAmount;
-                                Log.Debug("Removed from carrier: {Item} now at {Count}", name, newAmount);
+                                _cargo[keyToUse] = newAmount;
+                                Log.Information("Removed from carrier: {Item} now at {NewQty} (was {OldQty})",
+                                    displayName, newAmount, current);
                             }
                             else
                             {
-                                // CRITICAL: When quantity reaches zero, remove the item completely
-                                _cargo.Remove(name);
-                                Log.Debug("Removed completely: {Item} (quantity would be 0)", name);
+                                _cargo.Remove(keyToUse);
+                                Log.Information("Removed completely: {Item} (quantity would be 0)", displayName);
                             }
                         }
                     }

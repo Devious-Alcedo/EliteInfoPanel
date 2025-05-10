@@ -2522,23 +2522,57 @@ namespace EliteInfoPanel.Core
             }
         }
 
+        // In GameStateService.cs - Update UpdateCurrentCarrierCargoFromDictionary
         private void UpdateCurrentCarrierCargoFromDictionary()
         {
             try
             {
+                // First, standardize the dictionary to use internal names only
+                var standardizedCargo = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var pair in CarrierCargo)
+                {
+                    // Check if this key is already an internal name or a display name
+                    string internalName = pair.Key;
+
+                    // If this looks like a display name, try to find the internal name
+                    var possibleInternal = CarrierCargo.Keys.FirstOrDefault(k =>
+                        !string.Equals(k, pair.Key, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(CommodityMapper.GetDisplayName(k), pair.Key, StringComparison.OrdinalIgnoreCase));
+
+                    if (possibleInternal != null)
+                    {
+                        // Found the internal name, use it instead
+                        internalName = possibleInternal;
+                    }
+
+                    // Add or update with the standardized internal name
+                    if (standardizedCargo.TryGetValue(internalName, out int existingQty))
+                    {
+                        standardizedCargo[internalName] = existingQty + pair.Value;
+                        Log.Warning("Merged duplicate entries for {Internal}: {Total}", internalName, existingQty + pair.Value);
+                    }
+                    else
+                    {
+                        standardizedCargo[internalName] = pair.Value;
+                    }
+                }
+
+                // Update our dictionary to the standardized version
+                CarrierCargo = standardizedCargo;
+
+                // Now create the UI list with display names
                 var items = new List<CarrierCargoItem>();
 
-                // ONLY include positive quantities
                 foreach (var pair in CarrierCargo.Where(kv => kv.Value > 0))
                 {
                     items.Add(new CarrierCargoItem
                     {
-                        Name = CommodityMapper.GetDisplayName(pair.Key), // Use the existing mapper
+                        Name = CommodityMapper.GetDisplayName(pair.Key),
                         Quantity = pair.Value
                     });
                 }
 
-                // Update the property
                 var sortedItems = items.OrderByDescending(i => i.Quantity).ToList();
                 CurrentCarrierCargo = sortedItems;
 
