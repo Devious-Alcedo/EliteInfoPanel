@@ -514,7 +514,24 @@ namespace EliteInfoPanel
                         });
                     }, null, 1000, Timeout.Infinite);
                 }
+                // In MainWindow.xaml.cs - Add this to the Window_Loaded method after setting up HyperspaceOverlay
+                _gameState.PropertyChanged += (s, e) =>
+                {
+                    if (e.PropertyName == nameof(GameStateService.IsHyperspaceJumping))
+                    {
+                        var isJumping = _gameState.IsHyperspaceJumping;
+                        Log.Information("MainWindow detected IsHyperspaceJumping changed to {Value}", isJumping);
 
+                        if (!isJumping)
+                        {
+                            // Force hide the overlay when not hyperspace jumping
+                            Dispatcher.Invoke(() => {
+                                HyperspaceOverlay.ForceHidden();
+                                Log.Information("Forcing hyperspace overlay to hide");
+                            });
+                        }
+                    }
+                };
                 // Setup CarrierJumpOverlay
                 if (CarrierJumpOverlay != null)
                 {

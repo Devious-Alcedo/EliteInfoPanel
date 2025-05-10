@@ -402,7 +402,8 @@ namespace EliteInfoPanel.ViewModels
                 {
                     HasActiveColonization = hasActiveData;
                     Log.Information("UpdateColonizationDataInternal called - Carrier cargo count: {Count}",
-    _gameState.CurrentCarrierCargo?.Count ?? 0);
+                        _gameState.CurrentCarrierCargo?.Count ?? 0);
+
                     // Update properties
                     ProgressPercentage = colonizationData.ConstructionProgress;
                     LastUpdated = colonizationData.LastUpdated;
@@ -428,19 +429,38 @@ namespace EliteInfoPanel.ViewModels
                         ?.ToDictionary(i => i.Name, i => i.Count, StringComparer.OrdinalIgnoreCase)
                         ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
-                    var carrierCargo = _gameState.CurrentCarrierCargo
-                        ?.ToDictionary(i => i.Name, i => i.Quantity, StringComparer.OrdinalIgnoreCase)
-                        ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                    // FIXED: Handle duplicates in carrier cargo
+                    var carrierCargo = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+                    if (_gameState.CurrentCarrierCargo != null)
+                    {
+                        // Aggregate duplicates by summing quantities
+                        foreach (var item in _gameState.CurrentCarrierCargo)
+                        {
+                            if (string.IsNullOrEmpty(item.Name)) continue;
+
+                            if (carrierCargo.TryGetValue(item.Name, out int existingQty))
+                            {
+                                carrierCargo[item.Name] = existingQty + item.Quantity;
+                                Log.Debug("Duplicate carrier cargo item aggregated: {Item} - {Existing} + {New} = {Total}",
+                                    item.Name, existingQty, item.Quantity, existingQty + item.Quantity);
+                            }
+                            else
+                            {
+                                carrierCargo[item.Name] = item.Quantity;
+                            }
+                        }
+                    }
 
                     // Add all items at once
                     foreach (var resource in resources)
                     {
-                        int carrierQty = _gameState.CurrentCarrierCargo?
-       .FirstOrDefault(i => string.Equals(i.Name, resource.DisplayName, StringComparison.OrdinalIgnoreCase))
-       ?.Quantity ?? 0;
+                        // Use our new carrierCargo dictionary for lookups
+                        int carrierQty = carrierCargo.TryGetValue(resource.DisplayName, out int qty) ? qty : 0;
 
                         Log.Debug("Resource: {Resource}, Carrier cargo: {Quantity}",
                             resource.DisplayName, carrierQty);
+
                         Items.Add(new ColonizationItemViewModel
                         {
                             Name = resource.DisplayName,

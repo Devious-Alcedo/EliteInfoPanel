@@ -13,6 +13,7 @@
     <RepositoryUrl>https://github.com/jimmyeao/EliteInfoPanel</RepositoryUrl>
     <PackageProjectUrl>https://github.com/jimmyeao/EliteInfoPanel</PackageProjectUrl>
     <Description>Elite Dangerous Info Panel</Description>
+    <AllowUnsafeBlocks>False</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
