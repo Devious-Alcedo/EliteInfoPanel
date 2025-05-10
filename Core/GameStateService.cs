@@ -1412,7 +1412,7 @@ namespace EliteInfoPanel.Core
                 }
 
                 // Check hyperspace status
-                IsHyperspaceJumping = CurrentStatus?.Flags.HasFlag(Flag.FsdJump) ?? false;
+                //IsHyperspaceJumping = CurrentStatus?.Flags.HasFlag(Flag.FsdJump) ?? false;
 
                 // Notify dependent properties
                 OnPropertyChanged(nameof(Balance));
@@ -1681,13 +1681,17 @@ namespace EliteInfoPanel.Core
                                 #endregion
 
                                 #region 🪐 Jump / Travel Events
+                                // In GameStateService.cs - Update the StartJump case with debug logging
+                                // In GameStateService.cs - Corrected StartJump case
                                 case "StartJump":
                                     if (root.TryGetProperty("JumpType", out var jumpTypeProp))
                                     {
                                         string jumpType = jumpTypeProp.GetString();
+                                        Log.Information("StartJump event received - JumpType: {JumpType}", jumpType);
 
                                         if (jumpType == "Hyperspace")
                                         {
+                                            Log.Information("Setting hyperspace jump state to TRUE");
                                             IsHyperspaceJumping = true;
                                             _isInHyperspace = true;
 
@@ -1704,12 +1708,24 @@ namespace EliteInfoPanel.Core
                                         }
                                         else
                                         {
+                                            Log.Information("Setting hyperspace jump state to FALSE (JumpType: {JumpType})", jumpType);
                                             IsHyperspaceJumping = false;
                                             _isInHyperspace = false;
+
+                                            // Make sure to clear hyperspace destination and star class for supercruise jumps
+                                            HyperspaceDestination = null;
+                                            HyperspaceStarClass = null;
                                         }
                                     }
-                                    break;
+                                    else
+                                    {
+                                        Log.Warning("StartJump event received but no JumpType property found");
+                                    }
 
+                                    // Log the final state
+                                    Log.Information("After StartJump: IsHyperspaceJumping={IsHyperspace}, _isInHyperspace={InHyperspace}",
+                                        IsHyperspaceJumping, _isInHyperspace);
+                                    break;
                                 case "FSDTarget":
                                     if (root.TryGetProperty("RemainingJumpsInRoute", out var jumpsProp))
                                         RemainingJumps = jumpsProp.GetInt32();
@@ -1751,13 +1767,10 @@ namespace EliteInfoPanel.Core
 
                                 case "SupercruiseEntry":
                                     Log.Debug("Entered supercruise");
-                                    if (IsHyperspaceJumping || _isInHyperspace)
-                                    {
-                                        Log.Warning("⚠️ Hyperspace state was still active during {Event} - resetting", eventType);
-
-                                        HyperspaceDestination = null;
-                                        HyperspaceStarClass = null;
-                                    }
+                                    HyperspaceDestination = null;
+                                    IsHyperspaceJumping = false;
+                                    HyperspaceStarClass = null;
+                                   
                                     break;
 
                                 case "Location":
