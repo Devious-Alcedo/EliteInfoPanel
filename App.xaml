@@ -42,13 +42,15 @@
             <Style x:Key="CardContentStyle" TargetType="TextBlock">
                 <Setter Property="FontSize" Value="{DynamicResource BaseFontSize}" />
                 <Setter Property="Margin" Value="0,2,0,2" />
-                <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
+                <Setter Property="Foreground" Value="{DynamicResource EliteHudText}" />
+                <!-- Changed from MaterialDesignBody -->
             </Style>
 
             <Style x:Key="CardSmallTextStyle" TargetType="TextBlock">
                 <Setter Property="FontSize" Value="{DynamicResource SmallFontSize}" />
                 <Setter Property="Margin" Value="0,1,0,1" />
-                <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
+                <Setter Property="Foreground" Value="{DynamicResource EliteHudText}" />
+                <!-- Changed from MaterialDesignBody -->
             </Style>
 
             <ResourceDictionary.MergedDictionaries>
