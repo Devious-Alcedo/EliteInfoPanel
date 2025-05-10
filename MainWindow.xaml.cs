@@ -42,12 +42,22 @@ namespace EliteInfoPanel
         public MainWindow()
         {
             InitializeComponent();
-            //RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
+            var eliteTheme = EliteThemeManager.Instance;
+            eliteTheme.ColorsChanged += (colors) =>
+            {
+                // Force refresh of all visual elements when colors change
+                App.RefreshResources();
+                InvalidateVisual();
+            };
+            //============may need to comment these out===================
+            RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
 
-            //CompositionTarget.Rendering += (s, ev) =>
-            //{
-            //    System.Diagnostics.Debug.WriteLine("🔄 WPF redraw...");
-            //};
+            CompositionTarget.Rendering += (s, ev) =>
+            {
+                System.Diagnostics.Debug.WriteLine("🔄 WPF redraw...");
+            };
+            //============================================================
+
             // Configure logging
             LoggingConfig.Configure(enableDebugLogging: false);
 
