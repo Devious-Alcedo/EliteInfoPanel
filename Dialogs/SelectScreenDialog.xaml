@@ -20,7 +20,7 @@
         <TextBlock Text="Select a display to use:" FontSize="20" Margin="0 0 0 16"/>
         <ListBox x:Name="ScreenListBox"
                  DisplayMemberPath="DeviceName"
-                 Style="{StaticResource MaterialDesignListBox}"
+                 Style="{DynamicResource MaterialDesignListBox}"
                  Height="144"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 16 0 0">
             <Button Content="Cancel" Margin="0 0 8 0" Click="CancelButton_Click" Style="{DynamicResource MaterialDesignRaisedButton}"/>
