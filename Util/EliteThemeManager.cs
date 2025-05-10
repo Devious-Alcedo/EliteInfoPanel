@@ -1,4 +1,5 @@
-﻿using Serilog;
+﻿using EliteInfoPanel.Core;
+using Serilog;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -22,35 +23,39 @@ namespace EliteInfoPanel.Util
 
         private EliteThemeManager()
         {
-            Log.Information("EliteThemeManager: Initializing...");
-            _graphicsConfigPath = FindEliteGraphicsConfigPath();
+            // First try EDHM Advanced.ini
+            var edhmExtractor = new EdhmColorExtractor();
 
-            // Only proceed if we found the config file
-            if (!string.IsNullOrEmpty(_graphicsConfigPath))
+            // Check if EDHM file exists
+            if (!string.IsNullOrEmpty(edhmExtractor.AdvancedIniPath) && File.Exists(edhmExtractor.AdvancedIniPath))
             {
-                Log.Information("EliteThemeManager: Found config at {Path}", _graphicsConfigPath);
-                LoadColors();
-                SetupFileWatcher();
+                Log.Information("Using EDHM Advanced.ini for HUD colors: {Path}", edhmExtractor.AdvancedIniPath);
+                _graphicsConfigPath = edhmExtractor.AdvancedIniPath;
+                _currentColors = edhmExtractor.ExtractColors();
+                SetupFileWatcher(); // Monitor the EDHM file for changes
             }
             else
             {
-                Log.Warning("EliteThemeManager: Could not find Elite Dangerous graphics configuration file, using defaults");
-                _currentColors = _colorExtractor.ExtractColors();
-                LogCurrentColors("Default");
-            }
-            Log.Information("MainWindow: Theme manager initialized");
-        }
+                // Fallback to GraphicsConfiguration.xml
+                Log.Information("EDHM not found, falling back to GraphicsConfiguration.xml");
+                _graphicsConfigPath = FindEliteGraphicsConfigPath();
 
-        public EliteHudColors GetCurrentColors()
-        {
-            if (_currentColors == null)
-            {
-                Log.Information("EliteThemeManager: Getting colors on demand...");
-                _currentColors = _colorExtractor.ExtractColors();
-                LogCurrentColors("On-Demand");
+                if (!string.IsNullOrEmpty(_graphicsConfigPath))
+                {
+                    LoadColors();
+                    SetupFileWatcher();
+                }
+                else
+                {
+                    Log.Warning("Could not find Elite Dangerous graphics configuration file");
+                    _currentColors = new EliteHudColors(); // Uses default colors
+                }
             }
-            return _currentColors;
+
+            // Apply the colors to the application
+            ApplyColorsToApplication();
         }
+      
 
         private void LoadColors()
         {
@@ -62,8 +67,18 @@ namespace EliteInfoPanel.Util
 
         private void ReloadColors()
         {
-            Log.Information("EliteThemeManager: Reloading colors due to file change...");
-            LoadColors();
+            // Check if we're using EDHM
+            if (_graphicsConfigPath.EndsWith("Advanced.ini"))
+            {
+                var edhmExtractor = new EdhmColorExtractor();
+                _currentColors = edhmExtractor.ExtractColors();
+            }
+            else
+            {
+                _currentColors = _colorExtractor.ExtractColors();
+            }
+
+            ApplyColorsToApplication();
             ColorsChanged?.Invoke(_currentColors);
         }
 
@@ -198,33 +213,40 @@ namespace EliteInfoPanel.Util
 
         private void ApplyColorsToApplication()
         {
-            try
+            App.Current.Dispatcher.Invoke(() =>
             {
-                Log.Information("EliteThemeManager: Applying colors to application...");
-                
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    var resources = Application.Current.Resources;
+                var resources = App.Current.Resources;
 
-                    // Update your app's color resources
-                    resources["EliteHudMain"] = new SolidColorBrush(_currentColors.HudMain);
-                    resources["EliteHudSecondary"] = new SolidColorBrush(_currentColors.HudSecondary);
-                    resources["EliteHudText"] = new SolidColorBrush(_currentColors.HudText);
-                    resources["EliteHudBackground"] = new SolidColorBrush(_currentColors.HudBackground);
-                    resources["EliteHudWarning"] = new SolidColorBrush(_currentColors.HudWarning);
-                    resources["EliteHudSuccess"] = new SolidColorBrush(_currentColors.HudSuccess);
+                // Update Elite color resources
+                resources["EliteHudMain"] = new SolidColorBrush(_currentColors.HudMain);
+                resources["EliteHudSecondary"] = new SolidColorBrush(_currentColors.HudSecondary);
+                resources["EliteHudText"] = new SolidColorBrush(_currentColors.HudText);
+                resources["EliteHudBackground"] = new SolidColorBrush(_currentColors.HudBackground);
+                resources["EliteHudWarning"] = new SolidColorBrush(_currentColors.HudWarning);
+                resources["EliteHudSuccess"] = new SolidColorBrush(_currentColors.HudSuccess);
 
-                    // Update MaterialDesign theme colors if needed
-                    resources["PrimaryHueMidBrush"] = new SolidColorBrush(_currentColors.HudMain);
-                    resources["PrimaryHueDarkBrush"] = new SolidColorBrush(_currentColors.HudSecondary);
+                // Override MaterialDesign colors
+                resources["PrimaryHueLightBrush"] = new SolidColorBrush(_currentColors.HudMain);
+                resources["PrimaryHueMidBrush"] = new SolidColorBrush(_currentColors.HudMain);
+                resources["PrimaryHueDarkBrush"] = new SolidColorBrush(_currentColors.HudSecondary);
 
-                    Log.Information("EliteThemeManager: Colors applied successfully");
-                });
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "EliteThemeManager: Error applying colors to application");
-            }
+                // Override more MaterialDesign brushes
+                resources["MaterialDesignBody"] = new SolidColorBrush(_currentColors.HudText);
+                resources["MaterialDesignBodyLight"] = new SolidColorBrush(_currentColors.HudText);
+                resources["MaterialDesignSelection"] = new SolidColorBrush(_currentColors.HudMain);
+
+                // Override common colors that might be missed
+                resources["WarningBrush"] = new SolidColorBrush(_currentColors.HudWarning);
+                resources["SuccessBrush"] = new SolidColorBrush(_currentColors.HudSuccess);
+                resources["InfoBrush"] = new SolidColorBrush(_currentColors.HudMain);
+
+                // Additional color overrides
+                resources["SystemBrush"] = new SolidColorBrush(_currentColors.HudMain);
+                resources["AccentBrush"] = new SolidColorBrush(_currentColors.HudMain);
+
+                // Force a refresh of all resources
+                App.RefreshResources();
+            });
         }
 
         // Add a dispose method to clean up the file watcher

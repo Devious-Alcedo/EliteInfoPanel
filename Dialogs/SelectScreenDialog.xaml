@@ -23,9 +23,9 @@
                  Style="{StaticResource MaterialDesignListBox}"
                  Height="144"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 16 0 0">
-            <Button Content="Cancel" Margin="0 0 8 0" Click="CancelButton_Click" Style="{StaticResource MaterialDesignRaisedButton}"/>
-            <Button Content="OK" Margin="0 0 8 0" IsDefault="True" Click="OkButton_Click" Style="{StaticResource MaterialDesignRaisedButton}"/>
-            <Button Content="Identify Screens" Click="IdentifyScreens_Click" Margin="0 0 8 0" Style="{StaticResource MaterialDesignRaisedButton}"/>
+            <Button Content="Cancel" Margin="0 0 8 0" Click="CancelButton_Click" Style="{DynamicResource MaterialDesignRaisedButton}"/>
+            <Button Content="OK" Margin="0 0 8 0" IsDefault="True" Click="OkButton_Click" Style="{DynamicResource MaterialDesignRaisedButton}"/>
+            <Button Content="Identify Screens" Click="IdentifyScreens_Click" Margin="0 0 8 0" Style="{DynamicResource MaterialDesignRaisedButton}"/>
 
         </StackPanel>
     </StackPanel>
