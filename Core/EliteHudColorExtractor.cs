@@ -1,6 +1,8 @@
 ﻿// Add to Core folder
 using Serilog;
+using System;
 using System.IO;
+using System.Linq;
 using System.Windows.Media;
 using System.Xml.Linq;
 
@@ -12,14 +14,18 @@ public class EliteHudColorExtractor
 
     public EliteHudColors ExtractColors()
     {
+        Log.Information("EliteHudColorExtractor: Starting color extraction...");
+        Log.Debug("EliteHudColorExtractor: Graphics config path: {Path}", GraphicsConfigPath);
+
         try
         {
             if (!File.Exists(GraphicsConfigPath))
             {
-                Log.Warning("GraphicsConfiguration.xml not found at {Path}", GraphicsConfigPath);
+                Log.Warning("EliteHudColorExtractor: GraphicsConfiguration.xml not found at {Path}", GraphicsConfigPath);
                 return GetDefaultColors();
             }
 
+            Log.Information("EliteHudColorExtractor: Found GraphicsConfiguration.xml, parsing...");
             var xml = XDocument.Load(GraphicsConfigPath);
 
             // Find the HUD color matrix
@@ -29,22 +35,25 @@ public class EliteHudColorExtractor
 
             if (guiColour != null)
             {
+                Log.Information("EliteHudColorExtractor: Found GUIColour section");
                 // Parse the 3x3 matrix values
                 var matrix = ParseColorMatrix(guiColour);
                 return CalculateHudColors(matrix);
             }
 
+            Log.Warning("EliteHudColorExtractor: No GUIColour section found, using defaults");
             return GetDefaultColors();
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Failed to extract HUD colors");
+            Log.Error(ex, "EliteHudColorExtractor: Failed to extract HUD colors");
             return GetDefaultColors();
         }
     }
 
     private double[,] ParseColorMatrix(XElement guiColour)
     {
+        Log.Debug("EliteHudColorExtractor: Parsing color matrix...");
         var matrix = new double[3, 3];
 
         // Elite stores the matrix in this format:
@@ -54,6 +63,9 @@ public class EliteHudColorExtractor
         var matrixRed = guiColour.Element("MatrixRed")?.Attribute("Red")?.Value;
         var matrixGreen = guiColour.Element("MatrixGreen")?.Attribute("Green")?.Value;
         var matrixBlue = guiColour.Element("MatrixBlue")?.Attribute("Blue")?.Value;
+
+        Log.Debug("EliteHudColorExtractor: Raw matrix values - Red: {Red}, Green: {Green}, Blue: {Blue}",
+            matrixRed, matrixGreen, matrixBlue);
 
         // Parse the values (they're in format like "1.000000 0.000000 0.000000")
         ParseMatrixRow(matrixRed, matrix, 0);
@@ -73,12 +85,15 @@ public class EliteHudColorExtractor
             if (double.TryParse(parts[i], out double value))
             {
                 matrix[row, i] = value;
+                Log.Debug("EliteHudColorExtractor: Set matrix[{Row},{Col}] = {Value}", row, i, value);
             }
         }
     }
 
     private EliteHudColors CalculateHudColors(double[,] matrix)
     {
+        Log.Information("EliteHudColorExtractor: Calculating HUD colors...");
+
         // Apply the matrix to base Elite colors to get actual HUD colors
         var colors = new EliteHudColors
         {
@@ -101,6 +116,7 @@ public class EliteHudColorExtractor
             HudSuccess = ApplyMatrix(matrix, new Color { R = 0, G = 255, B = 0 })
         };
 
+        LogCalculatedColors(colors);
         return colors;
     }
 
@@ -121,8 +137,10 @@ public class EliteHudColorExtractor
 
     private EliteHudColors GetDefaultColors()
     {
+        Log.Information("EliteHudColorExtractor: Using default Elite orange theme");
+
         // Default Elite orange theme
-        return new EliteHudColors
+        var colors = new EliteHudColors
         {
             HudMain = Colors.Orange,
             HudSecondary = Color.FromRgb(204, 95, 0),
@@ -131,6 +149,25 @@ public class EliteHudColorExtractor
             HudWarning = Colors.Red,
             HudSuccess = Colors.LimeGreen
         };
+
+        LogCalculatedColors(colors);
+        return colors;
+    }
+
+    private void LogCalculatedColors(EliteHudColors colors)
+    {
+        Log.Information("EliteHudColorExtractor: Calculated colors:");
+        Log.Information("  HudMain: {Color} (#{Hex})", colors.HudMain, ColorToHex(colors.HudMain));
+        Log.Information("  HudSecondary: {Color} (#{Hex})", colors.HudSecondary, ColorToHex(colors.HudSecondary));
+        Log.Information("  HudText: {Color} (#{Hex})", colors.HudText, ColorToHex(colors.HudText));
+        Log.Information("  HudBackground: {Color} (#{Hex})", colors.HudBackground, ColorToHex(colors.HudBackground));
+        Log.Information("  HudWarning: {Color} (#{Hex})", colors.HudWarning, ColorToHex(colors.HudWarning));
+        Log.Information("  HudSuccess: {Color} (#{Hex})", colors.HudSuccess, ColorToHex(colors.HudSuccess));
+    }
+
+    private string ColorToHex(Color color)
+    {
+        return $"{color.R:X2}{color.G:X2}{color.B:X2}";
     }
 }
 
