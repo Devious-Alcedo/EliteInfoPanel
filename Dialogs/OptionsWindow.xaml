@@ -9,16 +9,54 @@
         Background="{DynamicResource MaterialDesignPaper}"
         WindowStyle="SingleBorderWindow"
         TextOptions.TextFormattingMode="Ideal"
-        TextElement.Foreground="{DynamicResource MaterialDesign.Brush.Foreground}"
+        TextElement.Foreground="{DynamicResource MaterialDesignBody}"
         FontFamily="{materialDesign:MaterialDesignFont}"
         TextOptions.TextRenderingMode="Auto">
 
     <Window.Resources>
-        <converters:ScaleToFontSizeConverter x:Key="ScaleToFontSizeConverter"/>
-        <Style x:Key="ThemedCheckBoxStyle" TargetType="CheckBox">
-            <Setter Property="Foreground" Value="{DynamicResource MaterialDesign.Brush.Foreground}" />
-        </Style>
-        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- Same theme as App.xaml -->
+                <materialDesign:BundledTheme BaseTheme="Dark" 
+                                           PrimaryColor="DeepOrange" 
+                                           SecondaryColor="Lime"/>
+                <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.Button.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.CheckBox.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.RadioButton.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.TabControl.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <converters:ScaleToFontSizeConverter x:Key="ScaleToFontSizeConverter"/>
+            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+
+            <!-- Simple style override -->
+            <Style TargetType="CheckBox">
+                <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
+            </Style>
+
+            <Style TargetType="RadioButton">
+                <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
+            </Style>
+
+            <Style TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
+            </Style>
+
+            <Style TargetType="GroupBox">
+                <Setter Property="Foreground" Value="{DynamicResource EliteHudMain}" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="{DynamicResource EliteHudSecondary}" />
+                <Setter Property="HeaderTemplate">
+                    <Setter.Value>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" 
+                           Foreground="{DynamicResource EliteHudMain}" 
+                           FontWeight="SemiBold" />
+                        </DataTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
     </Window.Resources>
 
     <DockPanel Margin="10">
@@ -52,7 +90,6 @@
 
                         <!-- Font Size -->
                         <GroupBox Header="Font Size" Margin="0,0,0,12">
-                            <!-- In the Font Size GroupBox -->
                             <StackPanel Margin="0,8,0,0">
                                 <TextBlock Text="Sample Text" 
                                    FontSize="{Binding FontSizePreview}"
@@ -69,7 +106,6 @@
                                     <TextBlock Text="A" FontSize="12" Grid.Column="0" Margin="0,0,8,0"
                                        VerticalAlignment="Center"/>
 
-                                    <!-- Give the slider a name so we can find it later -->
                                     <Slider x:Name="fontSizeSlider" 
                                     Grid.Column="1"
                                     Minimum="{Binding MinFontScale}"
@@ -84,7 +120,6 @@
                                        VerticalAlignment="Center"/>
                                 </Grid>
 
-                                <!-- Give the text block a name so we can find it later -->
                                 <TextBlock x:Name="scalePercentageText"
                                    Text="Scale: 100%"
                                    HorizontalAlignment="Center"
@@ -110,13 +145,13 @@
             <TabItem Header="Status Flags">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="10">
-                        <!-- Replace the ItemsControl with a panel that will hold our OrderableCheckBoxList -->
                         <StackPanel x:Name="FlagOptionsPanel">
                             <!-- The OrderableCheckBoxList will be added here programmatically -->
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
+
             <TabItem Header="Cards">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="10" x:Name="CardsOptionsPanel">

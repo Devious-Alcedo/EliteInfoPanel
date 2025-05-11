@@ -12,6 +12,7 @@ using WpfScreenHelper;
 using System.Windows.Data;
 using System.Collections.ObjectModel;
 using EliteInfoPanel.Controls;
+using System.Windows.Media;
 
 namespace EliteInfoPanel.Dialogs
 {
@@ -38,7 +39,14 @@ namespace EliteInfoPanel.Dialogs
                 .MinimumLevel.Debug()
                 .WriteTo.File("EliteInfoPanel.log", rollingInterval: RollingInterval.Day)
                 .CreateLogger();
-
+            this.Loaded += (s, e) =>
+            {
+                // Simple solution - just copy all resources from the main window
+                if (Application.Current.MainWindow != null)
+                {
+                    this.Resources.MergedDictionaries.Add(Application.Current.MainWindow.Resources);
+                }
+            };
             // Load settings
             var settings = SettingsManager.Load();
             _originalUseFloating = settings.UseFloatingWindow;
@@ -104,7 +112,7 @@ namespace EliteInfoPanel.Dialogs
                     Log.Information("Refreshing card visibility based on new settings");
                     mainViewModel.RefreshLayout(true);
                 }
-
+                Loaded += Window_Loaded;
                 DialogResult = true;
                 Close();
             });
@@ -157,7 +165,199 @@ namespace EliteInfoPanel.Dialogs
         {
             _viewModel.CancelCommand.Execute(null);
         }
+        private void ApplyDarkTheme()
+        {
+            // Set window background
+            this.Background = new SolidColorBrush(Color.FromRgb(48, 48, 48));
 
+            // Apply styles to all controls
+            foreach (var control in LogicalTreeHelper.GetChildren(this))
+            {
+                ApplyDarkThemeToElement(control as DependencyObject);
+            }
+        }
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            // Copy all application resources
+            foreach (var key in Application.Current.Resources.Keys)
+            {
+                try
+                {
+                    this.Resources[key] = Application.Current.Resources[key];
+                }
+                catch { }
+            }
+
+            // Apply Elite theme to all text elements
+            ApplyEliteThemeToAllElements();
+
+            // Your existing population methods
+            PopulateDisplayOptions();
+            PopulateFlagOptions();
+            PopulateWindowModeOptions();
+            PopulateCardOptions();
+        }
+
+        private void ApplyEliteThemeToAllElements()
+        {
+            // Get the Elite text color
+            var eliteTextBrush = Application.Current.Resources["EliteHudText"] as Brush ?? Brushes.White;
+            var eliteMainBrush = Application.Current.Resources["EliteHudMain"] as Brush ?? Brushes.Orange;
+
+            // Apply to all text elements recursively
+            ApplyThemeToElement(this, eliteTextBrush, eliteMainBrush);
+        }
+
+        private void ApplyThemeToElement(DependencyObject element, Brush textBrush, Brush accentBrush)
+        {
+            if (element == null) return;
+
+            // Apply to different control types
+            switch (element)
+            {
+                case TextBlock textBlock:
+                    if (textBlock.Style == this.FindResource("CardTitleStyle"))
+                        textBlock.Foreground = accentBrush;
+                    else
+                        textBlock.Foreground = textBrush;
+                    break;
+
+                case RadioButton radioButton:
+                    radioButton.Foreground = textBrush;
+                    break;
+
+                case CheckBox checkBox:
+                    checkBox.Foreground = textBrush;
+                    break;
+
+                case Button button:
+                    if (button.Content is string buttonText && buttonText == "Change Display")
+                        button.Foreground = textBrush;
+                    break;
+
+                case Label label:
+                    label.Foreground = textBrush;
+                    break;
+
+                case GroupBox groupBox:
+                    groupBox.Foreground = accentBrush;
+                    break;
+
+                case ContentPresenter presenter:
+                    // ContentPresenter doesn't have ForegroundProperty, so we'll get its child TextBlock
+                    if (presenter.Content is string)
+                    {
+                        // The presenter will render the text, so we'll handle it through its visual tree
+                        // We'll let the recursion handle any TextBlocks inside it
+                    }
+                    break;
+            }
+
+            // Recursively apply to children
+            int childCount = VisualTreeHelper.GetChildrenCount(element);
+            for (int i = 0; i < childCount; i++)
+            {
+                var child = VisualTreeHelper.GetChild(element, i);
+                ApplyThemeToElement(child, textBrush, accentBrush);
+            }
+        }
+        // Override your PopulateWindowModeOptions to ensure text is visible
+        private void PopulateWindowModeOptions()
+        {
+            if (FindName("WindowModePanel") is not StackPanel panel) return;
+
+            // Create radio buttons with explicit styling
+            var fullScreenRadio = new RadioButton
+            {
+                Content = "Full Screen Mode (on selected display)",
+                IsChecked = !_viewModel.AppSettings.UseFloatingWindow,
+                Margin = new Thickness(5),
+                GroupName = "WindowMode",
+                Foreground = Application.Current.Resources["EliteHudText"] as Brush ?? Brushes.White
+            };
+
+            var floatingWindowRadio = new RadioButton
+            {
+                Content = "Floating Window Mode (movable and resizable)",
+                IsChecked = _viewModel.AppSettings.UseFloatingWindow,
+                Margin = new Thickness(5),
+                GroupName = "WindowMode",
+                Foreground = Application.Current.Resources["EliteHudText"] as Brush ?? Brushes.White
+            };
+
+            fullScreenRadio.Checked += (s, e) =>
+            {
+                _viewModel.IsFloatingWindowMode = false;
+                _viewModel.NotifyFontSizeChanged();
+            };
+
+            floatingWindowRadio.Checked += (s, e) =>
+            {
+                _viewModel.IsFloatingWindowMode = true;
+                _viewModel.NotifyFontSizeChanged();
+            };
+
+            panel.Children.Add(fullScreenRadio);
+            panel.Children.Add(floatingWindowRadio);
+
+            // Create the "Always on Top" checkbox with explicit styling
+            var floatingOptions = new StackPanel { Margin = new Thickness(24, 5, 0, 0) };
+
+            var alwaysOnTopCheck = new CheckBox
+            {
+                Content = "Always on Top",
+                IsChecked = _viewModel.AlwaysOnTop,
+                Margin = new Thickness(0, 5, 0, 5),
+                Foreground = Application.Current.Resources["EliteHudText"] as Brush ?? Brushes.White
+            };
+
+            alwaysOnTopCheck.Checked += (s, e) => _viewModel.AlwaysOnTop = true;
+            alwaysOnTopCheck.Unchecked += (s, e) => _viewModel.AlwaysOnTop = false;
+
+            floatingOptions.Children.Add(alwaysOnTopCheck);
+
+            // Bind the enabled state
+            var enabledBinding = new Binding("IsFloatingWindowMode")
+            {
+                Source = _viewModel
+            };
+
+            floatingOptions.SetBinding(IsEnabledProperty, enabledBinding);
+
+            panel.Children.Add(floatingOptions);
+        }
+        private void ApplyDarkThemeToElement(DependencyObject element)
+        {
+            if (element == null) return;
+
+            if (element is CheckBox checkBox)
+            {
+                checkBox.Foreground = Brushes.White;
+            }
+            else if (element is RadioButton radioButton)
+            {
+                radioButton.Foreground = Brushes.White;
+            }
+            else if (element is TextBlock textBlock)
+            {
+                textBlock.Foreground = Brushes.White;
+            }
+            else if (element is GroupBox groupBox)
+            {
+                groupBox.Foreground = Brushes.White;
+                groupBox.Background = new SolidColorBrush(Color.FromArgb(34, 255, 255, 255));
+            }
+            else if (element is TabItem tabItem)
+            {
+                tabItem.Foreground = Brushes.White;
+            }
+
+            // Recursively apply to child elements
+            foreach (var child in LogicalTreeHelper.GetChildren(element))
+            {
+                ApplyDarkThemeToElement(child as DependencyObject);
+            }
+        }
         private void ChangeDisplayButton_Click(object sender, RoutedEventArgs e)
         {
             var screens = Screen.AllScreens.ToList();
@@ -258,71 +458,6 @@ namespace EliteInfoPanel.Dialogs
             }
         }
 
-        private void PopulateWindowModeOptions()
-        {
-            // Find the container for window mode options
-            if (FindName("WindowModePanel") is not StackPanel panel) return;
-
-            // Create radio buttons for window mode
-            var fullScreenRadio = new RadioButton
-            {
-                Content = "Full Screen Mode (on selected display)",
-                IsChecked = !_viewModel.AppSettings.UseFloatingWindow,
-                Margin = new Thickness(5),
-                GroupName = "WindowMode"
-            };
-
-            var floatingWindowRadio = new RadioButton
-            {
-                Content = "Floating Window Mode (movable and resizable)",
-                IsChecked = _viewModel.AppSettings.UseFloatingWindow,
-                Margin = new Thickness(5),
-                GroupName = "WindowMode"
-            };
-
-            fullScreenRadio.Checked += (s, e) =>
-            {
-                _viewModel.IsFloatingWindowMode = false;
-                // Update font preview for the current mode
-                _viewModel.NotifyFontSizeChanged();
-            };
-
-            floatingWindowRadio.Checked += (s, e) =>
-            {
-                _viewModel.IsFloatingWindowMode = true;
-                // Update font preview for the current mode
-                _viewModel.NotifyFontSizeChanged();
-            };
-
-            panel.Children.Add(fullScreenRadio);
-            panel.Children.Add(floatingWindowRadio);
-
-            // Add floating window specific options
-            var floatingOptions = new StackPanel { Margin = new Thickness(24, 5, 0, 0) };
-
-            // Add always on top checkbox
-            var alwaysOnTopCheck = new CheckBox
-            {
-                Content = "Always on Top",
-                IsChecked = _viewModel.AlwaysOnTop,
-                Margin = new Thickness(0, 5, 0, 5)
-            };
-
-            alwaysOnTopCheck.Checked += (s, e) => _viewModel.AlwaysOnTop = true;
-            alwaysOnTopCheck.Unchecked += (s, e) => _viewModel.AlwaysOnTop = false;
-
-            floatingOptions.Children.Add(alwaysOnTopCheck);
-
-            // Create a binding for IsEnabled
-            var enabledBinding = new Binding("IsFloatingWindowMode")
-            {
-                Source = _viewModel
-            };
-
-            floatingOptions.SetBinding(IsEnabledProperty, enabledBinding);
-
-            panel.Children.Add(floatingOptions);
-        }
 
         private void PositionWindowOnScreen(AppSettings settings)
         {
