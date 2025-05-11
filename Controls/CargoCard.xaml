@@ -16,6 +16,7 @@
                 <DataTemplate>
                     <TextBlock Style="{StaticResource CardContentStyle}"
                                FontSize="{Binding FontSize}"
+                               Foreground="AntiqueWhite"
                                 TextWrapping="Wrap"
                                 TextTrimming="None"
                                Margin="0,2,0,2">

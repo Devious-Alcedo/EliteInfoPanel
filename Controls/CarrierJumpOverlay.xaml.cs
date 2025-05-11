@@ -113,7 +113,7 @@ namespace EliteInfoPanel.Controls
             {
                 Log.Information("Overlay becoming VISIBLE (conditions met)");
                 OverlayGrid.Visibility = Visibility.Visible;
-                _gameState.ClearJumpCountdownFlag(); // <-- Add this
+                //_gameState.ClearJumpCountdownFlag(); // <-- Add this
 
                 if (!_isRendering)
                 {
