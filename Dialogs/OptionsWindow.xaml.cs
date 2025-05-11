@@ -374,9 +374,20 @@ namespace EliteInfoPanel.Dialogs
         {
             if (scalePercentageText != null && sender is Slider slider)
             {
-                // Format as percentage
+                // ONLY update the percentage text
                 scalePercentageText.Text = $"Scale: {slider.Value:P0}";
+
+                // ONLY update the preview text size
+                if (_viewModel != null)
+                {
+                    _viewModel.FontSizePreview = _viewModel.IsFloatingWindowMode
+                        ? AppSettings.DEFAULT_FLOATING_BASE * slider.Value
+                        : AppSettings.DEFAULT_FULLSCREEN_BASE * slider.Value;
+                }
             }
+
+            // DO NOT trigger any font size notifications or resource refreshes here
+            // The actual font size update should only happen when OK is clicked
         }
 
         private void OnDisplayChangeRequested()
