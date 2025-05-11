@@ -6,27 +6,55 @@
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         xmlns:local="clr-namespace:EliteInfoPanel"
         mc:Ignorable="d"
-        TextElement.Foreground="{DynamicResource MaterialDesign.Brush.Foreground}"
-        Background="{DynamicResource MaterialDesign.Brush.Background}"
+        TextElement.Foreground="#FFFFFF"
+        Background="#FF303030"
         TextElement.FontWeight="Regular"
         TextElement.FontSize="12"
         FontFamily="{materialDesign:MaterialDesignFont}"    
-    
         TextOptions.TextFormattingMode="Ideal"
         TextOptions.TextRenderingMode="Auto"
         Title="Choose a Screen" Height="322" Width="435">
 
-    <StackPanel Margin="16">
-        <TextBlock Text="Select a display to use:" FontSize="20" Margin="0 0 0 16"/>
-        <ListBox x:Name="ScreenListBox"
-                 DisplayMemberPath="DeviceName"
-                 Style="{StaticResource MaterialDesignListBox}"
-                 Height="144"/>
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 16 0 0">
-            <Button Content="Cancel" Margin="0 0 8 0" Click="CancelButton_Click" Style="{StaticResource MaterialDesignRaisedButton}"/>
-            <Button Content="OK" Margin="0 0 8 0" IsDefault="True" Click="OkButton_Click" Style="{StaticResource MaterialDesignRaisedButton}"/>
-            <Button Content="Identify Screens" Click="IdentifyScreens_Click" Margin="0 0 8 0" Style="{StaticResource MaterialDesignRaisedButton}"/>
+    <Window.Resources>
+        <!-- Button style to match Elite theme -->
+        <Style x:Key="ThemedButton" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource EliteHudMain}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource EliteHudSecondary}" />
+            <Setter Property="Foreground" Value="Black" />
+            <Setter Property="Padding" Value="16,4"/>
+            <Setter Property="Margin" Value="4"/>
+            <Setter Property="MinHeight" Value="32"/>
+        </Style>
+    </Window.Resources>
 
+    <StackPanel Margin="16">
+        <TextBlock Text="Select a display to use:" 
+                   FontSize="20" 
+                   Margin="0 0 0 16"
+                   Foreground="{DynamicResource EliteHudMain}"/>
+
+        <ListBox x:Name="ScreenListBox"
+                 DisplayMemberPath="DisplayText"
+                 Foreground="White"
+                 Background="#11FFFFFF"
+                 Height="144"/>
+
+        <StackPanel Orientation="Horizontal" 
+                    HorizontalAlignment="Right" 
+                    Margin="0 16 0 0">
+            <Button Content="Cancel" 
+                    Margin="0 0 8 0" 
+                    Click="CancelButton_Click" 
+                    Style="{StaticResource ThemedButton}"/>
+            <Button Content="OK" 
+                    Margin="0 0 8 0" 
+                    IsDefault="True" 
+                    Click="OkButton_Click" 
+                    Style="{StaticResource ThemedButton}"/>
+            <Button Content="Identify Screens" 
+                    Click="IdentifyScreens_Click" 
+                    Margin="0 0 8 0" 
+                    Style="{StaticResource ThemedButton}"/>
         </StackPanel>
     </StackPanel>
 </Window>

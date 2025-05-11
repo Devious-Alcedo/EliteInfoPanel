@@ -19,7 +19,7 @@
         <!-- Title -->
         <TextBlock x:Name="DialogTitle" Grid.Row="0" 
                    Text="Edit Cargo Item"
-                   Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                   Style="{DynamicResource CardSmallTextStyle}"
                    Margin="0,0,0,16"/>
 
         <!-- Commodity Name -->
@@ -32,7 +32,7 @@
         <!-- Quantity -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,16">
             <TextBlock Text="Quantity:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-            <Button Style="{StaticResource MaterialDesignIconButton}"
+            <Button Style="{DynamicResource MaterialDesignIconButton}"
                     Command="{Binding DataContext.DecrementCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                     Padding="4">
                 <materialDesign:PackIcon Kind="Minus"/>
@@ -40,7 +40,7 @@
             <TextBox Text="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}"
                      Width="60" TextAlignment="Center" VerticalAlignment="Center"
                      materialDesign:TextFieldAssist.TextBoxViewMargin="0"/>
-            <Button Style="{StaticResource MaterialDesignIconButton}"
+            <Button Style="{DynamicResource MaterialDesignIconButton}"
                     Command="{Binding DataContext.IncrementCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                     Padding="4">
                 <materialDesign:PackIcon Kind="Plus"/>
@@ -52,12 +52,12 @@
             <Button Content="CANCEL"
                     Command="{Binding CancelCommand}"
                     CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=materialDesign:DialogHost}}"
-                    Style="{StaticResource MaterialDesignFlatButton}"
+                    Style="{DynamicResource MaterialDesignFlatButton}"
                     Margin="0,0,8,0"/>
             <Button Content="SAVE"
                     Command="{Binding ConfirmCommand}"
                     CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=materialDesign:DialogHost}}"
-                    Style="{StaticResource MaterialDesignRaisedButton}"/>
+                    Style="{DynamicResource MaterialDesignRaisedButton}"/>
         </StackPanel>
     </Grid>
 </UserControl>

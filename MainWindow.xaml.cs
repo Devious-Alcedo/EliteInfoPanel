@@ -42,14 +42,27 @@ namespace EliteInfoPanel
         public MainWindow()
         {
             InitializeComponent();
+            // Configure logging
+            LoggingConfig.Configure(enableDebugLogging: false);
+            Log.Information("MainWindow: Getting EliteThemeManager instance...");
+            var eliteTheme = EliteThemeManager.Instance;
+            eliteTheme.ColorsChanged += (colors) =>
+            {
+                // Force refresh of all visual elements when colors change
+                App.RefreshResources();
+                InvalidateVisual();
+            };
+            Log.Information("MainWindow: Theme manager initialized");
+            //============may need to comment these out===================
             //RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
 
             //CompositionTarget.Rendering += (s, ev) =>
             //{
             //    System.Diagnostics.Debug.WriteLine("🔄 WPF redraw...");
             //};
-            // Configure logging
-            LoggingConfig.Configure(enableDebugLogging: false);
+            //============================================================
+
+            
 
             // Load settings
             _appSettings = SettingsManager.Load();

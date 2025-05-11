@@ -119,7 +119,7 @@
                      Background="#22FFFFFF"/>
 
             <Button Grid.Column="2" 
-                    Style="{StaticResource MaterialDesignRaisedButton}"
+                    Style="{DynamicResource MaterialDesignRaisedButton}"
                     Command="{Binding AddCommodityCommand}">
                 <materialDesign:PackIcon Kind="Plus"/>
             </Button>

@@ -30,7 +30,8 @@
                     <ControlTemplate TargetType="ProgressBar">
                         <Grid SnapsToDevicePixels="true">
                             <Rectangle Fill="{TemplateBinding Background}" Height="{TemplateBinding Height}" />
-                            <Rectangle Fill="{TemplateBinding Foreground}" Height="{TemplateBinding Height}" HorizontalAlignment="Left">
+                            <Rectangle Fill="{DynamicResource EliteHudText}" Height="{TemplateBinding Height}" HorizontalAlignment="Left">
+                              
                                 <Rectangle.Width>
                                     <MultiBinding Converter="{StaticResource ProgressToWidthMultiConverter}">
                                         <Binding Path="Value" RelativeSource="{RelativeSource TemplatedParent}" />
@@ -76,13 +77,13 @@
                                          Width="20"
                                          Height="20"
                                          Margin="0,0,6,0"
-                                         Foreground="{Binding Foreground}" />
+                                         Foreground="White" />
 
                             <TextBlock Grid.Column="1"
                            x:Name="ItemText"
                            Text="{Binding Content}"
                            FontSize="{Binding FontSize}"
-                           Foreground="{Binding Foreground}"
+                           Foreground="White"
                            TextWrapping="Wrap"
                            TextTrimming="None"
                            VerticalAlignment="Center"
@@ -134,7 +135,7 @@
         <!-- Fuel Info -->
         <StackPanel Visibility="{Binding ShowFuelBar, Converter={StaticResource BoolToVis}}" Margin="0,12,0,0">
             <TextBlock FontSize="{Binding FontSize}"
-                       Foreground="Orange"
+                       Foreground="White"
                         TextWrapping="Wrap"
                         TextTrimming="None"
                        FontWeight="SemiBold"
