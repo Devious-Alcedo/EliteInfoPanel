@@ -52,7 +52,7 @@
                     Orientation="Horizontal" 
                     HorizontalAlignment="Right"
                     Margin="0,0,0,8">
-            <Button Style="{StaticResource MaterialDesignFlatButton}"
+            <Button Style="{DynamicResource MaterialDesignFlatButton}"
                     Command="{Binding ToggleShowCompleted}"
                     ToolTip="Toggle showing completed items"
                     Margin="3,0">
@@ -61,27 +61,27 @@
                                       Height="20" 
                                       Foreground="White"/>
             </Button>
-            <Button Style="{StaticResource MaterialDesignFlatButton}"
+            <Button Style="{DynamicResource MaterialDesignFlatButton}"
                     Command="{Binding SortByMissing}" 
                     ToolTip="Sort by missing amount"
                     Margin="3,0">
                 <materialDesign:PackIcon Kind="SortNumericDescending" Width="20" Height="20" />
             </Button>
-            <Button Style="{StaticResource MaterialDesignFlatButton}"
+            <Button Style="{DynamicResource MaterialDesignFlatButton}"
                     Command="{Binding SortByName}" 
                     ToolTip="Sort by name"
                     Margin="3,0">
                 <materialDesign:PackIcon Kind="SortAlphabeticalAscending" Width="20" Height="20" />
             </Button>
             <!-- Add this button next to the other buttons in the sort options row -->
-            <Button Style="{StaticResource MaterialDesignFlatButton}"
+            <Button Style="{DynamicResource MaterialDesignFlatButton}"
         Command="{Binding ExportToCsvCommand}" 
         ToolTip="Export to CSV"
         Margin="3,0">
                 <materialDesign:PackIcon Kind="FileExport" Width="20" Height="20" />
             </Button>
             <!-- Open in New Window button - Only visible when not already in a popup window -->
-            <Button Style="{StaticResource MaterialDesignFlatButton}"
+            <Button Style="{DynamicResource MaterialDesignFlatButton}"
         Command="{Binding OpenInNewWindowCommand}" 
         ToolTip="Open in separate window"
         Margin="3,0"
@@ -152,9 +152,11 @@
                                     <TextBlock Grid.Column="1"
                                            Visibility="{Binding IsComplete, Converter={StaticResource InverseBoolConverter}}"
                                            VerticalAlignment="Center"
-                                           Margin="4,0,0,0">
+                                           Margin="4,0,0,0"
+                                                Style="{StaticResource CardTitleStyle}">
+                                       
                                     <Run Text="(" />
-                                    <Run Text="{Binding Remaining, Mode=OneWay}" Foreground="Orange" FontWeight="Bold" />
+                                    <Run Text="{Binding Remaining, Mode=OneWay}"  FontWeight="Bold" />
                                     <Run Text=")" />
                                     </TextBlock>
 
