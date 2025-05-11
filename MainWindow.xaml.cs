@@ -546,6 +546,7 @@ namespace EliteInfoPanel
                     }
                 };
                 // Setup CarrierJumpOverlay
+                // Setup CarrierJumpOverlay
                 if (CarrierJumpOverlay != null)
                 {
                     CarrierJumpOverlay.ForceHidden();
@@ -557,35 +558,13 @@ namespace EliteInfoPanel
                         if (args.PropertyName == nameof(GameStateService.ShowCarrierJumpOverlay))
                         {
                             var show = vm._gameState.ShowCarrierJumpOverlay;
-                            Log.Information("MainWindow detected ShowCarrierJumpOverlay changed to {Value}", show);
+                            Log.Information("MainWindow detected ShowCarrierJumpOverlay changed to {0}", show);
 
                             Dispatcher.Invoke(() => {
-                                if (show)
-                                {
-                                    Log.Information("Explicitly triggering CarrierJumpOverlay visibility update");
-                                    CarrierJumpOverlay.UpdateVisibility();
-                                }
+                                CarrierJumpOverlay.UpdateVisibility();
                             });
                         }
                     };
-
-                    // Extra startup check for carrier jump state
-                    var carrierJumpTimer = new System.Threading.Timer((state) =>
-                    {
-                        Dispatcher.Invoke(() =>
-                        {
-                            if (vm._gameState.ShowCarrierJumpOverlay)
-                            {
-                                Log.Information("🚢 Startup timer detected carrier jump should be shown - updating visibility");
-                                CarrierJumpOverlay.UpdateVisibility();
-                            }
-                            else
-                            {
-                                CarrierJumpOverlay.ForceHidden();
-                                Log.Information("🔴 Startup timer verified carrier jump overlay is hidden");
-                            }
-                        });
-                    }, null, 1500, Timeout.Infinite);
                 }
             }
         }

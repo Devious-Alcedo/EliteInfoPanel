@@ -40,7 +40,7 @@
                                                                    TextWrapping="Wrap"
                                                                    TextTrimming="None"
                                                                    Margin="0,0,0,6"
-                                                                   Foreground="{DynamicResource MaterialDesignBody}" />
+                                                                   Foreground="White" />
                                                     </ControlTemplate>
                                                 </Setter.Value>
                                             </Setter>
