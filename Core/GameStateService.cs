@@ -238,7 +238,7 @@ namespace EliteInfoPanel.Core
         #region Public Properties
 
         // Add this field to track the special condition
-        private bool _jumpCountdownJustReachedZero = false;
+       
 
         public long? Balance => CurrentStatus?.Balance;
         public int CarrierJumpCountdownSeconds
@@ -249,28 +249,6 @@ namespace EliteInfoPanel.Core
                 {
                     var timeLeft = CarrierJumpScheduledTime.Value.ToLocalTime() - DateTime.Now;
                     int result = (int)Math.Max(0, timeLeft.TotalSeconds);
-
-                    // Store previous value for comparison
-                    int previousValue = _lastCarrierJumpCountdown;
-
-                    // Update the stored value
-                    _lastCarrierJumpCountdown = result;
-
-                    // Check transition from positive to zero without calling OnPropertyChanged here
-                    if (previousValue > 0 && result == 0 && !JumpArrived)
-                    {
-                        Log.Information("Carrier jump countdown reached zero - preparing for jump");
-
-                        // Use a flag to indicate the countdown just reached zero
-                        _jumpCountdownJustReachedZero = true;
-
-                        // Make sure FleetCarrierJumpInProgress is true
-                        if (IsOnFleetCarrier)
-                        {
-                            FleetCarrierJumpInProgress = true;
-                        }
-                    }
-
                     return result;
                 }
                 return 0;
@@ -453,7 +431,14 @@ namespace EliteInfoPanel.Core
         public bool JumpArrived
         {
             get => _jumpArrived;
-            set => SetProperty(ref _jumpArrived, value);
+            set
+            {
+                if (SetProperty(ref _jumpArrived, value))
+                {
+                    Log.Debug("JumpArrived changed to {0}, notifying ShowCarrierJumpOverlay", value);
+                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
+                }
+            }
         }
 
         public TimeSpan? JumpCountdown => FleetCarrierJumpTime.HasValue ?
@@ -511,54 +496,16 @@ namespace EliteInfoPanel.Core
         {
             get
             {
-                try
-                {
-                    // Log more details about the state for debugging
-                    Log.Debug("ShowCarrierJumpOverlay details: FleetCarrierJumpInProgress={0}, " +
-                             "IsOnFleetCarrier={1}, CarrierJumpScheduledTime={2}, JumpArrived={3}, " +
-                             "CarrierJumpDestinationSystem={4}",
-                             FleetCarrierJumpInProgress,
-                             IsOnFleetCarrier,
-                             CarrierJumpScheduledTime?.ToString() ?? "null",
-                             JumpArrived,
-                             CarrierJumpDestinationSystem ?? "null");
-                    if (_jumpCountdownJustReachedZero && IsOnFleetCarrier &&
-                        !string.IsNullOrEmpty(CarrierJumpDestinationSystem))
-                    {
-                        Log.Information("Jump animation starting - forced overlay display");
-                        return true;
-                    }
-                    // Updated logic with extra safety checks
-                    bool result = FleetCarrierJumpInProgress &&
-                                 IsOnFleetCarrier &&
-                                 !string.IsNullOrEmpty(CarrierJumpDestinationSystem) &&
-                                 (CarrierJumpCountdownSeconds <= 0) &&
+                // Simple conditions: on carrier + jump in progress + countdown reached zero
+                bool shouldShow = IsOnFleetCarrier &&
+                                 FleetCarrierJumpInProgress &&
+                                 CarrierJumpCountdownSeconds <= 0 &&
                                  !JumpArrived;
 
-                    // Additional logging for when conditions should be true
-                    if (FleetCarrierJumpInProgress && IsOnFleetCarrier && !JumpArrived)
-                    {
-                        Log.Information("ShowCarrierJumpOverlay calculation (detailed): " +
-                                       "FleetCarrierJumpInProgress={0}, IsOnFleetCarrier={1}, " +
-                                       "CountdownSeconds={2}, JumpArrived={3}, " +
-                                       "CarrierJumpDestSystem={4}, CurrentStationName={5}, " +
-                                       "Result={6}",
-                            FleetCarrierJumpInProgress,
-                            IsOnFleetCarrier,
-                            CarrierJumpCountdownSeconds,
-                            JumpArrived,
-                            CarrierJumpDestinationSystem ?? "(null)",
-                            CurrentStationName ?? "(null)",
-                            result);
-                    }
+                Log.Debug("ShowCarrierJumpOverlay: On Carrier={0}, Jump In Progress={1}, Countdown={2}, Jump Arrived={3}, Result={4}",
+                    IsOnFleetCarrier, FleetCarrierJumpInProgress, CarrierJumpCountdownSeconds, JumpArrived, shouldShow);
 
-                    return result;
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "Error in ShowCarrierJumpOverlay getter");
-                    return false;
-                }
+                return shouldShow;
             }
         }
 
@@ -904,10 +851,7 @@ namespace EliteInfoPanel.Core
             }
         }
 
-        public void ClearJumpCountdownFlag()
-        {
-            _jumpCountdownJustReachedZero = false;
-        }
+      
 
         private bool BackpacksEqual(BackpackJson bp1, BackpackJson bp2)
         {
@@ -1895,18 +1839,13 @@ namespace EliteInfoPanel.Core
                                     break;
 
                                 case "CarrierJump":
-                                    if (root.TryGetProperty("Docked", out var dockedProperty) &&
-                                        dockedProperty.GetBoolean() &&
-                                        root.TryGetProperty("StationType", out var jumpStationTypeProp) &&
-                                        string.Equals(jumpStationTypeProp.GetString(), "FleetCarrier", StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        Log.Information("CarrierJump event detected - Player docked on fleet carrier that has completed jump");
-                                        IsOnFleetCarrier = true;
-                                        JumpArrived = true;
-                                        OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
-                                    }
+                                    Log.Information("CarrierJump event detected - hiding overlay");
                                     JumpArrived = true;
-                                    ResetFleetCarrierJumpState();
+                                    // Clear jump state
+                                    FleetCarrierJumpInProgress = false;
+                                    CarrierJumpScheduledTime = null;
+                                    CarrierJumpDestinationSystem = null;
+                                    CarrierJumpDestinationBody = null;
                                     break;
 
                                 case "CarrierJumpCancelled":
