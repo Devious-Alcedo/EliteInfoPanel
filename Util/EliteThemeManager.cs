@@ -67,20 +67,31 @@ namespace EliteInfoPanel.Util
 
         private void ReloadColors()
         {
-            // Check if we're using EDHM
-            if (_graphicsConfigPath.EndsWith("Advanced.ini"))
+            App.Current.Dispatcher.Invoke(() =>
             {
-                var edhmExtractor = new EdhmColorExtractor();
-                _currentColors = edhmExtractor.ExtractColors();
-            }
-            else
-            {
-                _currentColors = _colorExtractor.ExtractColors();
-            }
+                try
+                {
+                    if (_graphicsConfigPath.EndsWith("Advanced.ini"))
+                    {
+                        var edhmExtractor = new EdhmColorExtractor();
+                        _currentColors = edhmExtractor.ExtractColors();
+                    }
+                    else
+                    {
+                        _currentColors = _colorExtractor.ExtractColors();
+                    }
 
-            ApplyColorsToApplication();
-            ColorsChanged?.Invoke(_currentColors);
+                    ApplyColorsToApplication();
+
+                    ColorsChanged?.Invoke(_currentColors); // Safe now, we're on the UI thread
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "EliteThemeManager: Error during ReloadColors");
+                }
+            });
         }
+
 
         private void LogCurrentColors(string prefix)
         {
@@ -187,7 +198,8 @@ namespace EliteInfoPanel.Util
                 _configWatcher = new FileSystemWatcher
                 {
                     Path = directory,
-                    Filter = "GraphicsConfiguration.xml",
+                    Filter = Path.GetFileName(_graphicsConfigPath),
+
                     NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.CreationTime
                 };
 

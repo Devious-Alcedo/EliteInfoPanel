@@ -26,36 +26,45 @@ public partial class App : Application
     /// </summary>
     public static void RefreshResources()
     {
-        // Ensure we're on the UI thread
         Current.Dispatcher.Invoke(() =>
         {
+            // Preserve BundledTheme
+            var bundledTheme = Current.Resources.MergedDictionaries
+                .OfType<MaterialDesignThemes.Wpf.BundledTheme>()
+                .FirstOrDefault();
+
+            // Clear window dictionaries
             foreach (Window window in Current.Windows)
             {
-                // Refresh resource references
                 window.Resources.MergedDictionaries.Clear();
+
+                // Re-apply all application-level dictionaries EXCEPT BundledTheme
                 foreach (var dict in Current.Resources.MergedDictionaries)
                 {
-                    window.Resources.MergedDictionaries.Add(dict);
+                    if (dict is not MaterialDesignThemes.Wpf.BundledTheme)
+                        window.Resources.MergedDictionaries.Add(dict);
                 }
 
-                // Force refresh of dynamic resources (important for theme changes)
                 window.InvalidateVisual();
                 window.UpdateLayout();
-
-                // Recursively refresh all child elements that use DynamicResource
                 RefreshChildElements(window);
             }
 
-            // Also refresh the Application's main resource dictionary
-            // This ensures top-level resource changes are properly applied
+            // Now reset the Application dictionary itself, preserving the BundledTheme
             var appDict = new ResourceDictionary();
+            if (bundledTheme != null)
+                appDict.MergedDictionaries.Add(bundledTheme);
+
             foreach (var key in Current.Resources.Keys)
             {
-                appDict[key] = Current.Resources[key];
+                if (Current.Resources[key] is not MaterialDesignThemes.Wpf.BundledTheme)
+                    appDict[key] = Current.Resources[key];
             }
+
             Current.Resources = appDict;
         });
     }
+
 
     // Helper method to refresh all child elements
     private static void RefreshChildElements(DependencyObject parent)

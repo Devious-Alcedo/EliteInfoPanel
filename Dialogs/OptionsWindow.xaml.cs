@@ -165,17 +165,7 @@ namespace EliteInfoPanel.Dialogs
         {
             _viewModel.CancelCommand.Execute(null);
         }
-        private void ApplyDarkTheme()
-        {
-            // Set window background
-            this.Background = new SolidColorBrush(Color.FromRgb(48, 48, 48));
-
-            // Apply styles to all controls
-            foreach (var control in LogicalTreeHelper.GetChildren(this))
-            {
-                ApplyDarkThemeToElement(control as DependencyObject);
-            }
-        }
+       
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             // Copy all application resources
