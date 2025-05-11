@@ -14,151 +14,250 @@
         TextOptions.TextRenderingMode="Auto">
 
     <Window.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <!-- Same theme as App.xaml -->
-                <materialDesign:BundledTheme BaseTheme="Dark" 
-                                           PrimaryColor="DeepOrange" 
-                                           SecondaryColor="Lime"/>
-                <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.Button.xaml"/>
-                <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.CheckBox.xaml"/>
-                <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.RadioButton.xaml"/>
-                <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.TabControl.xaml"/>
-            </ResourceDictionary.MergedDictionaries>
+        <converters:ScaleToFontSizeConverter x:Key="ScaleToFontSizeConverter"/>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
 
-            <converters:ScaleToFontSizeConverter x:Key="ScaleToFontSizeConverter"/>
-            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <!-- Custom styles using your existing resources -->
+        <Style x:Key="ThemedCheckBoxStyle" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
+        </Style>
 
-            <!-- Simple style override -->
-            <Style TargetType="CheckBox">
-                <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
-            </Style>
+        <!-- TabControl to use card-like background -->
+        <Style x:Key="EliteTabControl" TargetType="TabControl">
+            <Setter Property="Background" Value="#11FFFFFF" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid ClipToBounds="true" SnapsToDevicePixels="true" KeyboardNavigation.TabNavigation="Local">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition x:Name="ColumnDefinition0"/>
+                                <ColumnDefinition x:Name="ColumnDefinition1" Width="0"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition x:Name="RowDefinition0" Height="Auto"/>
+                                <RowDefinition x:Name="RowDefinition1" Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TabPanel x:Name="HeaderPanel" 
+                                     Background="#22000000"
+                                     Grid.Column="0" 
+                                     IsItemsHost="true" 
+                                     Margin="0" 
+                                     Grid.Row="0" 
+                                     KeyboardNavigation.TabIndex="1" 
+                                     Panel.ZIndex="1"/>
+                            <Border x:Name="ContentPanel" 
+                                   Background="{TemplateBinding Background}" 
+                                   BorderBrush="{TemplateBinding BorderBrush}" 
+                                   BorderThickness="{TemplateBinding BorderThickness}" 
+                                   Grid.Column="0" 
+                                   KeyboardNavigation.DirectionalNavigation="Contained" 
+                                   Grid.Row="1" 
+                                   KeyboardNavigation.TabIndex="2" 
+                                   KeyboardNavigation.TabNavigation="Local">
+                                <ContentPresenter x:Name="PART_SelectedContentHost" 
+                                                 ContentSource="SelectedContent" 
+                                                 Margin="{TemplateBinding Padding}" 
+                                                 SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
-            <Style TargetType="RadioButton">
-                <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
-            </Style>
+        <!-- TabItem Style with better visibility -->
+        <Style x:Key="EliteTabItem" TargetType="TabItem">
+            <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Border" 
+                                Background="#33000000" 
+                                BorderBrush="{DynamicResource EliteHudMain}" 
+                                BorderThickness="1,1,1,0"
+                                CornerRadius="4,4,0,0"
+                                Margin="0,0,2,0"
+                                Padding="12,6">
+                            <ContentPresenter x:Name="ContentSite"
+                                            VerticalAlignment="Center"
+                                            HorizontalAlignment="Center"
+                                            ContentSource="Header"
+                                            Margin="0"
+                                            RecognizesAccessKey="True"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#44FFFFFF"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="{DynamicResource EliteHudMain}"/>
+                                <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource EliteHudMain}"/>
+                                <Setter TargetName="Border" Property="BorderThickness" Value="1,1,1,0"/>
+                                <Setter Property="Foreground" Value="Black"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                <Setter TargetName="Border" Property="Panel.ZIndex" Value="10"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
-            <Style TargetType="TextBlock">
-                <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
-            </Style>
+        <!-- GroupBox Style to match cards -->
+        <Style x:Key="EliteGroupBox" TargetType="GroupBox">
+            <Setter Property="Foreground" Value="{DynamicResource EliteHudMain}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource EliteHudSecondary}" />
+            <Setter Property="Background" Value="#11FFFFFF" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GroupBox">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
 
-            <Style TargetType="GroupBox">
-                <Setter Property="Foreground" Value="{DynamicResource EliteHudMain}" />
-                <Setter Property="Background" Value="Transparent" />
-                <Setter Property="BorderBrush" Value="{DynamicResource EliteHudSecondary}" />
-                <Setter Property="HeaderTemplate">
-                    <Setter.Value>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding}" 
-                           Foreground="{DynamicResource EliteHudMain}" 
-                           FontWeight="SemiBold" />
-                        </DataTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-        </ResourceDictionary>
+                            <Border Grid.Row="0" 
+                                   BorderBrush="{TemplateBinding BorderBrush}" 
+                                   BorderThickness="1,1,1,0" 
+                                   Background="{TemplateBinding Background}"
+                                   CornerRadius="4,4,0,0"
+                                   Padding="8,4">
+                                <ContentPresenter ContentSource="Header" 
+                                                TextElement.FontWeight="SemiBold"
+                                                TextElement.FontSize="{DynamicResource BaseFontSize}"
+                                                TextElement.Foreground="{TemplateBinding Foreground}"/>
+                            </Border>
+
+                            <Border Grid.Row="1" 
+                                   BorderBrush="{TemplateBinding BorderBrush}" 
+                                   BorderThickness="1,0,1,1" 
+                                   Background="{TemplateBinding Background}"
+                                   CornerRadius="0,0,4,4"
+                                   Padding="8">
+                                <ContentPresenter/>
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
-    <DockPanel Margin="10">
+    <Grid Background="{DynamicResource MaterialDesignPaper}">
+        <Grid Margin="10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-        <!-- Footer Buttons -->
-        <StackPanel DockPanel.Dock="Bottom"
-                Orientation="Horizontal"
-                HorizontalAlignment="Right"
-                Margin="0,10,0,0">
-            <Button Width="80" Margin="0,0,10,0" Content="OK"
-                Command="{Binding SaveCommand}"
-                IsDefault="True"
-                Style="{DynamicResource MaterialDesignRaisedButton}" />
-            <Button Width="80" Content="Cancel"
-                Command="{Binding CancelCommand}"
-                IsCancel="True"
-                Style="{DynamicResource MaterialDesignRaisedButton}" />
-        </StackPanel>
+            <!-- Main Content Tabs -->
+            <TabControl Grid.Row="0" Style="{StaticResource EliteTabControl}">
+                <!-- Window Settings -->
+                <TabItem Header="Window Settings" Style="{StaticResource EliteTabItem}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Background="#11FFFFFF">
+                        <StackPanel Margin="10">
 
-        <!-- Main Content Tabs -->
-        <TabControl>
-            <!-- Window Settings -->
-            <TabItem Header="Window Settings">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="10">
+                            <!-- Window Mode -->
+                            <GroupBox Header="Window Mode" Margin="0,0,0,12" Style="{StaticResource EliteGroupBox}">
+                                <StackPanel x:Name="WindowModePanel"/>
+                            </GroupBox>
 
-                        <!-- Window Mode -->
-                        <GroupBox Header="Window Mode" Margin="0,0,0,12">
-                            <StackPanel x:Name="WindowModePanel"/>
-                        </GroupBox>
+                            <!-- Font Size -->
+                            <GroupBox Header="Font Size" Margin="0,0,0,12" Style="{StaticResource EliteGroupBox}">
+                                <StackPanel Margin="0,8,0,0">
+                                    <TextBlock Text="Sample Text" 
+                                              FontSize="{Binding FontSizePreview}"
+                                              HorizontalAlignment="Center" 
+                                              Margin="0,0,0,10"
+                                              Foreground="{DynamicResource MaterialDesignBody}"/>
 
-                        <!-- Font Size -->
-                        <GroupBox Header="Font Size" Margin="0,0,0,12">
-                            <StackPanel Margin="0,8,0,0">
-                                <TextBlock Text="Sample Text" 
-                                   FontSize="{Binding FontSizePreview}"
-                                   HorizontalAlignment="Center" 
-                                   Margin="0,0,0,10"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
 
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
+                                        <TextBlock Text="A" FontSize="12" Grid.Column="0" Margin="0,0,8,0"
+                                                  VerticalAlignment="Center"
+                                                  Foreground="{DynamicResource MaterialDesignBody}"/>
 
-                                    <TextBlock Text="A" FontSize="12" Grid.Column="0" Margin="0,0,8,0"
-                                       VerticalAlignment="Center"/>
+                                        <Slider x:Name="fontSizeSlider" 
+                                               Grid.Column="1"
+                                               Minimum="{Binding MinFontScale}"
+                                               Maximum="{Binding MaxFontScale}"
+                                               Value="{Binding CurrentFontScale}"
+                                               TickFrequency="{Binding FontScaleStep}"
+                                               IsSnapToTickEnabled="True"
+                                               ValueChanged="FontSizeSlider_ValueChanged"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource EliteHudMain}"/>
 
-                                    <Slider x:Name="fontSizeSlider" 
-                                    Grid.Column="1"
-                                    Minimum="{Binding MinFontScale}"
-                                    Maximum="{Binding MaxFontScale}"
-                                    Value="{Binding CurrentFontScale}"
-                                    TickFrequency="{Binding FontScaleStep}"
-                                    IsSnapToTickEnabled="True"
-                                    ValueChanged="FontSizeSlider_ValueChanged"
-                                    VerticalAlignment="Center"/>
+                                        <TextBlock Text="A" FontSize="20" Grid.Column="2" Margin="8,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  Foreground="{DynamicResource MaterialDesignBody}"/>
+                                    </Grid>
 
-                                    <TextBlock Text="A" FontSize="20" Grid.Column="2" Margin="8,0,0,0"
-                                       VerticalAlignment="Center"/>
-                                </Grid>
+                                    <TextBlock x:Name="scalePercentageText"
+                                              Text="Scale: 100%"
+                                              HorizontalAlignment="Center"
+                                              Margin="0,4,0,0"
+                                              Foreground="{DynamicResource MaterialDesignBody}"/>
+                                </StackPanel>
+                            </GroupBox>
 
-                                <TextBlock x:Name="scalePercentageText"
-                                   Text="Scale: 100%"
-                                   HorizontalAlignment="Center"
-                                   Margin="0,4,0,0"/>
+                            <!-- Change Display Button -->
+                            <StackPanel Orientation="Horizontal"
+                                       HorizontalAlignment="Right"
+                                       Margin="0,0,0,12"
+                                       IsEnabled="{Binding IsFullScreenMode}">
+                                <Button Content="Change Display"
+                                       Command="{Binding ChangeDisplayCommand}"
+                                       Style="{DynamicResource MaterialDesignOutlinedButton}" 
+                                       Foreground="{DynamicResource EliteHudMain}"
+                                       BorderBrush="{DynamicResource EliteHudMain}"/>
                             </StackPanel>
-                        </GroupBox>
 
-                        <!-- Change Display Button -->
-                        <StackPanel Orientation="Horizontal"
-                                HorizontalAlignment="Right"
-                                Margin="0,0,0,12"
-                                IsEnabled="{Binding IsFullScreenMode}">
-                            <Button Content="Change Display"
-                                Command="{Binding ChangeDisplayCommand}"
-                                Style="{DynamicResource MaterialDesignOutlinedButton}" />
                         </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
 
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-
-            <!-- Status Flags -->
-            <TabItem Header="Status Flags">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="10">
-                        <StackPanel x:Name="FlagOptionsPanel">
-                            <!-- The OrderableCheckBoxList will be added here programmatically -->
+                <!-- Status Flags -->
+                <TabItem Header="Status Flags" Style="{StaticResource EliteTabItem}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Background="#11FFFFFF">
+                        <StackPanel Margin="10">
+                            <StackPanel x:Name="FlagOptionsPanel">
+                                <!-- The OrderableCheckBoxList will be added here programmatically -->
+                            </StackPanel>
                         </StackPanel>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
+                    </ScrollViewer>
+                </TabItem>
 
-            <TabItem Header="Cards">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="10" x:Name="CardsOptionsPanel">
-                        <!-- Cards will be added dynamically -->
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-        </TabControl>
-    </DockPanel>
+                <TabItem Header="Cards" Style="{StaticResource EliteTabItem}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Background="#11FFFFFF">
+                        <StackPanel Margin="10" x:Name="CardsOptionsPanel">
+                            <!-- Cards will be added dynamically -->
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+            </TabControl>
+
+            <!-- Footer Buttons -->
+            <StackPanel Grid.Row="1"
+                       Orientation="Horizontal"
+                       HorizontalAlignment="Right"
+                       Margin="0,10,0,0">
+                <Button Width="80" Margin="0,0,10,0" Content="OK"
+                       Command="{Binding SaveCommand}"
+                       IsDefault="True"
+                       Style="{DynamicResource MaterialDesignRaisedButton}" />
+                <Button Width="80" Content="Cancel"
+                       Command="{Binding CancelCommand}"
+                       IsCancel="True"
+                       Style="{DynamicResource MaterialDesignRaisedButton}" />
+            </StackPanel>
+        </Grid>
+    </Grid>
 </Window>
