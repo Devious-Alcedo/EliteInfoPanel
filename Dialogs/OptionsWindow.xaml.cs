@@ -266,14 +266,13 @@ namespace EliteInfoPanel.Dialogs
         {
             if (FindName("WindowModePanel") is not StackPanel panel) return;
 
-            // Create radio buttons with explicit styling
             var fullScreenRadio = new RadioButton
             {
                 Content = "Full Screen Mode (on selected display)",
                 IsChecked = !_viewModel.AppSettings.UseFloatingWindow,
                 Margin = new Thickness(5),
                 GroupName = "WindowMode",
-                Foreground = Application.Current.Resources["EliteHudText"] as Brush ?? Brushes.White
+                Foreground = new SolidColorBrush(Colors.White)
             };
 
             var floatingWindowRadio = new RadioButton
@@ -282,25 +281,26 @@ namespace EliteInfoPanel.Dialogs
                 IsChecked = _viewModel.AppSettings.UseFloatingWindow,
                 Margin = new Thickness(5),
                 GroupName = "WindowMode",
-                Foreground = Application.Current.Resources["EliteHudText"] as Brush ?? Brushes.White
+                Foreground = new SolidColorBrush(Colors.White)
             };
 
+            // Store the original event handlers
             fullScreenRadio.Checked += (s, e) =>
             {
+                // Only update the property, nothing else
                 _viewModel.IsFloatingWindowMode = false;
-                _viewModel.NotifyFontSizeChanged();
             };
 
             floatingWindowRadio.Checked += (s, e) =>
             {
+                // Only update the property, nothing else
                 _viewModel.IsFloatingWindowMode = true;
-                _viewModel.NotifyFontSizeChanged();
             };
 
             panel.Children.Add(fullScreenRadio);
             panel.Children.Add(floatingWindowRadio);
 
-            // Create the "Always on Top" checkbox with explicit styling
+            // Create the "Always on Top" checkbox
             var floatingOptions = new StackPanel { Margin = new Thickness(24, 5, 0, 0) };
 
             var alwaysOnTopCheck = new CheckBox
@@ -308,7 +308,7 @@ namespace EliteInfoPanel.Dialogs
                 Content = "Always on Top",
                 IsChecked = _viewModel.AlwaysOnTop,
                 Margin = new Thickness(0, 5, 0, 5),
-                Foreground = Application.Current.Resources["EliteHudText"] as Brush ?? Brushes.White
+                Foreground = new SolidColorBrush(Colors.White)
             };
 
             alwaysOnTopCheck.Checked += (s, e) => _viewModel.AlwaysOnTop = true;
