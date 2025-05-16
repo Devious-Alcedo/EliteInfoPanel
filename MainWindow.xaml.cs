@@ -269,7 +269,8 @@ namespace EliteInfoPanel
         {
             if (e.Key == Key.F11)
             {
-                TestCarrierJump_Click(this, null);
+                //close the app
+                this.Close();
             }
             else if (e.Key == Key.F12)
             {
