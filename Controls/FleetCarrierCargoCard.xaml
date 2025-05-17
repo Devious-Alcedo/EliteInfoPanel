@@ -4,6 +4,11 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:EliteInfoPanel.ViewModels">
 
+    <UserControl.Resources>
+        <!-- Add BooleanToVisibilityConverter for the BoolToVis resource -->
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </UserControl.Resources>
+
     <Grid Margin="8">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -12,13 +17,33 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Title -->
-        <TextBlock Text="{Binding Title}" 
-                   Style="{StaticResource CardTitleStyle}"
-                   Grid.Row="0"
-                   Margin="0,0,0,8"/>
+        <!-- Title with fixed layout to accommodate the button -->
+        <Grid Grid.Row="0" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
 
-        <!-- Cargo List -->
+            <!-- Title -->
+            <TextBlock Text="{Binding Title}" 
+                      Style="{StaticResource CardTitleStyle}"
+                      Grid.Column="0"/>
+
+            <!-- Open in New Window Button -->
+            <Button Grid.Column="1" 
+                    
+                    Command="{Binding OpenInNewWindowCommand}"
+                    Visibility="{Binding IsInMainWindow, Converter={StaticResource BoolToVis}}"
+                    ToolTip="Open in new window"
+                    Width="32" 
+                    Height="32" 
+                    Padding="0" 
+                    Margin="2,0">
+                <materialDesign:PackIcon Kind="OpenInNew" Height="20" Width="20" />
+            </Button>
+        </Grid>
+
+        <!-- Rest of the content remains the same -->
         <ScrollViewer Grid.Row="1"
                      VerticalScrollBarVisibility="Auto" 
                      HorizontalScrollBarVisibility="Disabled"
@@ -28,9 +53,11 @@
                      Background="#11FFFFFF"
                      BorderBrush="#33FFFFFF"
                      BorderThickness="1">
+            <!-- ItemsControl content unchanged -->
             <ItemsControl ItemsSource="{Binding Cargo}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
+                        <!-- DataTemplate content unchanged -->
                         <Border Margin="0,2,0,2" Padding="4">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -69,7 +96,7 @@
 
                                 <!-- Delete Button -->
                                 <Button Grid.Column="2" 
-                                        Style="{DynamicResource MaterialDesignIconFlatButton}"
+                                        Style="{DynamicResource MaterialDesignFlatButton}"
                                         Command="{Binding DataContext.DeleteItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding}" 
                                         ToolTip="Remove item"

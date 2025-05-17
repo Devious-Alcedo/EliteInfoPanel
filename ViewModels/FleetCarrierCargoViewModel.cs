@@ -1,12 +1,15 @@
-﻿using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Linq;
+﻿using EliteInfoPanel.Controls;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Core.Models;
 using EliteInfoPanel.Util;
 using Serilog;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
+using System.Windows;
+using System.Windows.Media;
 using static MaterialDesignThemes.Wpf.Theme.ToolBar;
 
 namespace EliteInfoPanel.ViewModels
@@ -17,6 +20,14 @@ namespace EliteInfoPanel.ViewModels
         private readonly string _cargoSavePath;
         private bool _initialSyncComplete = false;
         private string _newCommodityName;
+        private bool _isInMainWindow = true;
+        public bool IsInMainWindow
+        {
+            get => _isInMainWindow;
+            set => SetProperty(ref _isInMainWindow, value);
+        }
+
+        public RelayCommand OpenInNewWindowCommand { get; }
         private int _newCommodityQuantity = 1;
         private Dictionary<string, int> _lastKnownGameState = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         public RelayCommand UpdateQuantityCommand { get; }
@@ -59,7 +70,7 @@ namespace EliteInfoPanel.ViewModels
         public FleetCarrierCargoViewModel(GameStateService gameState) : base("Fleet Carrier Cargo")
         {
             _gameState = gameState;
-
+            OpenInNewWindowCommand = new RelayCommand(_ => OpenInNewWindow());
             // Set up save path in AppData
             string appDataFolder = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -100,6 +111,96 @@ namespace EliteInfoPanel.ViewModels
             // Mark initialization as complete
             _initialSyncComplete = true;
             Log.Information("Fleet carrier cargo initialization complete - real-time updates enabled");
+        }
+        private void OpenInNewWindow()
+        {
+            // Load settings
+            var settings = SettingsManager.Load();
+
+            // Create a new instance of the viewmodel with IsInMainWindow=false
+            var popupViewModel = new FleetCarrierCargoViewModel(_gameState)
+            {
+                IsInMainWindow = false
+            };
+
+            // Create a new window
+            var window = new Window
+            {
+                Title = "Fleet Carrier Cargo",
+                Width = settings.FleetCarrierWindowWidth,
+                Height = settings.FleetCarrierWindowHeight,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = settings.FleetCarrierWindowLeft,
+                Top = settings.FleetCarrierWindowTop,
+                Background = new SolidColorBrush(Color.FromArgb(255, 30, 30, 30)),
+                Content = new FleetCarrierCargoCard { DataContext = popupViewModel }
+            };
+
+            // Add event handlers to save position
+            window.LocationChanged += (s, e) =>
+            {
+                if (window.WindowState == WindowState.Normal)
+                {
+                    settings.FleetCarrierWindowLeft = window.Left;
+                    settings.FleetCarrierWindowTop = window.Top;
+                    SettingsManager.Save(settings);
+                }
+            };
+
+            window.SizeChanged += (s, e) =>
+            {
+                if (window.WindowState == WindowState.Normal)
+                {
+                    settings.FleetCarrierWindowWidth = window.Width;
+                    settings.FleetCarrierWindowHeight = window.Height;
+                    SettingsManager.Save(settings);
+                }
+            };
+
+            // Ensure window is within screen bounds
+            EnsureWindowIsVisible(window, settings);
+
+            // Show the window
+            window.Show();
+        }
+
+        
+        private void EnsureWindowIsVisible(Window window, AppSettings settings)
+        {
+            // Get screen information
+            var screens = WpfScreenHelper.Screen.AllScreens;
+            var screenBounds = WpfScreenHelper.Screen.AllScreens.First().Bounds;
+
+            // Check if window position is valid
+            bool isPositionValid = false;
+            foreach (var screen in screens)
+            {
+                var bounds = screen.Bounds;
+                if (settings.FleetCarrierWindowLeft >= bounds.Left &&
+                    settings.FleetCarrierWindowTop >= bounds.Top &&
+                    settings.FleetCarrierWindowLeft + settings.FleetCarrierWindowWidth <= bounds.Right &&
+                    settings.FleetCarrierWindowTop + settings.FleetCarrierWindowHeight <= bounds.Bottom)
+                {
+                    isPositionValid = true;
+                    break;
+                }
+            }
+
+            // If position is invalid, center on primary screen
+            if (!isPositionValid)
+            {
+                window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+
+                // After window is loaded, save the new position
+                window.Loaded += (s, e) =>
+                {
+                    settings.FleetCarrierWindowLeft = window.Left;
+                    settings.FleetCarrierWindowTop = window.Top;
+                    settings.FleetCarrierWindowWidth = window.Width;
+                    settings.FleetCarrierWindowHeight = window.Height;
+                    SettingsManager.Save(settings);
+                };
+            }
         }
         private void UpdateItemQuantity(object parameter)
         {
