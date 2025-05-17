@@ -17,6 +17,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Views\**" />
+    <EmbeddedResource Remove="Views\**" />
+    <None Remove="Views\**" />
+    <Page Remove="Views\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Remove="Assets\Ranks\Combat_Elite_icon.png" />
     <None Remove="Assets\Ranks\CQC_Elite_icon.png" />
     <None Remove="Assets\Ranks\Exobiologist_Elite_icon.png" />
@@ -153,10 +160,6 @@
     <Resource Include="Assets\Stars\WRO.png" />
     <Resource Include="Assets\Stars\WRS.png" />
     <Resource Include="Assets\Stars\Y.png" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Views\" />
   </ItemGroup>
 
 </Project>

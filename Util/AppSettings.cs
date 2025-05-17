@@ -15,7 +15,11 @@ namespace EliteInfoPanel.Util
         public bool ShowFlags { get; set; }
         public bool ShowCargo { get; set; }
         public bool ShowFleetCarrierCargoCard { get; set; } = true;
-
+        // Add these properties to the AppSettings class
+        public double FleetCarrierWindowWidth { get; set; } = 500;
+        public double FleetCarrierWindowHeight { get; set; } = 600;
+        public double FleetCarrierWindowLeft { get; set; } = 100;
+        public double FleetCarrierWindowTop { get; set; } = 100;
         public double ColonizationWindowWidth { get; set; } = 500;
         public double ColonizationWindowHeight { get; set; } = 600;
         public double ColonizationWindowLeft { get; set; } = 100;

@@ -35,6 +35,29 @@ namespace EliteInfoPanel.ViewModels
         {
             _parent = parent;
         }
+        public double AvailableCargoPercentage
+        {
+            get
+            {
+                // Calculate available cargo as the minimum of what you have and what's still needed
+                int availableCargo = Math.Min(ShipCargoQuantity + CarrierCargoQuantity, Remaining);
+
+                // Calculate as percentage of REMAINING requirement, not total
+                return Remaining > 0 ? (double)availableCargo / Remaining * 100.0 : 0;
+            }
+        }
+
+        // Calculate total potential completion (current + available cargo)
+        public double TotalPotentialPercentage
+        {
+            get
+            {
+                return Math.Min(100, CompletionPercentage + AvailableCargoPercentage);
+            }
+        }
+
+        // Color for the available cargo portion
+        public Brush AvailableCargoColor => new SolidColorBrush(Colors.DeepSkyBlue);
 
         // Dynamic properties that look up values from the parent
         public int ShipCargoQuantity
@@ -43,8 +66,17 @@ namespace EliteInfoPanel.ViewModels
             {
                 if (GameState?.CurrentCargo?.Inventory == null) return 0;
 
+                // First try an exact match (case-insensitive)
+                var exactMatch = GameState.CurrentCargo.Inventory
+                    .FirstOrDefault(i => string.Equals(i.Name, Name, StringComparison.OrdinalIgnoreCase));
+
+                if (exactMatch != null)
+                    return exactMatch.Count;
+
+                // If no exact match, try matching by removing spaces
+                string normalizedName = Name.Replace(" ", "");
                 return GameState.CurrentCargo.Inventory
-                    .FirstOrDefault(i => string.Equals(i.Name, Name, StringComparison.OrdinalIgnoreCase))?.Count ?? 0;
+                    .FirstOrDefault(i => string.Equals(i.Name.Replace(" ", ""), normalizedName, StringComparison.OrdinalIgnoreCase))?.Count ?? 0;
             }
         }
 
