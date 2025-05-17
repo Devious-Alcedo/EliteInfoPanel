@@ -43,8 +43,17 @@ namespace EliteInfoPanel.ViewModels
             {
                 if (GameState?.CurrentCargo?.Inventory == null) return 0;
 
+                // First try an exact match (case-insensitive)
+                var exactMatch = GameState.CurrentCargo.Inventory
+                    .FirstOrDefault(i => string.Equals(i.Name, Name, StringComparison.OrdinalIgnoreCase));
+
+                if (exactMatch != null)
+                    return exactMatch.Count;
+
+                // If no exact match, try matching by removing spaces
+                string normalizedName = Name.Replace(" ", "");
                 return GameState.CurrentCargo.Inventory
-                    .FirstOrDefault(i => string.Equals(i.Name, Name, StringComparison.OrdinalIgnoreCase))?.Count ?? 0;
+                    .FirstOrDefault(i => string.Equals(i.Name.Replace(" ", ""), normalizedName, StringComparison.OrdinalIgnoreCase))?.Count ?? 0;
             }
         }
 
