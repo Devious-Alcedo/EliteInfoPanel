@@ -106,14 +106,32 @@ namespace EliteInfoPanel.Controls
 
         public void UpdateVisibility()
         {
-            Log.Information("UpdateVisibility: ShowCarrierJumpOverlay={Show}, CountdownSeconds={Countdown}, IsOnFleetCarrier={OnCarrier}",
-                            _gameState.ShowCarrierJumpOverlay, _gameState.CarrierJumpCountdownSeconds, _gameState.IsOnFleetCarrier);
+            // Always log detailed information about current state
+            Log.Information("CarrierJumpOverlay.UpdateVisibility: ShowCarrierJumpOverlay={0}, " +
+                           "JumpInProgress={1}, CountdownSeconds={2}, IsOnFleetCarrier={3}, JumpArrived={4}",
+                           _gameState.ShowCarrierJumpOverlay,
+                           _gameState.FleetCarrierJumpInProgress,
+                           _gameState.CarrierJumpCountdownSeconds,
+                           _gameState.IsOnFleetCarrier,
+                           _gameState.JumpArrived);
+
+            // Add explicit check for countdown in progress (when countdown > 0)
+            bool isCountdownInProgress = _gameState.FleetCarrierJumpInProgress &&
+                                        _gameState.CarrierJumpCountdownSeconds > 0 &&
+                                        _gameState.IsOnFleetCarrier;
+
+            if (isCountdownInProgress)
+            {
+                Log.Information("Countdown in progress, overlay should be HIDDEN. " +
+                               "Seconds remaining: {0}", _gameState.CarrierJumpCountdownSeconds);
+                OverlayGrid.Visibility = Visibility.Collapsed;
+                return;
+            }
 
             if (_gameState?.ShowCarrierJumpOverlay == true)
             {
                 Log.Information("Overlay becoming VISIBLE (conditions met)");
                 OverlayGrid.Visibility = Visibility.Visible;
-                //_gameState.ClearJumpCountdownFlag(); // <-- Add this
 
                 if (!_isRendering)
                 {

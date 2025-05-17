@@ -26,7 +26,7 @@
 
             <!-- Converters -->
             <converters:ScaleToFontSizeConverter x:Key="ScaleToFontSizeConverter"/>
-
+            <converters:RectConverter x:Key="RectConverter"/>
             <!-- Font Sizes -->
             <System:Double x:Key="BaseFontSize">14</System:Double>
             <System:Double x:Key="HeaderFontSize">18</System:Double>

@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              xmlns:local="clr-namespace:EliteInfoPanel.Controls"
              xmlns:util="clr-namespace:EliteInfoPanel.Util"
              xmlns:viewModels="clr-namespace:EliteInfoPanel.ViewModels"
@@ -178,14 +179,59 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
 
-                                        <ProgressBar Height="8" 
-                                                     Value="{Binding CompletionPercentage}" 
-                                                     Maximum="100"
-                                                     Foreground="{Binding ProgressColor}"
-                                                     Background="#22FFFFFF"
-                                                     Style="{StaticResource NonAnimatedProgressBarStyle}"
-                                                     Grid.Column="0"
-                                                     VerticalAlignment="Center" />
+                                        <!-- Replace the single ProgressBar with this custom implementation -->
+                                        <Grid Height="8" Grid.Column="0" VerticalAlignment="Center">
+                                            <!-- Background (gray) -->
+                                            <Rectangle Fill="#22FFFFFF" Height="8"/>
+
+                                            <!-- Completed Portion (green/yellow/orange) -->
+                                            <Rectangle Fill="{Binding ProgressColor}" Height="8" HorizontalAlignment="Left">
+                                                <Rectangle.Width>
+                                                    <MultiBinding Converter="{StaticResource ProgressToWidthMultiConverter}">
+                                                        <Binding Path="CompletionPercentage" Mode="OneWay"/>
+                                                        <Binding Path="ActualWidth" RelativeSource="{RelativeSource AncestorType=Grid}" Mode="OneWay"/>
+                                                        <Binding>
+                                                            <Binding.Source>
+                                                                <sys:Double>100</sys:Double>
+                                                            </Binding.Source>
+                                                        </Binding>
+                                                    </MultiBinding>
+                                                </Rectangle.Width>
+                                            </Rectangle>
+
+                                            <!-- Available Cargo Portion (blue) -->
+                                            <Rectangle Fill="DeepSkyBlue" Height="8" HorizontalAlignment="Left">
+                                                <!-- Position after the completed portion -->
+                                                <Rectangle.Margin>
+                                                    <MultiBinding Converter="{StaticResource ProgressToWidthMultiConverter}">
+                                                        <Binding Path="CompletionPercentage" Mode="OneWay"/>
+                                                        <Binding Path="ActualWidth" RelativeSource="{RelativeSource AncestorType=Grid}" Mode="OneWay"/>
+                                                        <Binding>
+                                                            <Binding.Source>
+                                                                <sys:Double>100</sys:Double>
+                                                            </Binding.Source>
+                                                        </Binding>
+                                                        <Binding>
+                                                            <Binding.Source>
+                                                                <sys:Double>0</sys:Double>
+                                                            </Binding.Source>
+                                                        </Binding>
+                                                    </MultiBinding>
+                                                </Rectangle.Margin>
+                                                <!-- Width based on available cargo -->
+                                                <Rectangle.Width>
+                                                    <MultiBinding Converter="{StaticResource ProgressToWidthMultiConverter}">
+                                                        <Binding Path="AvailableCargoPercentage" Mode="OneWay"/>
+                                                        <Binding Path="ActualWidth" RelativeSource="{RelativeSource AncestorType=Grid}" Mode="OneWay"/>
+                                                        <Binding>
+                                                            <Binding.Source>
+                                                                <sys:Double>100</sys:Double>
+                                                            </Binding.Source>
+                                                        </Binding>
+                                                    </MultiBinding>
+                                                </Rectangle.Width>
+                                            </Rectangle>
+                                        </Grid>
 
                                         <TextBlock Grid.Column="1"
                                                    Margin="8,0,0,0"
@@ -213,31 +259,34 @@
 
                                         <!-- Still needed text -->
                                         <TextBlock Grid.Column="0" Grid.Row="0"
-               FontSize="{Binding FontSize}"
-               Foreground="#CCFFFFFF"
-               Visibility="{Binding IsComplete, Converter={StaticResource BoolToVis}, ConverterParameter=Collapsed}">
-        <Run Text="Still needed:" />
-        <Run Text="{Binding Remaining, Mode=OneWay}" FontWeight="SemiBold" />
+                                            FontSize="{Binding FontSize}"
+                                            Foreground="#CCFFFFFF"
+                                            Visibility="{Binding IsComplete, Converter={StaticResource BoolToVis}, ConverterParameter=Collapsed}">
+                                            <Run Text="Still needed:" />
+                                            <Run Text="{Binding Remaining, Mode=OneWay}" FontWeight="SemiBold" />
                                         </TextBlock>
 
                                         <!-- Available cargo (NEW ROW) -->
                                         <TextBlock Grid.Column="0" Grid.Row="1"
-               FontSize="{Binding FontSize}"
-               Foreground="#AAFFFFFF"
-               Visibility="{Binding HasAvailableCargo, Converter={StaticResource BoolToVis}}">
-        <Run Text="Available: Ship " />
-        <Run Text="{Binding ShipCargoQuantity, Mode=OneWay}" Foreground="LightGreen" FontWeight="SemiBold" />
-        <Run Text=", Carrier " />
-        <Run Text="{Binding CarrierCargoQuantity, Mode=OneWay}" Foreground="LightGreen" FontWeight="SemiBold" />
+                                            FontSize="{Binding FontSize}"
+                                            Foreground="#AAFFFFFF"
+                                            Visibility="{Binding HasAvailableCargo, Converter={StaticResource BoolToVis}}">
+                                            <Run Text="Available: Ship " />
+                                            <Run Text="{Binding ShipCargoQuantity, Mode=OneWay}" Foreground="LightGreen" FontWeight="SemiBold" />
+                                            <Run Text=", Carrier " />
+                                            <Run Text="{Binding CarrierCargoQuantity, Mode=OneWay}" Foreground="LightGreen" FontWeight="SemiBold" />
+                                            <Run Text=" (" />
+                                            <Run Text="{Binding AvailableCargoPercentage, StringFormat={}{0:N1}%, Mode=OneWay}" Foreground="DeepSkyBlue" />
+                                            <Run Text=")" />
                                         </TextBlock>
 
                                         <!-- Reward text spans both rows -->
                                         <TextBlock Grid.Column="1" Grid.Row="0" Grid.RowSpan="2"
-               Margin="4,0,0,0"
-               FontSize="{Binding FontSize}"
-               Foreground="#CCFFFFFF">
-        <Run Text="Reward:" />
-        <Run Text="{Binding Payment, StringFormat={}{0:N0} cr/unit, Mode=OneWay}" Foreground="LightGreen" />
+                                            Margin="4,0,0,0"
+                                            FontSize="{Binding FontSize}"
+                                            Foreground="#CCFFFFFF">
+                                            <Run Text="Reward:" />
+                                            <Run Text="{Binding Payment, StringFormat={}{0:N0} cr/unit, Mode=OneWay}" Foreground="LightGreen" />
                                         </TextBlock>
                                     </Grid>
                                 </StackPanel>
