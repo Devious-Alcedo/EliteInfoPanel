@@ -39,8 +39,11 @@ namespace EliteInfoPanel.ViewModels
         {
             get
             {
+                // Calculate available cargo as the minimum of what you have and what's still needed
                 int availableCargo = Math.Min(ShipCargoQuantity + CarrierCargoQuantity, Remaining);
-                return Required > 0 ? (double)availableCargo / Required * 100.0 : 0;
+
+                // Calculate as percentage of REMAINING requirement, not total
+                return Remaining > 0 ? (double)availableCargo / Remaining * 100.0 : 0;
             }
         }
 
