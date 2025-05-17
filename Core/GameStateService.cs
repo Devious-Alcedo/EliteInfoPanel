@@ -559,6 +559,8 @@ namespace EliteInfoPanel.Core
                     FleetCarrierJumpInProgress, IsOnFleetCarrier, JumpArrived);
 
                 FleetCarrierJumpInProgress = false;
+                Log.Information("Setting FleetCarrierJumpInProgress to false from {Method}",
+    new StackTrace().GetFrame(1)?.GetMethod()?.Name ?? "unknown");
                 CarrierJumpScheduledTime = null;
                 CarrierJumpDestinationSystem = null;
                 CarrierJumpDestinationBody = null;
@@ -1379,16 +1381,7 @@ namespace EliteInfoPanel.Core
             return FCMaterialItemsEqual(mat1.Items, mat2.Items);
         }
 
-        private void OnCarrierJumpComplete()
-        {
-            // Set the flag to indicate the jump has completed
-            FleetCarrierJumpInProgress = false;
-            JumpArrived = true;
-
-            // Ensure the overlay is triggered
-            OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // This will re-evaluate the ShowCarrierJumpOverlay property
-            Log.Information("Carrier jump completed, overlay should be shown now.");
-        }
+       
 
         private async Task ProcessJournalAsync()
         {
@@ -1814,6 +1807,8 @@ namespace EliteInfoPanel.Core
                                     CarrierJumpDestinationSystem = null;
                                     CarrierJumpDestinationBody = null;
                                     FleetCarrierJumpInProgress = false;
+                                    Log.Information("Setting FleetCarrierJumpInProgress to false from {Method}",
+    new StackTrace().GetFrame(1)?.GetMethod()?.Name ?? "unknown");
                                     OnPropertyChanged(nameof(CarrierJumpDestinationSystem));
                                     OnPropertyChanged(nameof(FleetCarrierJumpTime));
                                     break;
@@ -1849,6 +1844,8 @@ namespace EliteInfoPanel.Core
                                     JumpArrived = true;
                                     // Clear jump state
                                     FleetCarrierJumpInProgress = false;
+                                    Log.Information("Setting FleetCarrierJumpInProgress to false from {Method}",
+    new StackTrace().GetFrame(1)?.GetMethod()?.Name ?? "unknown");
                                     CarrierJumpScheduledTime = null;
                                     CarrierJumpDestinationSystem = null;
                                     CarrierJumpDestinationBody = null;
@@ -1863,6 +1860,8 @@ namespace EliteInfoPanel.Core
                                         CarrierJumpDestinationSystem = null;
                                         CarrierJumpDestinationBody = null;
                                         FleetCarrierJumpInProgress = false;
+                                        Log.Information("Setting FleetCarrierJumpInProgress to false from {Method}",
+    new StackTrace().GetFrame(1)?.GetMethod()?.Name ?? "unknown");
                                     }
                                     else
                                     {
@@ -1871,8 +1870,8 @@ namespace EliteInfoPanel.Core
                                     break;
 
                                 case "CarrierLocation":
-                                    Log.Debug("CarrierLocation seen — clearing any jump state");
-                                    FleetCarrierJumpInProgress = false;
+                                    Log.Debug("CarrierLocation seen — updating location");
+                                    //FleetCarrierJumpInProgress = false;
                                    // JumpArrived = true;
 
                                     bool isOnCarrier = false;
