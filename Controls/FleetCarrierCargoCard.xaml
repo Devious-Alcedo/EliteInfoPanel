@@ -4,26 +4,21 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:EliteInfoPanel.ViewModels">
 
-    <!-- Use Grid as root element to enable proper vertical scaling -->
     <Grid Margin="8">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <!-- Title -->
             <RowDefinition Height="*"/>
-            <!-- Scrollable content (will expand to fill space) -->
             <RowDefinition Height="Auto"/>
-            <!-- Add new item section -->
             <RowDefinition Height="Auto"/>
-            <!-- Status message -->
         </Grid.RowDefinitions>
 
-        <!-- Title - Grid.Row 0 -->
+        <!-- Title -->
         <TextBlock Text="{Binding Title}" 
                    Style="{StaticResource CardTitleStyle}"
                    Grid.Row="0"
                    Margin="0,0,0,8"/>
 
-        <!-- Cargo List - Grid.Row 1 (will expand to fill space) -->
+        <!-- Cargo List -->
         <ScrollViewer Grid.Row="1"
                      VerticalScrollBarVisibility="Auto" 
                      HorizontalScrollBarVisibility="Disabled"
@@ -42,10 +37,9 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- Commodity Name - use FontSize binding and set Foreground to white -->
+                                <!-- Commodity Name -->
                                 <TextBlock Text="{Binding Name}" 
                                            Grid.Column="0" 
                                            VerticalAlignment="Center"
@@ -54,37 +48,36 @@
                                            TextTrimming="CharacterEllipsis"
                                            FontSize="{Binding FontSize}"/>
 
-                                <!-- Quantity - use FontSize binding and set Foreground to white -->
-                                <TextBlock Text="{Binding Quantity}" 
-                                           Grid.Column="1" 
-                                           Margin="8,0,8,0" 
-                                           MinWidth="30" 
-                                           TextAlignment="Right" 
-                                           VerticalAlignment="Center"
-                                           Foreground="White"
-                                           FontSize="{Binding FontSize}"/>
+                                <!-- Quantity Text Box -->
+                                <TextBox Grid.Column="1" 
+                                         Text="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}"
+                                         Width="60" 
+                                         Margin="8,0,8,0"
+                                         VerticalAlignment="Center"
+                                         FontSize="{Binding FontSize}"
+                                         Foreground="White"
+                                         Background="#22FFFFFF"
+                                         materialDesign:TextFieldAssist.TextBoxViewMargin="0,0,5,0"
+                                         materialDesign:TextFieldAssist.DecorationVisibility="Hidden">
+                                    <TextBox.InputBindings>
+                                        <KeyBinding Key="Enter" 
+                                                   Command="{Binding DataContext.UpdateQuantityCommand, 
+                                                   RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                   CommandParameter="{Binding}"/>
+                                    </TextBox.InputBindings>
+                                </TextBox>
 
-                                <!-- Adjustment Buttons -->
+                                <!-- Delete Button -->
                                 <Button Grid.Column="2" 
-                                        Style="{DynamicResource MaterialDesignIconFlatButton}" 
-                                        Command="{Binding DataContext.DecrementCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="{Binding}" 
-                                        Width="30" 
-                                        Height="30" 
-                                        Padding="0" 
-                                        Margin="2,0">
-                                    <materialDesign:PackIcon Kind="Minus" Height="18" Width="18"/>
-                                </Button>
-
-                                <Button Grid.Column="3" 
                                         Style="{DynamicResource MaterialDesignIconFlatButton}"
-                                        Command="{Binding DataContext.IncrementCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        Command="{Binding DataContext.DeleteItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding}" 
+                                        ToolTip="Remove item"
                                         Width="30" 
                                         Height="30" 
                                         Padding="0" 
                                         Margin="2,0">
-                                    <materialDesign:PackIcon Kind="Plus" Height="18" Width="18"/>
+                                    <materialDesign:PackIcon Kind="DeleteOutline" Height="18" Width="18" Foreground="#FFE57373"/>
                                 </Button>
                             </Grid>
                         </Border>
@@ -93,7 +86,7 @@
             </ItemsControl>
         </ScrollViewer>
 
-        <!-- Add New Section - Grid.Row 2 -->
+        <!-- Add New Section -->
         <Grid Grid.Row="2" Margin="0,8,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -101,7 +94,6 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Use FontSize from ViewModel and set proper foreground -->
             <TextBox Grid.Column="0" 
                      materialDesign:HintAssist.Hint="Commodity name" 
                      Text="{Binding NewCommodityName, UpdateSourceTrigger=PropertyChanged}"
@@ -125,7 +117,7 @@
             </Button>
         </Grid>
 
-        <!-- Status Message - Grid.Row 3 -->
+        <!-- Status Message -->
         <TextBlock Grid.Row="3"
                    Text="(Tracking live transfers)" 
                    FontStyle="Italic"

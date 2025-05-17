@@ -898,7 +898,7 @@ namespace EliteInfoPanel.Core
 
             return null;
         }
-
+      
         private void EnsureHyperspaceTimeout()
         {
             // Cancel any existing timeout
@@ -1104,7 +1104,13 @@ namespace EliteInfoPanel.Core
                 // Mark initialization as complete
                 _firstLoadCompleted = true;
                 Log.Information("✅ GameStateService: First load completed");
+                // Check for stale carrier jump states
+                ResetFleetCarrierJumpState();
 
+                // Explicitly notify key jump-related properties 
+                OnPropertyChanged(nameof(FleetCarrierJumpInProgress));
+                OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
+                OnPropertyChanged(nameof(JumpArrived));
                 // Notify subscribers
                 FirstLoadCompletedEvent?.Invoke();
             }
@@ -2228,6 +2234,7 @@ namespace EliteInfoPanel.Core
                 DateTime? latestDeparture = null;
                 string system = null;
                 string body = null;
+                bool jumpCompleted = false;
 
                 foreach (var path in journalFiles)
                 {
@@ -2242,8 +2249,10 @@ namespace EliteInfoPanel.Core
                         var root = doc.RootElement;
 
                         if (!root.TryGetProperty("event", out var eventProp)) continue;
+                        string eventType = eventProp.GetString();
 
-                        if (eventProp.GetString() == "CarrierJumpRequest")
+                        // Check for carrier jumps
+                        if (eventType == "CarrierJumpRequest")
                         {
                             if (root.TryGetProperty("DepartureTime", out var dtProp) &&
                                 DateTime.TryParse(dtProp.GetString(), out var dt) &&
@@ -2262,30 +2271,49 @@ namespace EliteInfoPanel.Core
                                 }
                             }
                         }
+                        else if (eventType == "CarrierJump" || eventType == "CarrierJumpCancelled")
+                        {
+                            // If we find a completed jump after our potential jump request
+                            if (latestDeparture != null &&
+                                root.TryGetProperty("timestamp", out var timestamp) &&
+                                DateTime.TryParse(timestamp.GetString(), out var eventTime) &&
+                                eventTime > latestDeparture)
+                            {
+                                jumpCompleted = true;
+                                break;
+                            }
+                        }
                     }
 
-                    if (latestDeparture != null) break; // found in newest journal
+                    if (jumpCompleted || latestDeparture != null) break; // found conclusive evidence
                 }
 
-                if (latestDeparture != null)
+                if (latestDeparture != null && !jumpCompleted)
                 {
+                    // Only set jump in progress if we found a request without a completion
                     FleetCarrierJumpTime = latestDeparture;
+                    CarrierJumpScheduledTime = latestDeparture;
                     CarrierJumpDestinationSystem = system;
                     CarrierJumpDestinationBody = body;
                     FleetCarrierJumpInProgress = true;
-                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // ✅ force re-eval
+                    JumpArrived = false;
 
-                    Log.Debug("Recovered scheduled CarrierJump to {System}, {Body} at {Time}",
+                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // Force re-eval
+                    Log.Information("Recovered scheduled CarrierJump to {System}, {Body} at {Time}",
                         system, body, latestDeparture);
                 }
-
+                else if (jumpCompleted)
+                {
+                    Log.Information("Found evidence of a completed jump in journal - not setting jump state");
+                    FleetCarrierJumpInProgress = false;
+                    JumpArrived = true;
+                }
             }
             catch (Exception ex)
             {
                 Log.Warning(ex, "Failed to scan journal for CarrierJumpRequest on startup");
             }
         }
-
         private void SetupFileWatcher(string fileName, Func<bool> loadMethod)
         {
             try

@@ -1,22 +1,22 @@
-﻿using System;
-using System.ComponentModel;
-using System.Formats.Asn1;
-using System.Windows;
-using System.Windows.Interop;
-using System.Windows.Media;
-
-using System.Linq;
-using System.Reflection;
-using System.Windows;
-using System.Windows.Input;
-using EliteInfoPanel.Controls;
+﻿using EliteInfoPanel.Controls;
 using EliteInfoPanel.Core;
 using EliteInfoPanel.Dialogs;
 using EliteInfoPanel.Util;
 using EliteInfoPanel.ViewModels;
 using Serilog;
-using WpfScreenHelper;
+using System;
+using System.ComponentModel;
 using System.Diagnostics;
+using System.Formats.Asn1;
+using System.Linq;
+using System.Reflection;
+using System.Windows;
+using System.Windows;
+using System.Windows.Input;
+using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Threading;
+using WpfScreenHelper;
 
 
 namespace EliteInfoPanel
@@ -547,11 +547,20 @@ namespace EliteInfoPanel
                     }
                 };
                 // Setup CarrierJumpOverlay
-                // Setup CarrierJumpOverlay
                 if (CarrierJumpOverlay != null)
                 {
                     CarrierJumpOverlay.ForceHidden();
                     CarrierJumpOverlay.SetGameState(vm._gameState);
+
+                    // First check: explicitly reset any stale jump state
+                    vm._gameState.ResetFleetCarrierJumpState();
+
+                    // Force an immediate check for carrier jump
+                    Dispatcher.BeginInvoke(new Action(() => {
+                        // Delay slightly to ensure all properties are properly initialized
+                        CarrierJumpOverlay.UpdateVisibility();
+                        Log.Information("Forced initial check of carrier jump overlay visibility");
+                    }), DispatcherPriority.Background);
 
                     // Watch for ShowCarrierJumpOverlay changes
                     vm._gameState.PropertyChanged += (s, args) =>

@@ -19,7 +19,8 @@ namespace EliteInfoPanel.ViewModels
         private string _newCommodityName;
         private int _newCommodityQuantity = 1;
         private Dictionary<string, int> _lastKnownGameState = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
+        public RelayCommand UpdateQuantityCommand { get; }
+        public RelayCommand DeleteItemCommand { get; }
         public ObservableCollection<CarrierCargoItem> Cargo { get; } = new();
         public override double FontSize
         {
@@ -67,6 +68,8 @@ namespace EliteInfoPanel.ViewModels
             _cargoSavePath = Path.Combine(appDataFolder, "CarrierCargo.json");
 
             // Initialize commands
+            UpdateQuantityCommand = new RelayCommand(UpdateItemQuantity);
+            DeleteItemCommand = new RelayCommand(DeleteItem);
             IncrementCommand = new RelayCommand(IncrementCommodity);
             DecrementCommand = new RelayCommand(DecrementCommodity);
             AddCommodityCommand = new RelayCommand(_ => AddCommodity(), _ => CanAddCommodity());
@@ -98,7 +101,53 @@ namespace EliteInfoPanel.ViewModels
             _initialSyncComplete = true;
             Log.Information("Fleet carrier cargo initialization complete - real-time updates enabled");
         }
+        private void UpdateItemQuantity(object parameter)
+        {
+            if (parameter is CarrierCargoItem item)
+            {
+                // Validate the quantity
+                if (item.Quantity >= 0)
+                {
+                    if (item.Quantity == 0)
+                    {
+                        // If quantity is zero, delete the item
+                        DeleteItem(item);
+                        return;
+                    }
 
+                    // Update the GameState with the new quantity
+                    _gameState.UpdateCarrierCargoItem(item.Name, item.Quantity);
+
+                    // Save data after update
+                    SaveCargoData();
+                    Log.Debug("Updated {Name} quantity to {Quantity}", item.Name, item.Quantity);
+                }
+                else
+                {
+                    // If negative quantity, revert to 1 as minimum
+                    item.Quantity = 1;
+                    _gameState.UpdateCarrierCargoItem(item.Name, item.Quantity);
+                    Log.Warning("Invalid quantity input for {Name}, set to minimum of 1", item.Name);
+                }
+            }
+        }
+
+        private void DeleteItem(object parameter)
+        {
+            if (parameter is CarrierCargoItem item)
+            {
+                Log.Debug("Deleting item: {Name}", item.Name);
+
+                // Update GameState (setting quantity to 0 removes the item)
+                _gameState.UpdateCarrierCargoItem(item.Name, 0);
+
+                // Remove from UI collection directly
+                Cargo.Remove(item);
+
+                // Save after deletion
+                SaveCargoData();
+            }
+        }
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(GameStateService.CurrentCarrierCargo) && _initialSyncComplete)
