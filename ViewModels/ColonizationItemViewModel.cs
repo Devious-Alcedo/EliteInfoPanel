@@ -35,6 +35,26 @@ namespace EliteInfoPanel.ViewModels
         {
             _parent = parent;
         }
+        public double AvailableCargoPercentage
+        {
+            get
+            {
+                int availableCargo = Math.Min(ShipCargoQuantity + CarrierCargoQuantity, Remaining);
+                return Required > 0 ? (double)availableCargo / Required * 100.0 : 0;
+            }
+        }
+
+        // Calculate total potential completion (current + available cargo)
+        public double TotalPotentialPercentage
+        {
+            get
+            {
+                return Math.Min(100, CompletionPercentage + AvailableCargoPercentage);
+            }
+        }
+
+        // Color for the available cargo portion
+        public Brush AvailableCargoColor => new SolidColorBrush(Colors.DeepSkyBlue);
 
         // Dynamic properties that look up values from the parent
         public int ShipCargoQuantity
