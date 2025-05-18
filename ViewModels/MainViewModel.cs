@@ -40,7 +40,7 @@ namespace EliteInfoPanel.ViewModels
                 }
             }
         }
-
+        public bool IsDevelopmentMode => SettingsManager.Load().DevelopmentMode;
         public ObservableCollection<CardViewModel> Cards { get; } = new ObservableCollection<CardViewModel>();
 
         public BackpackViewModel BackpackCard { get; }
@@ -629,6 +629,12 @@ namespace EliteInfoPanel.ViewModels
 
         private bool IsEliteRunning()
         {
+            // Automatically return true if in development mode
+            if (SettingsManager.Load().DevelopmentMode)
+            {
+                return true;
+            }
+
             var status = _gameState?.CurrentStatus;
             return status != null && (
                 status.Flags.HasFlag(Flag.Docked) ||

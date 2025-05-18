@@ -201,7 +201,33 @@ namespace EliteInfoPanel.Core
 
         public GameStateService(string path)
         {
-            gamePath = path;
+            var settings = SettingsManager.Load();
+            if (settings.DevelopmentMode)
+            {
+                Log.Information("🔧 DEVELOPMENT MODE ENABLED - Using simulated journal entries");
+                // Override path with development journal path
+                string devJournalPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "EliteInfoPanel",
+                    settings.DevelopmentJournalPath);
+
+                // Create directory if it doesn't exist
+                Directory.CreateDirectory(Path.GetDirectoryName(devJournalPath));
+
+                // If development journal doesn't exist, create an empty one
+                if (!File.Exists(devJournalPath))
+                {
+                    File.WriteAllText(devJournalPath, "");
+                    Log.Information("Created empty development journal at {Path}", devJournalPath);
+                }
+
+                gamePath = Path.GetDirectoryName(devJournalPath);
+                Log.Information("Using development journal path: {Path}", devJournalPath);
+            }
+            else
+            {
+                gamePath = path;
+            }
 
             // Set up individual file watchers for each important file
             SetupFileWatcher("Status.json", () => LoadStatusData());
@@ -2371,6 +2397,9 @@ namespace EliteInfoPanel.Core
         {
             try
             {
+                var settings = SettingsManager.Load();
+                string journalFilter = settings.DevelopmentMode ? "Journal.FAKEEVENTS.*.log" : "Journal.*.log";
+
                 // First find the latest journal file
                 latestJournalPath = Directory.GetFiles(gamePath, "Journal.*.log")
                     .OrderByDescending(File.GetLastWriteTime)

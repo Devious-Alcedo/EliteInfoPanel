@@ -184,55 +184,39 @@
                                             <!-- Background (gray) -->
                                             <Rectangle Fill="#22FFFFFF" Height="8"/>
 
-                                            <!-- Completed Portion (green/yellow/orange) -->
-                                            <Rectangle Fill="{Binding ProgressColor}" Height="8" HorizontalAlignment="Left">
-                                                <Rectangle.Width>
-                                                    <MultiBinding Converter="{StaticResource ProgressToWidthMultiConverter}">
-                                                        <Binding Path="CompletionPercentage" Mode="OneWay"/>
-                                                        <Binding Path="ActualWidth" RelativeSource="{RelativeSource AncestorType=Grid}" Mode="OneWay"/>
-                                                        <Binding>
-                                                            <Binding.Source>
-                                                                <sys:Double>100</sys:Double>
-                                                            </Binding.Source>
-                                                        </Binding>
-                                                    </MultiBinding>
-                                                </Rectangle.Width>
-                                            </Rectangle>
+                                            <!-- Container for both progress segments -->
+                                            <StackPanel Orientation="Horizontal">
+                                                <!-- Completed Portion (green/yellow/orange) -->
+                                                <Rectangle Fill="{Binding ProgressColor}" Height="8">
+                                                    <Rectangle.Width>
+                                                        <MultiBinding Converter="{StaticResource ProgressToWidthMultiConverter}">
+                                                            <Binding Path="CompletionPercentage" Mode="OneWay"/>
+                                                            <Binding Path="ActualWidth" RelativeSource="{RelativeSource AncestorType=Grid}" Mode="OneWay"/>
+                                                            <Binding>
+                                                                <Binding.Source>
+                                                                    <sys:Double>100</sys:Double>
+                                                                </Binding.Source>
+                                                            </Binding>
+                                                        </MultiBinding>
+                                                    </Rectangle.Width>
+                                                </Rectangle>
 
-                                            <!-- Available Cargo Portion (blue) -->
-                                            <Rectangle Fill="DeepSkyBlue" Height="8" HorizontalAlignment="Left">
-                                                <!-- Position after the completed portion -->
-                                                <Rectangle.Margin>
-                                                    <MultiBinding Converter="{StaticResource ProgressToWidthMultiConverter}">
-                                                        <Binding Path="CompletionPercentage" Mode="OneWay"/>
-                                                        <Binding Path="ActualWidth" RelativeSource="{RelativeSource AncestorType=Grid}" Mode="OneWay"/>
-                                                        <Binding>
-                                                            <Binding.Source>
-                                                                <sys:Double>100</sys:Double>
-                                                            </Binding.Source>
-                                                        </Binding>
-                                                        <Binding>
-                                                            <Binding.Source>
-                                                                <sys:Double>0</sys:Double>
-                                                            </Binding.Source>
-                                                        </Binding>
-                                                    </MultiBinding>
-                                                </Rectangle.Margin>
-                                                <!-- Width based on available cargo -->
-                                                <Rectangle.Width>
-                                                    <MultiBinding Converter="{StaticResource ProgressToWidthMultiConverter}">
-                                                        <Binding Path="AvailableCargoPercentage" Mode="OneWay"/>
-                                                        <Binding Path="ActualWidth" RelativeSource="{RelativeSource AncestorType=Grid}" Mode="OneWay"/>
-                                                        <Binding>
-                                                            <Binding.Source>
-                                                                <sys:Double>100</sys:Double>
-                                                            </Binding.Source>
-                                                        </Binding>
-                                                    </MultiBinding>
-                                                </Rectangle.Width>
-                                            </Rectangle>
+                                                <!-- Available Cargo Portion (blue) - follows immediately after -->
+                                                <Rectangle Fill="DeepSkyBlue" Height="8">
+                                                    <Rectangle.Width>
+                                                        <MultiBinding Converter="{StaticResource ProgressToWidthMultiConverter}">
+                                                            <Binding Path="AvailableCargoPercentage" Mode="OneWay"/>
+                                                            <Binding Path="ActualWidth" RelativeSource="{RelativeSource AncestorType=Grid}" Mode="OneWay"/>
+                                                            <Binding>
+                                                                <Binding.Source>
+                                                                    <sys:Double>100</sys:Double>
+                                                                </Binding.Source>
+                                                            </Binding>
+                                                        </MultiBinding>
+                                                    </Rectangle.Width>
+                                                </Rectangle>
+                                            </StackPanel>
                                         </Grid>
-
                                         <TextBlock Grid.Column="1"
                                                    Margin="8,0,0,0"
                                                    VerticalAlignment="Center"
