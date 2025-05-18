@@ -9,10 +9,22 @@ namespace EliteInfoPanel.Core
 {
     public static class EliteDangerousPaths
     {
-        public static string GetSavedGamesPath()
+        public static string GetSavedGamesPath(bool developmentMode = false)
         {
-            var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            return Path.Combine(userProfile, "Saved Games", "Frontier Developments", "Elite Dangerous");
+            if (developmentMode)
+            {
+                var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                var basePath = Path.Combine(userProfile, "Saved Games", "Frontier Developments", "Elite Dangerous");
+
+                // Create dev folder if it doesn't exist
+                var devPath = Path.Combine(basePath, "dev");
+                Directory.CreateDirectory(devPath);
+
+                return devPath;
+            }
+
+            var regPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            return Path.Combine(regPath, "Saved Games", "Frontier Developments", "Elite Dangerous");
         }
     }
 }

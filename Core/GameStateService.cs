@@ -205,24 +205,13 @@ namespace EliteInfoPanel.Core
             if (settings.DevelopmentMode)
             {
                 Log.Information("🔧 DEVELOPMENT MODE ENABLED - Using simulated journal entries");
-                // Override path with development journal path
-                string devJournalPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "EliteInfoPanel",
-                    settings.DevelopmentJournalPath);
+                // Get the development path (dev folder in the same location as real game files)
+                gamePath = EliteDangerousPaths.GetSavedGamesPath(true);
 
-                // Create directory if it doesn't exist
-                Directory.CreateDirectory(Path.GetDirectoryName(devJournalPath));
+                // Ensure crucial files exist in dev folder
+                EnsureDevelopmentFilesExist(gamePath);
 
-                // If development journal doesn't exist, create an empty one
-                if (!File.Exists(devJournalPath))
-                {
-                    File.WriteAllText(devJournalPath, "");
-                    Log.Information("Created empty development journal at {Path}", devJournalPath);
-                }
-
-                gamePath = Path.GetDirectoryName(devJournalPath);
-                Log.Information("Using development journal path: {Path}", devJournalPath);
+                Log.Information("Using development journal path: {Path}", gamePath);
             }
             else
             {
@@ -245,7 +234,36 @@ namespace EliteInfoPanel.Core
             // Scan journal for pending carrier jump
             ScanJournalForPendingCarrierJump();
         }
+        private void EnsureDevelopmentFilesExist(string devPath)
+        {
+            // Create minimal versions of required files if they don't exist
+            string[] requiredFiles = {
+        "Status.json",
+        "NavRoute.json",
+        "Cargo.json",
+        "Backpack.json",
+        "FCMaterials.json"
+    };
 
+            foreach (var file in requiredFiles)
+            {
+                string filePath = Path.Combine(devPath, file);
+                if (!File.Exists(filePath))
+                {
+                    // Create an empty file with minimal valid JSON structure
+                    File.WriteAllText(filePath, "{}");
+                    Log.Information("Created empty development file: {File}", filePath);
+                }
+            }
+
+            // Ensure at least one journal file exists
+            string journalPath = Path.Combine(devPath, "Journal.log");
+            if (!Directory.GetFiles(devPath, "Journal.*.log").Any())
+            {
+                File.WriteAllText(journalPath, "");
+                Log.Information("Created empty development journal: {File}", journalPath);
+            }
+        }
         #endregion Public Constructors
 
         #region Public Events
@@ -2343,6 +2361,15 @@ namespace EliteInfoPanel.Core
         {
             try
             {
+                if (SettingsManager.Load().DevelopmentMode)
+                {
+                    string filePath = Path.Combine(gamePath, fileName);
+                    if (!File.Exists(filePath))
+                    {
+                        File.WriteAllText(filePath, "{}");
+                        Log.Debug("Created empty development file: {File}", filePath);
+                    }
+                }
                 var watcher = new FileSystemWatcher(gamePath)
                 {
                     Filter = fileName,
@@ -2398,7 +2425,7 @@ namespace EliteInfoPanel.Core
             try
             {
                 var settings = SettingsManager.Load();
-                string journalFilter = settings.DevelopmentMode ? "Journal.FAKEEVENTS.*.log" : "Journal.*.log";
+                string journalFilter = "Journal.*.log";
 
                 // First find the latest journal file
                 latestJournalPath = Directory.GetFiles(gamePath, "Journal.*.log")
