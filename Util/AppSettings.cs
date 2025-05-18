@@ -14,6 +14,8 @@ namespace EliteInfoPanel.Util
         public bool ShowSummary { get; set; }
         public bool ShowFlags { get; set; }
         public bool ShowCargo { get; set; }
+        public bool DevelopmentMode { get; set; } = false;
+        public string DevelopmentJournalPath { get; set; } = "Journal.FAKEEVENTS.01.log";
         public bool ShowFleetCarrierCargoCard { get; set; } = true;
         // Add these properties to the AppSettings class
         public double FleetCarrierWindowWidth { get; set; } = 500;

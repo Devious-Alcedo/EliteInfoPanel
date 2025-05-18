@@ -16,7 +16,7 @@
     <Window.Resources>
         <converters:ScaleToFontSizeConverter x:Key="ScaleToFontSizeConverter"/>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
-
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
         <!-- Custom styles using your existing resources -->
         <Style x:Key="ThemedCheckBoxStyle" TargetType="CheckBox">
             <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
@@ -207,7 +207,20 @@
                                               Foreground="{DynamicResource MaterialDesignBody}"/>
                                 </StackPanel>
                             </GroupBox>
-
+                            <!-- Add this to the Settings tab -->
+                            <GroupBox Header="Development Settings" Margin="0,0,0,12" Style="{StaticResource EliteGroupBox}">
+                                <StackPanel>
+                                    <CheckBox Content="Enable Development Mode" 
+                 IsChecked="{Binding DevelopmentMode}" 
+                 ToolTip="Uses simulated journal entries for testing"
+                 Margin="0,5,0,5"/>
+                                    <TextBlock Text="WARNING: Application must be restarted for changes to take effect!" 
+                  Foreground="Orange"
+                  Visibility="{Binding DevelopmentMode, Converter={StaticResource BoolToVis}}"
+                  FontStyle="Italic" 
+                  Margin="24,0,0,5"/>
+                                </StackPanel>
+                            </GroupBox>
                             <!-- Change Display Button -->
                             <StackPanel Orientation="Horizontal"
                                        HorizontalAlignment="Right"
