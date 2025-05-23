@@ -21,7 +21,18 @@ namespace EliteInfoPanel.ViewModels
         #endregion Private Fields
 
         #region Public Constructors
-
+        public bool DevelopmentMode
+        {
+            get => _appSettings.DevelopmentMode;
+            set
+            {
+                if (_appSettings.DevelopmentMode != value)
+                {
+                    _appSettings.DevelopmentMode = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
         public SettingsViewModel(AppSettings settings)
         {
             _appSettings = settings ?? throw new ArgumentNullException(nameof(settings));

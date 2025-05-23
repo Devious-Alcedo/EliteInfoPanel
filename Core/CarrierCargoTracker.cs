@@ -66,30 +66,37 @@ namespace EliteInfoPanel.Core
             if (root.TryGetProperty("Commodity", out var commodityProp) &&
                 root.TryGetProperty("Count", out var countProp))
             {
-                string name = commodityProp.GetString();
+                string internalName = commodityProp.GetString();
                 int count = countProp.GetInt32();
 
-                if (!string.IsNullOrWhiteSpace(name))
+                if (!string.IsNullOrWhiteSpace(internalName))
                 {
-                    _cargo[name] = count;
+                    // Convert to display name for consistency
+                    string displayName = CommodityMapper.GetDisplayName(internalName);
+                    _cargo[displayName] = count;
+                    Log.Debug("Set commodity count: {DisplayName} = {Count}", displayName, count);
                 }
             }
         }
-
         private void ProcessAddToCarrier(JsonElement root)
         {
             if (root.TryGetProperty("Type", out var typeProp) &&
                 root.TryGetProperty("Count", out var countProp))
             {
-                string name = typeProp.GetString();
+                string internalName = typeProp.GetString();
                 int count = countProp.GetInt32();
 
-                if (!string.IsNullOrWhiteSpace(name))
+                if (!string.IsNullOrWhiteSpace(internalName))
                 {
-                    if (_cargo.TryGetValue(name, out var existing))
-                        _cargo[name] = existing + count;
+                    // Convert to display name
+                    string displayName = CommodityMapper.GetDisplayName(internalName);
+
+                    if (_cargo.TryGetValue(displayName, out var existing))
+                        _cargo[displayName] = existing + count;
                     else
-                        _cargo[name] = count;
+                        _cargo[displayName] = count;
+
+                    Log.Debug("Added to carrier via market: {DisplayName} + {Count}", displayName, count);
                 }
             }
         }
@@ -99,29 +106,27 @@ namespace EliteInfoPanel.Core
             if (root.TryGetProperty("Type", out var typeProp) &&
                 root.TryGetProperty("Count", out var countProp))
             {
-                string name = typeProp.GetString();
+                string internalName = typeProp.GetString();
                 int count = countProp.GetInt32();
 
-                if (!string.IsNullOrWhiteSpace(name))
+                if (!string.IsNullOrWhiteSpace(internalName))
                 {
-                    if (_cargo.TryGetValue(name, out var existing))
+                    // Convert to display name
+                    string displayName = CommodityMapper.GetDisplayName(internalName);
+
+                    if (_cargo.TryGetValue(displayName, out var existing))
                     {
-                        _cargo[name] = System.Math.Max(0, existing - count);
-                        if (_cargo[name] == 0)
-                            _cargo.Remove(name);
+                        _cargo[displayName] = System.Math.Max(0, existing - count);
+                        if (_cargo[displayName] == 0)
+                            _cargo.Remove(displayName);
+
+                        Log.Debug("Removed from carrier via market: {DisplayName} - {Count}", displayName, count);
                     }
                 }
             }
         }
 
-        // In CarrierCargoTracker.cs
-        // In CarrierCargoTracker.cs - Fix the ProcessTransfer method
 
-        // In CarrierCargoTracker.cs - Fix the ProcessTransfer method
-        // 1. Fix in CarrierCargoTracker.ProcessTransfer
-        // - Preserve spaces in names
-        // - Use case-insensitive comparison consistent with the UI
-        // In CarrierCargoTracker.cs - Update ProcessTransfer to handle name mapping
         private void ProcessTransfer(JsonElement root)
         {
             if (!root.TryGetProperty("Transfers", out var transfersProp) || transfersProp.ValueKind != JsonValueKind.Array)
@@ -133,65 +138,51 @@ namespace EliteInfoPanel.Core
                     transfer.TryGetProperty("Count", out var countProp) &&
                     transfer.TryGetProperty("Direction", out var directionProp))
                 {
-                    string name = typeProp.GetString();
+                    string internalName = typeProp.GetString();
                     int count = countProp.GetInt32();
                     string direction = directionProp.GetString();
 
-                    if (string.IsNullOrWhiteSpace(name)) continue;
+                    if (string.IsNullOrWhiteSpace(internalName)) continue;
 
-                    // IMPORTANT: CargoTransfer uses internal names, but we need to check if there's 
-                    // an existing entry using the display name key (from manual additions)
-                    string keyToUse = name;
-                    string displayName = CommodityMapper.GetDisplayName(name);
+                    string displayName = CommodityMapper.GetDisplayName(internalName);
 
-                    // Check if we have this commodity stored under its display name
-                    if (_cargo.ContainsKey(displayName) && !_cargo.ContainsKey(name))
-                    {
-                        // We have it stored as display name, use that key
-                        keyToUse = displayName;
-                        Log.Information("Found existing item stored as display name: '{DisplayName}' for internal '{Internal}'",
-                            displayName, name);
-                    }
-                    else if (_cargo.ContainsKey(name))
-                    {
-                        // We have it stored as internal name, use that
-                        keyToUse = name;
-                    }
-                    else
-                    {
-                        // New item, use internal name (the standard)
-                        keyToUse = name;
-                    }
+                    Log.Information("Processing transfer: {InternalName} ({DisplayName}) - {Direction} {Count}",
+                        internalName, displayName, direction, count);
 
-                    Log.Information("Processing transfer: {Item} ({Key}) - {Direction} {Count}",
-                        displayName, keyToUse, direction, count);
-
-                    // Process the transfer
                     if (string.Equals(direction, "tocarrier", StringComparison.OrdinalIgnoreCase))
                     {
-                        // Add to existing quantity
-                        _cargo[keyToUse] = _cargo.TryGetValue(keyToUse, out int current) ? current + count : count;
+                        // When adding to carrier, use display name for consistency with UI
+                        _cargo[displayName] = _cargo.TryGetValue(displayName, out int current) ? current + count : count;
+
                         Log.Information("Added to carrier: {Item} now at {NewQty} (was {OldQty})",
-                            displayName, _cargo[keyToUse], current);
+                            displayName, _cargo[displayName], current);
                     }
                     else if (string.Equals(direction, "toship", StringComparison.OrdinalIgnoreCase) ||
                              string.Equals(direction, "fromcarrier", StringComparison.OrdinalIgnoreCase))
                     {
-                        // Remove from carrier
-                        if (_cargo.TryGetValue(keyToUse, out int current))
+                        // Remove from carrier - look for the item by display name
+                        if (_cargo.TryGetValue(displayName, out int currentQuantity))
                         {
-                            int newAmount = Math.Max(0, current - count);
+                            int newAmount = Math.Max(0, currentQuantity - count);
                             if (newAmount > 0)
                             {
-                                _cargo[keyToUse] = newAmount;
+                                _cargo[displayName] = newAmount;
                                 Log.Information("Removed from carrier: {Item} now at {NewQty} (was {OldQty})",
-                                    displayName, newAmount, current);
+                                    displayName, newAmount, currentQuantity);
                             }
                             else
                             {
-                                _cargo.Remove(keyToUse);
+                                _cargo.Remove(displayName);
                                 Log.Information("Removed completely: {Item} (quantity would be 0)", displayName);
                             }
+                        }
+                        else
+                        {
+                            Log.Warning("Could not find '{DisplayName}' in carrier cargo to remove", displayName);
+
+                            // Log current cargo for debugging
+                            Log.Debug("Current carrier cargo contains: {Items}",
+                                string.Join(", ", _cargo.Select(kvp => $"{kvp.Key}={kvp.Value}")));
                         }
                     }
                 }

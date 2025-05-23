@@ -86,6 +86,17 @@
 
 
         <!-- Add this near the bottom of your MainWindow.xaml, inside the main Grid -->
-      
+        <!-- Add this to MainWindow.xaml, near the bottom of your Grid -->
+        <Border Background="#CC8B0000" 
+       VerticalAlignment="Top" 
+       HorizontalAlignment="Right"
+       Padding="8,4"
+       Margin="10"
+       CornerRadius="4"
+       Visibility="{Binding IsDevelopmentMode, Converter={StaticResource BoolToVis}}">
+            <TextBlock Text="DEVELOPMENT MODE" 
+             Foreground="White" 
+             FontWeight="Bold"/>
+        </Border>
     </Grid>
 </Window>
