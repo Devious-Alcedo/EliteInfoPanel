@@ -71,12 +71,6 @@ namespace EliteInfoPanel.ViewModels
         {
             _gameState = gameState;
             OpenInNewWindowCommand = new RelayCommand(_ => OpenInNewWindow());
-            // Set up save path in AppData
-            string appDataFolder = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "EliteInfoPanel");
-            Directory.CreateDirectory(appDataFolder);
-            _cargoSavePath = Path.Combine(appDataFolder, "CarrierCargo.json");
 
             // Initialize commands
             UpdateQuantityCommand = new RelayCommand(UpdateItemQuantity);
@@ -85,27 +79,25 @@ namespace EliteInfoPanel.ViewModels
             DecrementCommand = new RelayCommand(DecrementCommodity);
             AddCommodityCommand = new RelayCommand(_ => AddCommodity(), _ => CanAddCommodity());
 
-            // First try to load saved data
-            bool hasSavedData = LoadSavedCargoData();
-
-            var savedData = Cargo.ToDictionary(
-                    i => i.Name,
-                    i => i.Quantity,
-                    StringComparer.OrdinalIgnoreCase);  // Use case-insensitive keys
-
-            // Initialize GameStateService with our saved data
-            _gameState.InitializeCargoFromSavedData(savedData);
-
-            if (hasSavedData)
+            // Get the current cargo from GameStateService
+            if (_gameState.CurrentCarrierCargo != null)
             {
-                Log.Information("Loaded {Count} cargo items from saved data", Cargo.Count);
+                foreach (var item in _gameState.CurrentCarrierCargo)
+                {
+                    Cargo.Add(new CarrierCargoItem
+                    {
+                        Name = item.Name,
+                        Quantity = item.Quantity,
+                        FontSize = (int)this.FontSize
+                    });
+                }
                 SetContextVisibility(Cargo.Count > 0);
             }
 
             // Capture initial game state for delta tracking
             CaptureGameState();
 
-            // NOW subscribe to property changes
+            // Subscribe to property changes
             _gameState.PropertyChanged += GameState_PropertyChanged;
 
             // Mark initialization as complete
@@ -220,7 +212,7 @@ namespace EliteInfoPanel.ViewModels
                     _gameState.UpdateCarrierCargoItem(item.Name, item.Quantity);
 
                     // Save data after update
-                    SaveCargoData();
+                   
                     Log.Debug("Updated {Name} quantity to {Quantity}", item.Name, item.Quantity);
                 }
                 else
@@ -246,7 +238,7 @@ namespace EliteInfoPanel.ViewModels
                 Cargo.Remove(item);
 
                 // Save after deletion
-                SaveCargoData();
+     
             }
         }
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -378,71 +370,14 @@ namespace EliteInfoPanel.ViewModels
             // Save if changes were made
             if (madeChanges)
             {
-                SaveCargoData();
+         
                 SetContextVisibility(Cargo.Count > 0);
                 Log.Information("Applied real-time changes to fleet carrier cargo - now {Count} items", Cargo.Count);
             }
         }
-        private bool LoadSavedCargoData()
-        {
-            try
-            {
-                if (File.Exists(_cargoSavePath))
-                {
-                    string json = File.ReadAllText(_cargoSavePath);
-                    var savedItems = JsonSerializer.Deserialize<List<CarrierCargoItem>>(json);
+      
 
-                    if (savedItems != null && savedItems.Any())
-                    {
-                        Cargo.Clear();
-                        foreach (var item in savedItems.Where(i => i.Quantity > 0))
-                        {
-                            Cargo.Add(item);
-                        }
-                        Log.Information("Loaded {Count} cargo items from saved data", Cargo.Count);
-                        return true;
-                    }
-                }
-
-                Log.Information("No saved cargo data found or data was empty");
-                return false;
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error loading saved cargo data");
-                return false;
-            }
-        }
-
-        private void SaveCargoData()
-        {
-            try
-            {
-                // Only save items with quantity > 0 and don't trigger any UI updates
-                var cargoList = Cargo.Where(i => i.Quantity > 0).ToList();
-
-                // Clean up the Cargo collection if needed (shouldn't be needed if we're maintaining it correctly)
-                for (int i = Cargo.Count - 1; i >= 0; i--)
-                {
-                    if (Cargo[i].Quantity <= 0)
-                    {
-                        Cargo.RemoveAt(i);
-                    }
-                }
-
-                string json = JsonSerializer.Serialize(cargoList, new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                });
-
-                File.WriteAllText(_cargoSavePath, json);
-                Log.Debug("Saved {Count} cargo items to disk", cargoList.Count);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error saving cargo data");
-            }
-        }
+      
 
         // In FleetCarrierCargoViewModel.cs - Update IncrementCommodity
         // In FleetCarrierCargoViewModel.cs
@@ -461,7 +396,7 @@ namespace EliteInfoPanel.ViewModels
                 item.Quantity = newQuantity;
 
                 // Save data after all updates
-                SaveCargoData();
+      
             }
         }
 
@@ -487,7 +422,7 @@ namespace EliteInfoPanel.ViewModels
                 }
                 _gameState.UpdateCarrierCargoItem(item.Name, newQuantity);
                 // Save data after all updates
-                SaveCargoData();
+           
             }
         }
 

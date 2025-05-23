@@ -23,7 +23,7 @@ namespace EliteInfoPanel.Core
 
         #region Private Fields
 
-        private const string CarrierCargoFilePath = "carrier_cargo.json";
+        private readonly string CarrierCargoFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"EliteInfoPanel","carrier_cargo_state.json");
         private const string RouteProgressFile = "RouteProgress.json";
         private static readonly SolidColorBrush CountdownGoldBrush = new SolidColorBrush(Colors.Gold);
         private static readonly SolidColorBrush CountdownGreenBrush = new SolidColorBrush(Colors.Green);
@@ -174,13 +174,20 @@ namespace EliteInfoPanel.Core
                 if (File.Exists(CarrierCargoFilePath))
                 {
                     var json = File.ReadAllText(CarrierCargoFilePath);
-                    _carrierCargo = JsonSerializer.Deserialize<Dictionary<string, int>>(json) ?? new();
+                    var loadedCargo = JsonSerializer.Deserialize<Dictionary<string, int>>(json);
+                    if (loadedCargo != null)
+                    {
+                        _carrierCargo = loadedCargo;
+                        _carrierCargoTracker.Initialize(_carrierCargo);
+                        UpdateCurrentCarrierCargoFromDictionary();
+                        Log.Information("Loaded {Count} carrier cargo items from disk", _carrierCargo.Count);
+                    }
                 }
             }
             catch (Exception ex)
             {
-                Log.Information(ex, "Failed to load CarrierCargo");
-                _carrierCargo = new(); // Fallback
+                Log.Error(ex, "Failed to load carrier cargo from disk");
+                _carrierCargo = new Dictionary<string, int>();
             }
         }
 
@@ -188,11 +195,24 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                File.WriteAllText(CarrierCargoFilePath, JsonSerializer.Serialize(_carrierCargo));
+                // Ensure directory exists
+                string directory = Path.GetDirectoryName(CarrierCargoFilePath);
+                if (!string.IsNullOrEmpty(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                var json = JsonSerializer.Serialize(_carrierCargo, new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                });
+
+                File.WriteAllText(CarrierCargoFilePath, json);
+                Log.Debug("Saved {Count} carrier cargo items to disk", _carrierCargo.Count);
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Failed to save CarrierCargo");
+                Log.Error(ex, "Failed to save carrier cargo to disk");
             }
         }
         #endregion Private Fields
@@ -820,7 +840,6 @@ namespace EliteInfoPanel.Core
         {
             Log.Debug("UpdateCarrierCargoItem called: {Item} = {Quantity}", itemName, quantity);
 
-            // Capture old value for logging
             int oldValue = _carrierCargo.TryGetValue(itemName, out int existing) ? existing : 0;
 
             using (BeginUpdate())
@@ -831,14 +850,12 @@ namespace EliteInfoPanel.Core
                 }
                 else
                 {
-                    // If quantity is 0 or negative, remove completely
                     if (_carrierCargo.ContainsKey(itemName))
                     {
                         _carrierCargo.Remove(itemName);
                         Log.Debug("Removed {Item} from carrier cargo tracking dictionary", itemName);
                     }
 
-                    // Also ensure it's removed from UI list in CurrentCarrierCargo
                     var itemToRemove = _currentCarrierCargo.FirstOrDefault(i =>
                         string.Equals(i.Name, itemName, StringComparison.OrdinalIgnoreCase));
 
@@ -849,8 +866,8 @@ namespace EliteInfoPanel.Core
                     }
                 }
 
-                // Update the UI-friendly list
                 UpdateCurrentCarrierCargoFromDictionary();
+                SaveCarrierCargoToDisk(); // ADD THIS LINE
             }
 
             Log.Information("Carrier cargo updated: {Item} {OldValue} → {NewValue}",
@@ -1813,36 +1830,28 @@ namespace EliteInfoPanel.Core
                                     _carrierCargoTracker.Process(root);
                                     CarrierCargo = new Dictionary<string, int>(_carrierCargoTracker.Cargo);
                                     UpdateCurrentCarrierCargoFromDictionary();
+                                    SaveCarrierCargoToDisk(); // ADD THIS LINE
                                     Log.Information("{EventType} processed: {Count} items in carrier cargo",
                                         eventType, CarrierCargo.Count);
                                     break;
                                 case "CargoTransfer":
+                                    if (!_cargoTrackingInitialized)
                                     {
+                                        Log.Debug("Skipping historical cargo event {EventType} during initialization", eventType);
+                                        continue;
+                                    }
+                                    if (root.TryGetProperty("Transfers", out var transfersProp) &&
+                                        transfersProp.ValueKind == JsonValueKind.Array)
+                                    {
+                                        using (BeginUpdate())
                                         {
-                                            if (!_cargoTrackingInitialized)
-                                            {
-                                                Log.Debug("Skipping historical cargo event {EventType} during initialization", eventType);
-                                                continue;
-                                            }
-                                            if (root.TryGetProperty("Transfers", out var transfersProp) &&
-                                                transfersProp.ValueKind == JsonValueKind.Array)
-                                            {
-                                                using (BeginUpdate())
-                                                {
-                                                    // Update through CarrierCargoTracker
-                                                    _carrierCargoTracker.Process(root);
-
-                                                    // Update the Dictionary from the tracker
-                                                    CarrierCargo = new Dictionary<string, int>(_carrierCargoTracker.Cargo);
-
-                                                    // Update the List representation for UI binding
-                                                    UpdateCurrentCarrierCargoFromDictionary();
-                                                }
-
-                                                Log.Information("CargoTransfer processed: {Count} items in carrier cargo",
-                                                    CarrierCargo.Count);
-                                            }
+                                            _carrierCargoTracker.Process(root);
+                                            CarrierCargo = new Dictionary<string, int>(_carrierCargoTracker.Cargo);
+                                            UpdateCurrentCarrierCargoFromDictionary();
+                                            SaveCarrierCargoToDisk(); // Add this line
                                         }
+                                        Log.Information("CargoTransfer processed: {Count} items in carrier cargo",
+                                            CarrierCargo.Count);
                                     }
                                     break;
                                 case "CarrierCancelJump":
