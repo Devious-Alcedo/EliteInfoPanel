@@ -4,6 +4,15 @@
 
 Coming soon to a small display on your desk
 
+F2 for settings
+
+F11 to Quit
+
+F12 for logs etc
+
+Can run as a full screen app on a small display or windowed on a regular display
+
+
 
 ![image](https://github.com/user-attachments/assets/3ff2b3bd-8b92-458a-9076-b612278f9488)
 
