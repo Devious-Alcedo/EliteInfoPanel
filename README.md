@@ -10,6 +10,7 @@ Coming soon to a small display on your desk
 
 ![image](https://github.com/user-attachments/assets/e587d949-b922-4621-a188-a4fed7e2237d)
 
+![image](https://github.com/user-attachments/assets/0208ea3f-381c-4654-b5af-104778f00aee)
 
 
 
