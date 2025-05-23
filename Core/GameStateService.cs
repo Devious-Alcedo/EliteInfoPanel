@@ -1174,6 +1174,10 @@ namespace EliteInfoPanel.Core
                 OnPropertyChanged(nameof(FleetCarrierJumpInProgress));
                 OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
                 OnPropertyChanged(nameof(JumpArrived));
+                LoadCarrierCargoFromDisk();
+
+                // Set cargo tracking as initialized after loading saved data
+                _cargoTrackingInitialized = true;
                 // Notify subscribers
                 FirstLoadCompletedEvent?.Invoke();
             }
