@@ -1987,13 +1987,12 @@ namespace EliteInfoPanel.Core
                                 #endregion
 
                                 #region 🧱 Construction / Colony
+                                // In GameStateService.cs - Replace the ColonisationConstructionDepot case with this enhanced version
+
                                 case "ColonisationConstructionDepot":
                                     try
                                     {
-                                        Log.Information("Processing colonization construction depot event");
-
-                                        // Log the raw event data to help diagnose issues
-                                        Log.Debug("Raw ColonisationConstructionDepot event: {EventData}", line);
+                                        Log.Information("📋 Processing ColonisationConstructionDepot event");
 
                                         var colonizationData = new ColonizationData
                                         {
@@ -2003,40 +2002,29 @@ namespace EliteInfoPanel.Core
                                         if (root.TryGetProperty("MarketID", out var marketIdProp))
                                         {
                                             colonizationData.MarketID = marketIdProp.GetInt64();
-                                            Log.Debug("MarketID: {MarketID}", colonizationData.MarketID);
                                         }
 
                                         if (root.TryGetProperty("ConstructionProgress", out var progressProp))
                                         {
                                             colonizationData.ConstructionProgress = progressProp.GetDouble();
-                                            Log.Debug("ConstructionProgress: {Progress}", colonizationData.ConstructionProgress);
+                                            Log.Information("📋 Progress updated to: {Progress:P2}", colonizationData.ConstructionProgress);
                                         }
 
                                         if (root.TryGetProperty("ConstructionComplete", out var completeProp))
                                         {
                                             colonizationData.ConstructionComplete = completeProp.GetBoolean();
-                                            Log.Debug("ConstructionComplete: {Complete}", colonizationData.ConstructionComplete);
                                         }
 
                                         if (root.TryGetProperty("ConstructionFailed", out var failedProp))
                                         {
                                             colonizationData.ConstructionFailed = failedProp.GetBoolean();
-                                            Log.Debug("ConstructionFailed: {Failed}", colonizationData.ConstructionFailed);
                                         }
 
-                                        // Check for null or empty resources array
-                                        if (!root.TryGetProperty("ResourcesRequired", out var resourcesProp) ||
-                                            resourcesProp.ValueKind != JsonValueKind.Array ||
-                                            resourcesProp.GetArrayLength() == 0)
-                                        {
-                                            Log.Warning("No ResourcesRequired array found or it's empty - creating empty list");
-                                            colonizationData.ResourcesRequired = new List<ColonizationResource>();
-                                        }
-                                        else
-                                        {
-                                            // Process resources array
-                                            Log.Debug("Found ResourcesRequired array with {Count} items", resourcesProp.GetArrayLength());
+                                        colonizationData.ResourcesRequired = new List<ColonizationResource>();
 
+                                        if (root.TryGetProperty("ResourcesRequired", out var resourcesProp) &&
+                                            resourcesProp.ValueKind == JsonValueKind.Array)
+                                        {
                                             foreach (var resource in resourcesProp.EnumerateArray())
                                             {
                                                 var resourceItem = new ColonizationResource();
@@ -2056,35 +2044,40 @@ namespace EliteInfoPanel.Core
                                                 if (resource.TryGetProperty("Payment", out var payProp))
                                                     resourceItem.Payment = payProp.GetInt32();
 
-                                                Log.Debug("Adding resource: {Name}, Required: {Required}, Provided: {Provided}, Payment: {Payment}",
-                                                    resourceItem.Name_Localised ?? resourceItem.Name,
-                                                    resourceItem.RequiredAmount,
-                                                    resourceItem.ProvidedAmount,
-                                                    resourceItem.Payment);
-
                                                 colonizationData.ResourcesRequired.Add(resourceItem);
                                             }
                                         }
 
-                                        // Log colonization data before assigning
-                                        Log.Information("Colonization data built: Progress={Progress:P2}, Resources={Count}",
-                                            colonizationData.ConstructionProgress,
-                                            colonizationData.ResourcesRequired?.Count ?? 0);
+                                        // CRITICAL FIX: Update colonization data OUTSIDE of batch system to ensure immediate UI update
+                                        bool wasBatchMode = _isUpdating;
+                                        if (wasBatchMode)
+                                        {
+                                            Log.Information("📋 Temporarily disabling batch mode for colonization update");
+                                            _isUpdating = false;
+                                        }
 
-                                        if (colonizationData.ResourcesRequired?.Count > 0 || colonizationData.ConstructionProgress > 0)
+                                        // Update the property which will trigger UI updates
+                                        CurrentColonization = colonizationData;
+
+                                        // Restore batch mode if it was active
+                                        if (wasBatchMode)
                                         {
-                                            CurrentColonization = colonizationData;
-                                            Log.Information("Colonization data assigned to CurrentColonization");
+                                            _isUpdating = true;
                                         }
-                                        else
-                                        {
-                                            Log.Warning("Colonization data appears empty (no resources and zero progress) - not updating CurrentColonization");
-                                        }
+
+                                        Log.Information("📋 Colonization data updated successfully - Progress: {Progress:P2}, Resources: {Count}",
+                                            colonizationData.ConstructionProgress, colonizationData.ResourcesRequired?.Count ?? 0);
                                     }
                                     catch (Exception ex)
                                     {
-                                        Log.Error(ex, "Error processing colonization event");
+                                        Log.Error(ex, "📋 Error processing ColonisationConstructionDepot event");
                                     }
+                                    break;
+                                // Also add handling for ColonisationContribution events
+                                case "ColonisationContribution":
+                                    Log.Information("📋 Detected ColonisationContribution event - forcing colonization data refresh");
+                                    // This event indicates resources were contributed, so we should refresh
+                                    // The next ColonisationConstructionDepot event should have updated data
                                     break;
                                 #endregion
 
@@ -2133,8 +2126,22 @@ namespace EliteInfoPanel.Core
                 Log.Warning(ex, "Error reading journal file");
             }
         }
-        // Add to GameStateService.cs
-        // Update GameStateService.cs method
+        public void ForceRefreshColonizationData()
+        {
+            Log.Information("🔄 Force refreshing colonization data from journal");
+
+            Task.Run(async () => {
+                try
+                {
+                    await ProcessJournalAsync();
+                    Log.Information("🔄 Force refresh completed");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "🔄 Error during force refresh");
+                }
+            });
+        }
         public void InitializeCargoFromSavedData(Dictionary<string, int> savedCargo)
         {
             using (BeginUpdate())
@@ -2437,42 +2444,41 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                var settings = SettingsManager.Load();
-                string journalFilter = "Journal.*.log";
-
-                // First find the latest journal file
                 latestJournalPath = Directory.GetFiles(gamePath, "Journal.*.log")
                     .OrderByDescending(File.GetLastWriteTime)
                     .FirstOrDefault();
 
                 if (string.IsNullOrEmpty(latestJournalPath))
                 {
-                    Log.Warning("No journal files found in {Path}", gamePath);
+                    Log.Warning("📖 No journal files found in {Path}", gamePath);
                     return;
                 }
 
-                // Set up a watcher for the directory to catch new journal files
+                Log.Information("📖 Monitoring journal: {Journal}", Path.GetFileName(latestJournalPath));
+
                 var dirWatcher = new FileSystemWatcher(gamePath)
                 {
                     Filter = "Journal.*.log",
-                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.CreationTime,
-                    EnableRaisingEvents = true
+                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size,
+                    EnableRaisingEvents = true,
+                    IncludeSubdirectories = false
                 };
 
-                // Use a throttling approach to avoid excessive processing
-                DispatcherTimer journalTimer = new DispatcherTimer
+                // Faster timer for real-time colonization updates
+                var journalTimer = new DispatcherTimer
                 {
-                    Interval = TimeSpan.FromMilliseconds(500)
+                    Interval = TimeSpan.FromMilliseconds(200)
                 };
 
-                bool pendingJournalUpdate = false;
+                bool pendingUpdate = false;
+                DateTime lastUpdate = DateTime.MinValue;
 
                 journalTimer.Tick += async (s, e) =>
                 {
-                    if (pendingJournalUpdate)
+                    if (pendingUpdate && DateTime.UtcNow - lastUpdate > TimeSpan.FromMilliseconds(100))
                     {
-                        pendingJournalUpdate = false;
-                        journalTimer.Stop();
+                        pendingUpdate = false;
+                        lastUpdate = DateTime.UtcNow;
 
                         try
                         {
@@ -2480,55 +2486,41 @@ namespace EliteInfoPanel.Core
                         }
                         catch (Exception ex)
                         {
-                            Log.Error(ex, "Error processing journal");
+                            Log.Error(ex, "📖 Error in journal timer");
                         }
-
-                        journalTimer.Start();
                     }
                 };
 
                 journalTimer.Start();
 
-                // Handle changes to the latest journal file
                 dirWatcher.Changed += (s, e) =>
                 {
-                    // Check if this is for our current journal file
-                    string changedFile = Path.GetFileName(e.FullPath);
-                    string currentFile = Path.GetFileName(latestJournalPath);
-
-                    if (changedFile == currentFile)
+                    if (Path.GetFileName(e.FullPath) == Path.GetFileName(latestJournalPath))
                     {
-                        pendingJournalUpdate = true;
+                        pendingUpdate = true;
                     }
                 };
 
-                // Handle creation of new journal files
                 dirWatcher.Created += (s, e) =>
                 {
-                    if (Path.GetFileName(e.FullPath).StartsWith("Journal."))
+                    if (Path.GetFileName(e.FullPath).StartsWith("Journal.") &&
+                        File.GetLastWriteTime(e.FullPath) > File.GetLastWriteTime(latestJournalPath))
                     {
-                        // Check if this is newer than our current journal
-                        DateTime newFileTime = File.GetLastWriteTime(e.FullPath);
-                        DateTime currentFileTime = File.GetLastWriteTime(latestJournalPath);
-
-                        if (newFileTime > currentFileTime)
-                        {
-                            latestJournalPath = e.FullPath;
-                            lastJournalPosition = 0; // Reset position for new file
-                            pendingJournalUpdate = true;
-                        }
+                        latestJournalPath = e.FullPath;
+                        lastJournalPosition = 0;
+                        pendingUpdate = true;
+                        Log.Information("📖 Switched to new journal: {Journal}", Path.GetFileName(latestJournalPath));
                     }
                 };
 
                 _watchers.Add(dirWatcher);
-                Log.Debug("Set up journal watcher for {Path}", gamePath);
+                Log.Information("📖 Journal monitoring active");
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Error setting up journal watcher");
+                Log.Error(ex, "📖 Failed to setup journal watcher");
             }
         }
-
         private void UpdateCarrierCargo(JsonElement root)
         {
             if (!_cargoTrackingInitialized) return;

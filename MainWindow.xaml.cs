@@ -270,6 +270,10 @@ namespace EliteInfoPanel
             if (e.Key == Key.F11)
             {
                 //close the app
+                //close any open windows
+                Log.Information("F11 pressed, closing application.");
+                SaveWindowPosition(); // Save position before closing
+         
                 this.Close();
             }
             else if (e.Key == Key.F12)
