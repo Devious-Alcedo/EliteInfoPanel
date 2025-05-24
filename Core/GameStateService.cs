@@ -1745,12 +1745,19 @@ namespace EliteInfoPanel.Core
 
                                 case "FSDJump":
                                     Log.Information("✅ Hyperspace jump completed");
-
+                                    bool wasBatchMode = _isUpdating;
+                                    if (wasBatchMode)
+                                    {
+                                        _isUpdating = false;
+                                    }
                                     IsHyperspaceJumping = false;
                                     _isInHyperspace = false;
                                     HyperspaceDestination = null;
                                     HyperspaceStarClass = null;
-
+                                    if (wasBatchMode)
+                                    {
+                                        _isUpdating = true;
+                                    }
                                     if (root.TryGetProperty("StarSystem", out JsonElement systemElement))
                                     {
                                         string currentSystem = systemElement.GetString();
@@ -2049,8 +2056,8 @@ namespace EliteInfoPanel.Core
                                         }
 
                                         // CRITICAL FIX: Update colonization data OUTSIDE of batch system to ensure immediate UI update
-                                        bool wasBatchMode = _isUpdating;
-                                        if (wasBatchMode)
+                                        bool wasBatchMode2 = _isUpdating;
+                                        if (wasBatchMode2)
                                         {
                                             Log.Information("📋 Temporarily disabling batch mode for colonization update");
                                             _isUpdating = false;
@@ -2060,7 +2067,7 @@ namespace EliteInfoPanel.Core
                                         CurrentColonization = colonizationData;
 
                                         // Restore batch mode if it was active
-                                        if (wasBatchMode)
+                                        if (wasBatchMode2)
                                         {
                                             _isUpdating = true;
                                         }
