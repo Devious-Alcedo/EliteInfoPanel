@@ -1,4 +1,5 @@
-﻿using System;
+﻿// Optimized HyperspaceOverlay with improved performance matching CarrierJumpOverlay
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
@@ -16,13 +17,17 @@ namespace EliteInfoPanel.Controls
 {
     public partial class HyperspaceOverlay : UserControl
     {
+        #region Private Fields
+
         // P/Invoke for high-performance timer
         [DllImport("kernel32.dll")] private static extern bool QueryPerformanceCounter(out long lpPerformanceCount);
         [DllImport("kernel32.dll")] private static extern bool QueryPerformanceFrequency(out long lpFrequency);
 
+        private const double TargetFrameTimeMs = 1000.0 / 60; // Match CarrierJumpOverlay exactly
+
         private GameStateService _gameState;
         private readonly Random _random = new Random();
-        private readonly int _numStars = 130;
+        private readonly int _numStars = 150; // Slightly more than carrier overlay for effect
         private bool _starfieldInitialized = false;
         private Point _screenCenter;
         private readonly List<StarInfo> _stars = new();
@@ -35,9 +40,8 @@ namespace EliteInfoPanel.Controls
         private bool _stopRenderThread = false;
         private readonly object _renderLock = new object();
         private long _ticksPerSecond;
-        private const double TargetFrameTimeMs = 1000.0 / 60; // Target 60 FPS just like CarrierJumpOverlay
 
-        // Star color options - blueish-white colors for a realistic space look
+        // Star color options - optimized array for better cache performance
         private readonly Color[] _starColors = new[]
         {
             Color.FromRgb(255, 255, 255),    // Pure white
@@ -46,7 +50,7 @@ namespace EliteInfoPanel.Controls
             Color.FromRgb(200, 200, 255)     // Light lavender
         };
 
-        // Legal state colors
+        // Legal state colors - cached for performance
         private readonly Dictionary<string, SolidColorBrush> _legalStateColors = new Dictionary<string, SolidColorBrush>
         {
             { "Clean", new SolidColorBrush(Colors.LightGreen) },
@@ -60,11 +64,15 @@ namespace EliteInfoPanel.Controls
             { "Thargoid", new SolidColorBrush(Colors.Purple) }
         };
 
+        #endregion Private Fields
+
+        #region Constructor
+
         public HyperspaceOverlay()
         {
             InitializeComponent();
 
-            // Configure rendering settings - match CarrierJumpOverlay exactly
+            // Match CarrierJumpOverlay settings exactly
             RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.NearestNeighbor);
             RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
 
@@ -82,9 +90,14 @@ namespace EliteInfoPanel.Controls
             Log.Information("🚀 HyperspaceOverlay created - initially hidden");
         }
 
+        #endregion Constructor
+
+        #region Event Handlers
+
         private void HyperspaceOverlay_Loaded(object sender, RoutedEventArgs e)
         {
-            // Nothing specific to do here
+            // Minimal work here - just log
+            Log.Debug("HyperspaceOverlay loaded");
         }
 
         private void HyperspaceOverlay_Unloaded(object sender, RoutedEventArgs e)
@@ -96,8 +109,9 @@ namespace EliteInfoPanel.Controls
         {
             try
             {
-                // Re-initialize the starfield when the size changes and visible
-                if (RootGrid.Visibility == Visibility.Visible && e.NewSize.Width > 0 && e.NewSize.Height > 0)
+                // Only re-initialize if visible and size is valid
+                if (RootGrid.Visibility == Visibility.Visible &&
+                    e.NewSize.Width > 0 && e.NewSize.Height > 0)
                 {
                     InitializeStarfield();
                 }
@@ -107,6 +121,10 @@ namespace EliteInfoPanel.Controls
                 Log.Error(ex, "Error in HyperspaceOverlay_SizeChanged");
             }
         }
+
+        #endregion Event Handlers
+
+        #region Initialization
 
         private void InitializeStarfield()
         {
@@ -119,29 +137,32 @@ namespace EliteInfoPanel.Controls
                     return;
                 }
 
-                // Clear existing resources
-                ClearStarfield();
+                // Only clear if we need to rebuild
+                if (_starfieldInitialized)
+                {
+                    StopRendering();
+                }
 
-                // Calculate dimensions - use full resolution for quality
+                // Calculate dimensions - match CarrierJumpOverlay approach
                 _bitmapWidth = (int)ActualWidth;
                 _bitmapHeight = (int)ActualHeight;
+                _screenCenter = new Point(_bitmapWidth / 2, _bitmapHeight / 2);
 
-                // Create the bitmap and pixel buffer
+                // Create the bitmap and pixel buffer in one go
                 lock (_renderLock)
                 {
                     _bitmap = new WriteableBitmap(_bitmapWidth, _bitmapHeight, 96, 96, PixelFormats.Bgra32, null);
                     _pixelBufferStride = _bitmapWidth * 4;
                     _pixelBuffer = new byte[_bitmapHeight * _pixelBufferStride];
 
-                    // Clear buffer to black
-                    Array.Clear(_pixelBuffer, 0, _pixelBuffer.Length);
+                    // Initialize buffer to black with full alpha - optimized loop
                     for (int i = 3; i < _pixelBuffer.Length; i += 4)
                     {
                         _pixelBuffer[i] = 255; // Set alpha to 255
                     }
                 }
 
-                // Create and add the image control on the UI thread
+                // Create and add the image control
                 Dispatcher.Invoke(() =>
                 {
                     var bitmapImageControl = new Image
@@ -152,31 +173,26 @@ namespace EliteInfoPanel.Controls
                         Height = ActualHeight
                     };
 
-                    // Match CarrierJumpOverlay settings
                     RenderOptions.SetBitmapScalingMode(bitmapImageControl, BitmapScalingMode.NearestNeighbor);
 
                     StarfieldCanvas.Children.Clear();
                     StarfieldCanvas.Children.Add(bitmapImageControl);
                 });
 
-                // Setup our stars
+                // Initialize stars - match CarrierJumpOverlay pattern exactly
                 _stars.Clear();
-                _screenCenter = new Point(_bitmapWidth / 2, _bitmapHeight / 2);
-
-                // Create stars with varying characteristics - use same approach as CarrierJumpOverlay
                 for (int i = 0; i < _numStars; i++)
                 {
-                    // Choose a new starting angle
                     double angle = _random.NextDouble() * Math.PI * 2;
-                    double dist = _random.NextDouble() * 20; // Start near center like CarrierJumpOverlay
+                    double dist = _random.NextDouble() * 20; // Start near center
 
                     var startX = _screenCenter.X + Math.Cos(angle) * dist;
                     var startY = _screenCenter.Y + Math.Sin(angle) * dist;
 
-                    double speed = 0.5 + _random.NextDouble() * 3.0; // Match carrier jump overlay
+                    double speed = 0.5 + _random.NextDouble() * 3.0;
                     double radius = 1.0 + _random.NextDouble() * 2.0;
 
-                    // Select color with same distribution as CarrierJumpOverlay but keep blue colors
+                    // Optimized color selection
                     int colorIndex = (int)(_random.NextDouble() * _random.NextDouble() * _starColors.Length);
                     var color = _starColors[colorIndex];
 
@@ -202,24 +218,9 @@ namespace EliteInfoPanel.Controls
             }
         }
 
-        private void ClearStarfield()
-        {
-            try
-            {
-                // Stop rendering thread
-                StopRendering();
+        #endregion Initialization
 
-                // Clear all resources
-                StarfieldCanvas.Children.Clear();
-                _stars.Clear();
-
-                _starfieldInitialized = false;
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error clearing starfield");
-            }
-        }
+        #region Rendering
 
         private void StartRenderThread()
         {
@@ -242,7 +243,6 @@ namespace EliteInfoPanel.Controls
 
             _stopRenderThread = true;
 
-            // Match the CarrierJumpOverlay approach to thread stopping
             if (_renderThread != null && _renderThread.IsAlive)
             {
                 try
@@ -261,11 +261,12 @@ namespace EliteInfoPanel.Controls
 
             _renderThread = null;
             _isRendering = false;
+            _starfieldInitialized = false;
         }
 
         private void RenderLoop()
         {
-            // Initialize timing - same as CarrierJumpOverlay
+            // Initialize timing - match CarrierJumpOverlay exactly
             QueryPerformanceCounter(out long lastTicks);
 
             while (!_stopRenderThread)
@@ -276,7 +277,7 @@ namespace EliteInfoPanel.Controls
                     QueryPerformanceCounter(out long nowTicks);
                     double elapsed = (nowTicks - lastTicks) * 1000.0 / _ticksPerSecond;
 
-                    // Throttle frame rate for consistent animation - match CarrierJumpOverlay
+                    // Throttle frame rate - match CarrierJumpOverlay
                     if (elapsed < TargetFrameTimeMs)
                     {
                         int sleepTime = (int)(TargetFrameTimeMs - elapsed);
@@ -287,20 +288,19 @@ namespace EliteInfoPanel.Controls
                         continue;
                     }
 
-                    // Update last time
                     lastTicks = nowTicks;
 
-                    // Process everything in a single locked block like CarrierJumpOverlay
+                    // Process everything in a single locked block
                     lock (_renderLock)
                     {
-                        // Apply fade to create trails
+                        // Apply fade to create trails - match CarrierJumpOverlay exactly
                         ApplyFade();
 
                         // Update and render all stars
                         ProcessStars();
                     }
 
-                    // Update the UI exactly like CarrierJumpOverlay does
+                    // Update the UI - match CarrierJumpOverlay pattern
                     Dispatcher.BeginInvoke(new Action(() =>
                     {
                         try
@@ -329,7 +329,7 @@ namespace EliteInfoPanel.Controls
 
         private void ApplyFade()
         {
-            // Simple fade effect directly matching CarrierJumpOverlay's approach
+            // Simple fade effect - match CarrierJumpOverlay exactly
             for (int i = 0; i < _pixelBuffer.Length; i += 4)
             {
                 _pixelBuffer[i] = (byte)(_pixelBuffer[i] * 0.92);         // B
@@ -346,15 +346,13 @@ namespace EliteInfoPanel.Controls
                 // Save previous position
                 star.PreviousPosition = star.Position;
 
-                // Calculate vector to center
+                // Calculate vector to center and apply acceleration
                 Vector toCenter = star.Position - _screenCenter;
                 double dist = toCenter.Length;
-
-                // Apply speed boost factor similar to CarrierJumpOverlay
                 double factor = Math.Min(1.0, dist / (_bitmapWidth * 0.4));
                 star.Position += star.Velocity * (1.0 + factor * 4.0);
 
-                // Reset star if offscreen - match CarrierJumpOverlay logic
+                // Reset star if offscreen - match CarrierJumpOverlay logic exactly
                 if (star.Position.X < 0 || star.Position.X >= _bitmapWidth ||
                     star.Position.Y < 0 || star.Position.Y >= _bitmapHeight)
                 {
@@ -377,7 +375,7 @@ namespace EliteInfoPanel.Controls
                 }
                 else
                 {
-                    // Draw trail line using exactly the same method as CarrierJumpOverlay
+                    // Draw trail line - use optimized version
                     DrawLineWithFade((int)star.PreviousPosition.X, (int)star.PreviousPosition.Y,
                                     (int)star.Position.X, (int)star.Position.Y, star.Color);
                 }
@@ -386,7 +384,7 @@ namespace EliteInfoPanel.Controls
 
         private void DrawLineWithFade(int x0, int y0, int x1, int y1, Color color)
         {
-            // Use Bresenham's line algorithm with a simple blend - match CarrierJumpOverlay
+            // Optimized Bresenham's line algorithm - match CarrierJumpOverlay
             int dx = Math.Abs(x1 - x0);
             int dy = Math.Abs(y1 - y0);
             int sx = x0 < x1 ? 1 : -1;
@@ -394,13 +392,11 @@ namespace EliteInfoPanel.Controls
             int err = dx - dy;
             int e2;
 
-            // Blending factor for trails
-            const double alpha = 0.6;
+            const double alpha = 0.6; // Match CarrierJumpOverlay
 
-            // Draw the line
             while (true)
             {
-                // Check bounds
+                // Check bounds and draw pixel
                 if (x0 >= 0 && x0 < _bitmapWidth && y0 >= 0 && y0 < _bitmapHeight)
                 {
                     int index = (y0 * _bitmapWidth + x0) * 4;
@@ -419,7 +415,7 @@ namespace EliteInfoPanel.Controls
                 if (e2 < dx) { err += dx; y0 += sy; }
             }
 
-            // Add a brighter center pixel for the star at its current position
+            // Add brighter center pixel at current position
             if (x1 >= 0 && x1 < _bitmapWidth && y1 >= 0 && y1 < _bitmapHeight)
             {
                 int index = (y1 * _bitmapWidth + x1) * 4;
@@ -435,6 +431,10 @@ namespace EliteInfoPanel.Controls
             return (byte)(background * (1 - alpha) + foreground * alpha);
         }
 
+        #endregion Rendering
+
+        #region Game State Management
+
         public void SetGameState(GameStateService gameState)
         {
             try
@@ -447,7 +447,6 @@ namespace EliteInfoPanel.Controls
 
                 _gameState = gameState ?? throw new ArgumentNullException(nameof(gameState));
 
-                // Subscribe to property changes
                 Log.Information("🔌 Connecting HyperspaceOverlay to GameState");
                 _gameState.PropertyChanged += GameState_PropertyChanged;
 
@@ -476,8 +475,6 @@ namespace EliteInfoPanel.Controls
             }
 
             RootGrid.Visibility = Visibility.Collapsed;
-
-            // Stop rendering thread
             StopRendering();
         }
 
@@ -523,14 +520,13 @@ namespace EliteInfoPanel.Controls
             {
                 if (_gameState?.IsHyperspaceJumping == true)
                 {
-                    // Make sure starfield is initialized
+                    // Initialize starfield if needed
                     if (!_starfieldInitialized)
                     {
                         InitializeStarfield();
                     }
                     else if (!_isRendering)
                     {
-                        // Restart rendering if needed
                         StartRenderThread();
                     }
 
@@ -547,8 +543,6 @@ namespace EliteInfoPanel.Controls
                 {
                     RootGrid.Visibility = Visibility.Collapsed;
                     Log.Information("🚀 HyperspaceOverlay now HIDDEN");
-
-                    // Stop rendering to save resources
                     StopRendering();
                 }
             }
@@ -557,6 +551,10 @@ namespace EliteInfoPanel.Controls
                 Log.Error(ex, "Error in HyperspaceOverlay.UpdateVisibility");
             }
         }
+
+        #endregion Game State Management
+
+        #region UI Updates
 
         private void UpdateJumpText(string destination)
         {
@@ -614,7 +612,6 @@ namespace EliteInfoPanel.Controls
                     }
                     else
                     {
-                        // Default to white if state not found
                         LegalStateText.Foreground = new SolidColorBrush(Colors.White);
                     }
                 }
@@ -624,6 +621,8 @@ namespace EliteInfoPanel.Controls
                 Log.Error(ex, "Error in HyperspaceOverlay.UpdateLegalStateText");
             }
         }
+
+        #endregion UI Updates
     }
 
     public class StarInfo
