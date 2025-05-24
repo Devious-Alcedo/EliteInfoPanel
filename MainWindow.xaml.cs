@@ -263,14 +263,18 @@ namespace EliteInfoPanel
         {
             SaveWindowPosition();
         }
-        // First, let's modify MainWindow.xaml.cs to handle the Escape key properly
-        // First, let's modify MainWindow.xaml.cs to handle the Escape key properly
+       
         private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.F11)
             {
-                //close the app
-                this.Close();
+                Log.Information("F11 pressed, closing all windows and application.");
+
+                // Save main window position before closing
+                SaveWindowPosition();
+
+                // Close all windows and shutdown the application
+                CloseAllWindowsAndQuit();
             }
             else if (e.Key == Key.F12)
             {
@@ -294,6 +298,58 @@ namespace EliteInfoPanel
             }
 
             base.OnKeyDown(e);
+        }
+
+        private void CloseAllWindowsAndQuit()
+        {
+            try
+            {
+                // Get a list of all windows except the main window
+                var windowsToClose = new List<Window>();
+
+                foreach (Window window in Application.Current.Windows)
+                {
+                    if (window != this) // Don't include the main window
+                    {
+                        windowsToClose.Add(window);
+                    }
+                }
+
+                Log.Information("Found {Count} popup windows to close", windowsToClose.Count);
+
+                // Close all popup windows first
+                foreach (var window in windowsToClose)
+                {
+                    try
+                    {
+                        Log.Debug("Closing popup window: {Title}", window.Title ?? "Unknown");
+                        window.Close();
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning(ex, "Error closing popup window: {Title}", window.Title ?? "Unknown");
+                    }
+                }
+
+                // Now shutdown the entire application
+                // This will close the main window and terminate the application
+                Application.Current.Shutdown();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error during application shutdown");
+
+                // Fallback: force shutdown
+                try
+                {
+                    Application.Current.Shutdown();
+                }
+                catch (Exception shutdownEx)
+                {
+                    Log.Fatal(shutdownEx, "Failed to shutdown application gracefully");
+                    Environment.Exit(1);
+                }
+            }
         }
         private void MinimizeButton_Click(object sender, RoutedEventArgs e)
         {

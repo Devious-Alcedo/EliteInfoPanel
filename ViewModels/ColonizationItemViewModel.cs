@@ -31,10 +31,12 @@ namespace EliteInfoPanel.ViewModels
         private int _remaining;
         private int _required;
         private ColonizationViewModel _parent;
+
         public void SetParent(ColonizationViewModel parent)
         {
             _parent = parent;
         }
+
         public double AvailableCargoPercentage
         {
             get
@@ -59,50 +61,51 @@ namespace EliteInfoPanel.ViewModels
         // Color for the available cargo portion
         public Brush AvailableCargoColor => new SolidColorBrush(Colors.DeepSkyBlue);
 
-        // Dynamic properties that look up values from the parent
+        // Ship cargo quantity - convert internal names to display names like CargoViewModel does
         public int ShipCargoQuantity
         {
             get
             {
                 if (GameState?.CurrentCargo?.Inventory == null) return 0;
 
-                // First try an exact match (case-insensitive)
-                var exactMatch = GameState.CurrentCargo.Inventory
-                    .FirstOrDefault(i => string.Equals(i.Name, Name, StringComparison.OrdinalIgnoreCase));
+                // Convert each cargo item's internal name to display name and compare
+                // This mirrors exactly what CargoViewModel does for the cargo card
+                foreach (var cargoItem in GameState.CurrentCargo.Inventory)
+                {
+                    string displayNameFromCargo = CommodityMapper.GetDisplayName(cargoItem.Name);
+                    if (string.Equals(displayNameFromCargo, Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Log.Debug("Ship cargo match for {DisplayName} (internal: {InternalName}): {Quantity}",
+                            Name, cargoItem.Name, cargoItem.Count);
+                        return cargoItem.Count;
+                    }
+                }
 
-                if (exactMatch != null)
-                    return exactMatch.Count;
-
-                // If no exact match, try matching by removing spaces
-                string normalizedName = Name.Replace(" ", "");
-                return GameState.CurrentCargo.Inventory
-                    .FirstOrDefault(i => string.Equals(i.Name.Replace(" ", ""), normalizedName, StringComparison.OrdinalIgnoreCase))?.Count ?? 0;
+                Log.Debug("Ship cargo no match found for {DisplayName}", Name);
+                return 0;
             }
         }
 
-        // In ColonizationItemViewModel.cs - add debug logging to CarrierCargoQuantity
+        // Carrier cargo quantity - should already use display names
         public int CarrierCargoQuantity
         {
             get
             {
-                if (GameState?.CurrentCarrierCargo != null)
-                {
-                    Log.Debug("Available cargo items: {Items}",
-                        string.Join(", ", GameState.CurrentCarrierCargo.Select(i => $"\"{i.Name}\"")));
+                if (GameState?.CurrentCarrierCargo == null) return 0;
 
-                    Log.Debug("Looking for: \"{ResourceName}\"", Name);
-                }
-
+                // Carrier cargo should already be using display names
                 var match = GameState.CurrentCarrierCargo
                     .FirstOrDefault(i => string.Equals(i.Name, Name, StringComparison.OrdinalIgnoreCase));
 
-                Log.Debug("Checking carrier cargo for {Name}: Found match? {HasMatch}, Quantity: {Quantity}",
+                Log.Debug("Checking carrier cargo for {DisplayName}: Found match? {HasMatch}, Quantity: {Quantity}",
                     Name, match != null, match?.Quantity ?? 0);
 
                 return match?.Quantity ?? 0;
             }
         }
+
         public bool HasAvailableCargo => ShipCargoQuantity > 0 || CarrierCargoQuantity > 0;
+
         #endregion Private Fields
 
         #region Public Properties
@@ -170,7 +173,5 @@ namespace EliteInfoPanel.ViewModels
         }
 
         #endregion Public Properties
-
     }
-
 }
