@@ -21,6 +21,10 @@ namespace EliteInfoPanel.ViewModels
         private bool _initialSyncComplete = false;
         private string _newCommodityName;
         private bool _isInMainWindow = true;
+        private int _newCommodityQuantity = 1;
+        private Dictionary<string, int> _lastKnownGameState = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        private string _sortBy = "Quantity"; // Default sort
+
         public bool IsInMainWindow
         {
             get => _isInMainWindow;
@@ -28,11 +32,26 @@ namespace EliteInfoPanel.ViewModels
         }
 
         public RelayCommand OpenInNewWindowCommand { get; }
-        private int _newCommodityQuantity = 1;
-        private Dictionary<string, int> _lastKnownGameState = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         public RelayCommand UpdateQuantityCommand { get; }
         public RelayCommand DeleteItemCommand { get; }
         public ObservableCollection<CarrierCargoItem> Cargo { get; } = new();
+
+        // Sorting properties
+        public string SortBy
+        {
+            get => _sortBy;
+            set
+            {
+                if (SetProperty(ref _sortBy, value))
+                {
+                    ApplySorting();
+                }
+            }
+        }
+
+        public RelayCommand SortByNameCommand { get; }
+        public RelayCommand SortByQuantityCommand { get; }
+
         public override double FontSize
         {
             get => base.FontSize;
@@ -41,12 +60,8 @@ namespace EliteInfoPanel.ViewModels
                 if (base.FontSize != value)
                 {
                     base.FontSize = value;
-
-                    // Update font size for all cargo items
-                    foreach (var item in Cargo)
-                    {
-                        item.FontSize = (int)value;
-                    }
+                    // Individual items no longer need FontSize property updates 
+                    // since XAML binds directly to parent's FontSize
                 }
             }
         }
@@ -79,6 +94,10 @@ namespace EliteInfoPanel.ViewModels
             DecrementCommand = new RelayCommand(DecrementCommodity);
             AddCommodityCommand = new RelayCommand(_ => AddCommodity(), _ => CanAddCommodity());
 
+            // Initialize sorting commands
+            SortByNameCommand = new RelayCommand(_ => SortBy = "Name");
+            SortByQuantityCommand = new RelayCommand(_ => SortBy = "Quantity");
+
             // Get the current cargo from GameStateService
             if (_gameState.CurrentCarrierCargo != null)
             {
@@ -87,10 +106,10 @@ namespace EliteInfoPanel.ViewModels
                     Cargo.Add(new CarrierCargoItem
                     {
                         Name = item.Name,
-                        Quantity = item.Quantity,
-                        FontSize = (int)this.FontSize
+                        Quantity = item.Quantity
                     });
                 }
+                ApplySorting(); // Apply initial sorting
                 SetContextVisibility(Cargo.Count > 0);
             }
 
@@ -104,6 +123,40 @@ namespace EliteInfoPanel.ViewModels
             _initialSyncComplete = true;
             Log.Information("Fleet carrier cargo initialization complete - real-time updates enabled");
         }
+
+        private void ApplySorting()
+        {
+            try
+            {
+                var sortedItems = SortCargoItems(Cargo.ToList());
+
+                // Clear and re-add items in sorted order
+                Cargo.Clear();
+                foreach (var item in sortedItems)
+                {
+                    Cargo.Add(item);
+                }
+
+                Log.Debug("Applied sorting: {SortBy} - {Count} items", SortBy, Cargo.Count);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error applying sorting to fleet carrier cargo");
+            }
+        }
+
+        private List<CarrierCargoItem> SortCargoItems(List<CarrierCargoItem> items)
+        {
+            switch (SortBy)
+            {
+                case "Name":
+                    return items.OrderBy(i => i.Name).ToList();
+                case "Quantity":
+                default:
+                    return items.OrderByDescending(i => i.Quantity).ToList();
+            }
+        }
+
         private void OpenInNewWindow()
         {
             // Load settings
@@ -112,7 +165,9 @@ namespace EliteInfoPanel.ViewModels
             // Create a new instance of the viewmodel with IsInMainWindow=false
             var popupViewModel = new FleetCarrierCargoViewModel(_gameState)
             {
-                IsInMainWindow = false
+                IsInMainWindow = false,
+                SortBy = this.SortBy, // Copy current sort setting
+                FontSize = this.FontSize // Copy current font size
             };
 
             // Create a new window
@@ -126,6 +181,26 @@ namespace EliteInfoPanel.ViewModels
                 Top = settings.FleetCarrierWindowTop,
                 Background = new SolidColorBrush(Color.FromArgb(255, 30, 30, 30)),
                 Content = new FleetCarrierCargoCard { DataContext = popupViewModel }
+            };
+
+            // Subscribe to settings changes to update font size in real-time
+            PropertyChangedEventHandler settingsHandler = null;
+            settingsHandler = (s, e) =>
+            {
+                if (e.PropertyName == nameof(FontSize))
+                {
+                    // Update popup's font size when main viewmodel's font size changes
+                    popupViewModel.FontSize = this.FontSize;
+                }
+            };
+
+            // Subscribe to font size changes from the main viewmodel
+            this.PropertyChanged += settingsHandler;
+
+            // Clean up subscription when window closes
+            window.Closed += (s, e) =>
+            {
+                this.PropertyChanged -= settingsHandler;
             };
 
             // Add event handlers to save position
@@ -156,7 +231,6 @@ namespace EliteInfoPanel.ViewModels
             window.Show();
         }
 
-        
         private void EnsureWindowIsVisible(Window window, AppSettings settings)
         {
             // Get screen information
@@ -194,6 +268,7 @@ namespace EliteInfoPanel.ViewModels
                 };
             }
         }
+
         private void UpdateItemQuantity(object parameter)
         {
             if (parameter is CarrierCargoItem item)
@@ -211,8 +286,6 @@ namespace EliteInfoPanel.ViewModels
                     // Update the GameState with the new quantity
                     _gameState.UpdateCarrierCargoItem(item.Name, item.Quantity);
 
-                    // Save data after update
-                   
                     Log.Debug("Updated {Name} quantity to {Quantity}", item.Name, item.Quantity);
                 }
                 else
@@ -236,11 +309,9 @@ namespace EliteInfoPanel.ViewModels
 
                 // Remove from UI collection directly
                 Cargo.Remove(item);
-
-                // Save after deletion
-     
             }
         }
+
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(GameStateService.CurrentCarrierCargo) && _initialSyncComplete)
@@ -264,6 +335,7 @@ namespace EliteInfoPanel.ViewModels
                 Log.Debug("Captured initial game state with {Count} items", _lastKnownGameState.Count);
             }
         }
+
         private string FindInternalName(string displayName)
         {
             // Quick check if it's already internal
@@ -281,6 +353,7 @@ namespace EliteInfoPanel.ViewModels
 
             return displayName; // fallback
         }
+
         private void ProcessRealTimeChanges()
         {
             var currentGameState = _gameState.CurrentCarrierCargo;
@@ -341,12 +414,12 @@ namespace EliteInfoPanel.ViewModels
                     else if (pair.Value > 0)
                     {
                         // New item with positive quantity
-                        Cargo.Add(new CarrierCargoItem
+                        var newItem = new CarrierCargoItem
                         {
                             Name = pair.Key,
-                            Quantity = pair.Value,
-                            FontSize = (int)this.FontSize
-                        });
+                            Quantity = pair.Value
+                        };
+                        Cargo.Add(newItem);
                         madeChanges = true;
                         Log.Debug("Added new item to UI: {Item} = {Quantity}", pair.Key, pair.Value);
                     }
@@ -373,19 +446,15 @@ namespace EliteInfoPanel.ViewModels
             // Update last known state
             _lastKnownGameState = new Dictionary<string, int>(currentStateDict, StringComparer.OrdinalIgnoreCase);
 
-            // Update visibility
+            // Apply sorting after changes and update visibility
             if (madeChanges)
             {
+                ApplySorting();
                 SetContextVisibility(Cargo.Count > 0);
                 Log.Information("Applied real-time changes to fleet carrier cargo - now {Count} items", Cargo.Count);
             }
         }
 
-
-
-
-        // In FleetCarrierCargoViewModel.cs - Update IncrementCommodity
-        // In FleetCarrierCargoViewModel.cs
         private void IncrementCommodity(object parameter)
         {
             if (parameter is CarrierCargoItem item)
@@ -399,9 +468,6 @@ namespace EliteInfoPanel.ViewModels
 
                 // Update our local UI model to match
                 item.Quantity = newQuantity;
-
-                // Save data after all updates
-      
             }
         }
 
@@ -426,8 +492,6 @@ namespace EliteInfoPanel.ViewModels
                     Log.Debug("Removed {Name} from UI list due to zero quantity", item.Name);
                 }
                 _gameState.UpdateCarrierCargoItem(item.Name, newQuantity);
-                // Save data after all updates
-           
             }
         }
 
@@ -446,8 +510,8 @@ namespace EliteInfoPanel.ViewModels
                 string.Equals(i.Name, normalizedName, StringComparison.OrdinalIgnoreCase));
 
             // Update GameState FIRST
-            _gameState.UpdateCarrierCargoItem(normalizedName, existingItem != null 
-                ? existingItem.Quantity + newQuantity 
+            _gameState.UpdateCarrierCargoItem(normalizedName, existingItem != null
+                ? existingItem.Quantity + newQuantity
                 : newQuantity);
 
             // Clear input fields
@@ -458,10 +522,10 @@ namespace EliteInfoPanel.ViewModels
             // The PropertyChanged event from GameState will trigger our ProcessRealTimeChanges
             // which will update our UI model and save the data
         }
+
         private bool CanAddCommodity()
         {
             return !string.IsNullOrWhiteSpace(NewCommodityName) && NewCommodityQuantity > 0;
         }
-
     }
 }
