@@ -12,6 +12,7 @@
     <Grid Margin="8">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -31,7 +32,6 @@
 
             <!-- Open in New Window Button -->
             <Button Grid.Column="1" 
-                    
                     Command="{Binding OpenInNewWindowCommand}"
                     Visibility="{Binding IsInMainWindow, Converter={StaticResource BoolToVis}}"
                     ToolTip="Open in new window"
@@ -43,8 +43,27 @@
             </Button>
         </Grid>
 
-        <!-- Rest of the content remains the same -->
-        <ScrollViewer Grid.Row="1"
+        <!-- Sort options as a separate row below the title -->
+        <StackPanel Grid.Row="1" 
+                    Orientation="Horizontal" 
+                    HorizontalAlignment="Right"
+                    Margin="0,0,0,8">
+            <Button Style="{DynamicResource MaterialDesignFlatButton}"
+                    Command="{Binding SortByNameCommand}" 
+                    ToolTip="Sort by name (A-Z)"
+                    Margin="3,0">
+                <materialDesign:PackIcon Kind="SortAlphabeticalAscending" Width="20" Height="20" />
+            </Button>
+            <Button Style="{DynamicResource MaterialDesignFlatButton}"
+                    Command="{Binding SortByQuantityCommand}" 
+                    ToolTip="Sort by quantity (High to Low)"
+                    Margin="3,0">
+                <materialDesign:PackIcon Kind="SortNumericDescending" Width="20" Height="20" />
+            </Button>
+        </StackPanel>
+
+        <!-- Content area remains the same -->
+        <ScrollViewer Grid.Row="2"
                      VerticalScrollBarVisibility="Auto" 
                      HorizontalScrollBarVisibility="Disabled"
                      VerticalAlignment="Stretch" 
@@ -73,7 +92,7 @@
                                            Foreground="White"
                                            TextWrapping="NoWrap"
                                            TextTrimming="CharacterEllipsis"
-                                           FontSize="{Binding FontSize}"/>
+                                           FontSize="{Binding DataContext.FontSize, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
 
                                 <!-- Quantity Text Box -->
                                 <TextBox Grid.Column="1" 
@@ -81,7 +100,7 @@
                                          Width="60" 
                                          Margin="8,0,8,0"
                                          VerticalAlignment="Center"
-                                         FontSize="{Binding FontSize}"
+                                         FontSize="{Binding DataContext.FontSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                          Foreground="White"
                                          Background="#22FFFFFF"
                                          materialDesign:TextFieldAssist.TextBoxViewMargin="0,0,5,0"
@@ -114,7 +133,7 @@
         </ScrollViewer>
 
         <!-- Add New Section -->
-        <Grid Grid.Row="2" Margin="0,8,0,0">
+        <Grid Grid.Row="3" Margin="0,8,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
@@ -145,7 +164,7 @@
         </Grid>
 
         <!-- Status Message -->
-        <TextBlock Grid.Row="3"
+        <TextBlock Grid.Row="4"
                    Text="(Tracking live transfers)" 
                    FontStyle="Italic"
                    FontSize="{Binding FontSize, Converter={StaticResource ScaleToFontSizeConverter}, ConverterParameter=0.8}"

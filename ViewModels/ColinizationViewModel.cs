@@ -15,6 +15,7 @@ using System.Windows.Media;
 using System.Windows;
 using static MaterialDesignThemes.Wpf.Theme.ToolBar;
 using System.IO;
+using System.Windows.Threading;
 
 namespace EliteInfoPanel.ViewModels
 {
@@ -33,6 +34,7 @@ namespace EliteInfoPanel.ViewModels
         private bool _showCompleted = true;
         private string _sortBy = "Missing";
         private int _totalItems;
+        public RelayCommand ForceRefreshCommand { get; }
 
         #endregion Private Fields
 
@@ -47,7 +49,7 @@ namespace EliteInfoPanel.ViewModels
             SortByName = new RelayCommand(_ => SortBy = "Name");
             SortByValue = new RelayCommand(_ => SortBy = "Value");
             ToggleShowCompleted = new RelayCommand(_ => ShowCompleted = !ShowCompleted);
-
+            ForceRefreshCommand = new RelayCommand(_ => ForceRefresh());
             // Subscribe to property changes
             _gameState.PropertyChanged += GameState_PropertyChanged;
             OpenInNewWindowCommand = new RelayCommand(_ => OpenInNewWindow());
@@ -283,15 +285,54 @@ namespace EliteInfoPanel.ViewModels
         // In ColonizationViewModel.cs - GameState_PropertyChanged method
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(GameStateService.CurrentColonization) ||
-                e.PropertyName == nameof(GameStateService.CurrentCarrierCargo) ||  // Add this line
-                e.PropertyName == nameof(GameStateService.CurrentCargo))           // Add this line
+            Log.Debug("ColonizationViewModel: PropertyChanged event received for {Property}", e.PropertyName);
+
+            if (e.PropertyName == nameof(GameStateService.CurrentColonization))
             {
-                Log.Information("ColonizationViewModel: Updating due to changes in {Property}", e.PropertyName);
-                UpdateColonizationDataInternal();
+                Log.Information("ColonizationViewModel: CurrentColonization changed - forcing update");
+
+                // Force immediate UI thread update
+                Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    UpdateColonizationDataInternal();
+                }), DispatcherPriority.Normal);
+            }
+            else if (e.PropertyName == nameof(GameStateService.CurrentCarrierCargo) ||
+                     e.PropertyName == nameof(GameStateService.CurrentCargo))
+            {
+                Log.Debug("ColonizationViewModel: Cargo data changed - updating cargo quantities");
+
+                // Only update if we have active colonization data
+                if (_gameState.CurrentColonization != null)
+                {
+                    Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        UpdateColonizationDataInternal();
+                    }), DispatcherPriority.Background);
+                }
             }
         }
+        private void ForceRefresh()
+        {
+            try
+            {
+                Log.Information("🔄 Force refreshing colonization data...");
+                ShowToast("Refreshing colonization data...");
 
+                // Force refresh the game state data
+                _gameState.ForceRefreshColonizationData();
+
+                // Also immediately update our local data
+                UpdateColonizationDataInternal();
+
+                ShowToast("Colonization data refreshed");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error during force refresh");
+                ShowToast("Failed to refresh data: " + ex.Message);
+            }
+        }
         private void OpenInNewWindow()
         {
             // Load settings
@@ -383,67 +424,99 @@ namespace EliteInfoPanel.ViewModels
         {
             try
             {
-                // First evaluate if we should be visible based on data
-                var colonizationData = _gameState.CurrentColonization;
-                bool hasActiveData = colonizationData != null && !colonizationData.ConstructionComplete;
+                Log.Debug("UpdateColonizationDataInternal: Starting update");
 
-                // Only update _contextVisible, not IsVisible directly
-                SetContextVisibility(hasActiveData);
-
-                // If no data, just clear items and stop
-                if (!hasActiveData)
+                // Ensure we're on the UI thread
+                if (!Application.Current.Dispatcher.CheckAccess())
                 {
-                    RunOnUIThread(() => Items.Clear());
+                    Application.Current.Dispatcher.Invoke(UpdateColonizationDataInternal);
                     return;
                 }
 
-                // Now update all the data properties
-                RunOnUIThread(() =>
+                var colonizationData = _gameState.CurrentColonization;
+
+                if (colonizationData == null)
                 {
-                    HasActiveColonization = hasActiveData;
-                    Log.Information("UpdateColonizationDataInternal called - Carrier cargo count: {Count}",
-                        _gameState.CurrentCarrierCargo?.Count ?? 0);
-
-                    // Update properties
-                    ProgressPercentage = colonizationData.ConstructionProgress;
-                    LastUpdated = colonizationData.LastUpdated;
-                    IsConstructionComplete = colonizationData.ConstructionComplete;
-                    CompletedItems = colonizationData.CompletedResources;
-                    TotalItems = colonizationData.TotalResources;
-                    CompletionText = $"Overall: {colonizationData.CompletionPercentage:N1}% Complete ({CompletedItems}/{TotalItems} resources)";
-                    Title = $"Colonization Project ({colonizationData.CompletionPercentage:N1}%)";
-
-                    // Update items
+                    Log.Information("UpdateColonizationDataInternal: No colonization data available");
+                    SetContextVisibility(false);
                     Items.Clear();
+                    return;
+                }
 
-                    // Filter and sort
-                    var resources = colonizationData.ResourcesRequired;
-                    if (!ShowCompleted)
+                Log.Information("UpdateColonizationDataInternal: Processing data - Progress={Progress:P2}, Resources={Count}, LastUpdated={LastUpdated}",
+                    colonizationData.ConstructionProgress,
+                    colonizationData.ResourcesRequired?.Count ?? 0,
+                    colonizationData.LastUpdated);
+
+                // Check if construction is complete or failed
+                bool hasActiveData = !colonizationData.ConstructionComplete && !colonizationData.ConstructionFailed;
+
+                if (!hasActiveData)
+                {
+                    Log.Information("UpdateColonizationDataInternal: Construction complete or failed - hiding card");
+                    SetContextVisibility(false);
+                    Items.Clear();
+                    return;
+                }
+
+                // Set context visibility
+                SetContextVisibility(true);
+
+                // Update properties
+                ProgressPercentage = colonizationData.ConstructionProgress;
+                LastUpdated = colonizationData.LastUpdated;
+                IsConstructionComplete = colonizationData.ConstructionComplete;
+                CompletedItems = colonizationData.CompletedResources;
+                TotalItems = colonizationData.TotalResources;
+                CompletionText = $"Overall: {colonizationData.CompletionPercentage:N1}% Complete ({CompletedItems}/{TotalItems} resources)";
+                Title = $"Colonization Project ({colonizationData.CompletionPercentage:N1}%)";
+
+                Log.Information("UpdateColonizationDataInternal: Updated progress to {Progress:P2} ({Completed}/{Total} resources)",
+                    colonizationData.ConstructionProgress, CompletedItems, TotalItems);
+
+                // Update items
+                Items.Clear();
+
+                if (colonizationData.ResourcesRequired == null || !colonizationData.ResourcesRequired.Any())
+                {
+                    Log.Warning("UpdateColonizationDataInternal: No resources found in colonization data");
+                    return;
+                }
+
+                // Filter and sort resources
+                var resources = colonizationData.ResourcesRequired.ToList();
+                if (!ShowCompleted)
+                {
+                    resources = resources.Where(r => !r.IsComplete).ToList();
+                    Log.Debug("UpdateColonizationDataInternal: Filtered to {Count} incomplete resources", resources.Count);
+                }
+
+                resources = SortResources(resources);
+
+                // Create lookup dictionaries for cargo quantities with better error handling
+                var shipCargo = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                if (_gameState.CurrentCargo?.Inventory != null)
+                {
+                    foreach (var item in _gameState.CurrentCargo.Inventory)
                     {
-                        resources = resources.Where(r => !r.IsComplete).ToList();
-                    }
-                    resources = SortResources(resources);
-
-                    // Create lookup dictionaries for cargo quantities
-                    var shipCargo = _gameState.CurrentCargo?.Inventory
-                        ?.ToDictionary(i => i.Name, i => i.Count, StringComparer.OrdinalIgnoreCase)
-                        ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
-                    // FIXED: Handle duplicates in carrier cargo
-                    var carrierCargo = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
-                    if (_gameState.CurrentCarrierCargo != null)
-                    {
-                        // Aggregate duplicates by summing quantities
-                        foreach (var item in _gameState.CurrentCarrierCargo)
+                        if (!string.IsNullOrEmpty(item.Name))
                         {
-                            if (string.IsNullOrEmpty(item.Name)) continue;
+                            shipCargo[item.Name] = item.Count;
+                        }
+                    }
+                    Log.Debug("UpdateColonizationDataInternal: Ship cargo has {Count} items", shipCargo.Count);
+                }
 
+                var carrierCargo = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                if (_gameState.CurrentCarrierCargo != null)
+                {
+                    foreach (var item in _gameState.CurrentCarrierCargo)
+                    {
+                        if (!string.IsNullOrEmpty(item.Name))
+                        {
                             if (carrierCargo.TryGetValue(item.Name, out int existingQty))
                             {
                                 carrierCargo[item.Name] = existingQty + item.Quantity;
-                                Log.Debug("Duplicate carrier cargo item aggregated: {Item} - {Existing} + {New} = {Total}",
-                                    item.Name, existingQty, item.Quantity, existingQty + item.Quantity);
                             }
                             else
                             {
@@ -451,17 +524,15 @@ namespace EliteInfoPanel.ViewModels
                             }
                         }
                     }
+                    Log.Debug("UpdateColonizationDataInternal: Carrier cargo has {Count} items", carrierCargo.Count);
+                }
 
-                    // Add all items at once
-                    foreach (var resource in resources)
+                // Add items to the collection
+                foreach (var resource in resources)
+                {
+                    try
                     {
-                        // Use our new carrierCargo dictionary for lookups
-                        int carrierQty = carrierCargo.TryGetValue(resource.DisplayName, out int qty) ? qty : 0;
-
-                        Log.Debug("Resource: {Resource}, Carrier cargo: {Quantity}",
-                            resource.DisplayName, carrierQty);
-
-                        Items.Add(new ColonizationItemViewModel
+                        var viewModel = new ColonizationItemViewModel
                         {
                             Name = resource.DisplayName,
                             Required = resource.RequiredAmount,
@@ -472,20 +543,31 @@ namespace EliteInfoPanel.ViewModels
                             IsComplete = resource.IsComplete,
                             ProfitPerUnit = resource.ProfitPerUnit,
                             FontSize = (int)this.FontSize,
-                            GameState = _gameState  // Add the GameState reference
-                        });
-                    }
+                            GameState = _gameState
+                        };
 
-                    Log.Information("Colonization data updated: {Progress:P2} complete, {CompletedItems}/{TotalItems} resources",
-                        ProgressPercentage, CompletedItems, TotalItems);
-                });
+                        Items.Add(viewModel);
+
+                        Log.Debug("UpdateColonizationDataInternal: Added resource {Name} - {Provided}/{Required} ({Percentage:P1})",
+                            resource.DisplayName,
+                            resource.ProvidedAmount,
+                            resource.RequiredAmount,
+                            resource.CompletionPercentage / 100.0);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "Error adding resource {Name} to items", resource.DisplayName);
+                    }
+                }
+
+                Log.Information("UpdateColonizationDataInternal: Update complete - Added {Count} resource items", Items.Count);
             }
             catch (Exception ex)
             {
                 Log.Error(ex, "Error updating colonization data");
             }
         }
-        private void UpdateSort()
+       private void UpdateSort()
         {
             UpdateColonizationDataInternal();
         }
