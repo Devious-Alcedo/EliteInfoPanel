@@ -7,7 +7,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-
+using EliteInfoPanel.Services;
 using System.Windows.Media;
 using System.Windows.Threading;
 using EliteInfoPanel.Core.EliteInfoPanel.Core;
@@ -35,7 +35,8 @@ namespace EliteInfoPanel.Core
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "EliteInfoPanel",
             "ColonizationData.json");
-
+        private readonly MqttService _mqttService;
+        private bool _mqttInitialized = false;
         private Dictionary<string, int> _carrierCargo = new();
         private string _carrierJumpDestinationBody;
         private string _carrierJumpDestinationSystem;
@@ -253,6 +254,7 @@ namespace EliteInfoPanel.Core
 
             // Scan journal for pending carrier jump
             ScanJournalForPendingCarrierJump();
+            Task.Run(InitializeMqttAsync);
         }
         private void EnsureDevelopmentFilesExist(string devPath)
         {
@@ -905,7 +907,23 @@ namespace EliteInfoPanel.Core
         #endregion Protected Methods
 
         #region Private Methods
-
+        private async Task InitializeMqttAsync()
+        {
+            try
+            {
+                var settings = SettingsManager.Load();
+                if (settings.MqttEnabled)
+                {
+                    await MqttService.Instance.InitializeAsync(settings);
+                    _mqttInitialized = true;
+                    Log.Information("MQTT service initialized for GameStateService");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to initialize MQTT service in GameStateService");
+            }
+        }
         public void BatchUpdate(Action updateAction)
         {
             using (BeginUpdate())
@@ -1418,24 +1436,59 @@ namespace EliteInfoPanel.Core
                     {
                         Log.Debug("Raw Status Flags2 value: 0x{RawFlags2:X8} ({RawFlags2})",
                             CurrentStatus.Flags2, CurrentStatus.Flags2);
-
-                        // If Flags2 is defined as an enum, you could also log individual flags
-                        // Similar to the above code for Flags
                     }
+
+                    // Publish to MQTT if enabled
+                    PublishStatusToMqtt(CurrentStatus);
                 }
                 else
                 {
                     Log.Warning("Status.json loaded but Flags property is null");
                 }
 
-                // Check hyperspace status
-                //IsHyperspaceJumping = CurrentStatus?.Flags.HasFlag(Flag.FsdJump) ?? false;
-
                 // Notify dependent properties
                 OnPropertyChanged(nameof(Balance));
             }
 
             return changed;
+        }
+        private async void PublishStatusToMqtt(StatusJson status)
+        {
+            if (!_mqttInitialized || status == null)
+                return;
+
+            try
+            {
+                // Publish flag states
+                await MqttService.Instance.PublishFlagStatesAsync(status);
+
+                // Also publish commander status if we have the data
+                if (!string.IsNullOrEmpty(CommanderName) && !string.IsNullOrEmpty(CurrentSystem))
+                {
+                    string shipInfo = !string.IsNullOrEmpty(ShipLocalised) ? ShipLocalised :
+                                     !string.IsNullOrEmpty(ShipName) ? ShipNameHelper.GetLocalisedName(ShipName) : "Unknown";
+
+                    await MqttService.Instance.PublishCommanderStatusAsync(CommanderName, CurrentSystem, shipInfo);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error publishing status to MQTT");
+            }
+        }
+        public async Task RefreshMqttSettingsAsync()
+        {
+            try
+            {
+                var settings = SettingsManager.Load();
+                await MqttService.Instance.InitializeAsync(settings);
+                _mqttInitialized = settings.MqttEnabled;
+                Log.Information("MQTT settings refreshed");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error refreshing MQTT settings");
+            }
         }
 
         private bool MaterialsEqual(FCMaterialsJson mat1, FCMaterialsJson mat2)

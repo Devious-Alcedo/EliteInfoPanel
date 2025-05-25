@@ -1,15 +1,17 @@
-﻿using System;
+﻿using EliteInfoPanel.Core;
+using EliteInfoPanel.Util;
+using MQTTnet;
+
+using MQTTnet.Formatter;
+using MQTTnet.Protocol;
+using Serilog;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using MQTTnet;
-
-using EliteInfoPanel.Core;
-using EliteInfoPanel.Util;
-using Serilog;
 
 namespace EliteInfoPanel.Services
 {
@@ -18,7 +20,7 @@ namespace EliteInfoPanel.Services
         private static readonly Lazy<MqttService> _instance = new Lazy<MqttService>(() => new MqttService());
         public static MqttService Instance => _instance.Value;
 
-        private IManagedMqttClient _mqttClient;
+        private IMqttClient _mqttClient;
         private AppSettings _settings;
         private readonly object _lockObject = new object();
         private DateTime _lastPublish = DateTime.MinValue;
@@ -26,12 +28,14 @@ namespace EliteInfoPanel.Services
         private Dictionary<Flags2, bool> _lastFlags2States = new Dictionary<Flags2, bool>();
         private bool _isInitialized = false;
         private readonly Timer _reconnectTimer;
+        private CancellationTokenSource _cancellationTokenSource;
 
         public bool IsConnected => _mqttClient?.IsConnected ?? false;
         public event EventHandler<bool> ConnectionStateChanged;
 
         private MqttService()
         {
+            _cancellationTokenSource = new CancellationTokenSource();
             // Initialize reconnect timer (check every 30 seconds)
             _reconnectTimer = new Timer(CheckConnection, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
         }
@@ -72,17 +76,22 @@ namespace EliteInfoPanel.Services
             // Dispose existing client if it exists
             if (_mqttClient != null)
             {
-                await _mqttClient.StopAsync();
+                if (_mqttClient.IsConnected)
+                {
+                    await _mqttClient.DisconnectAsync(MqttClientDisconnectOptionsReason.NormalDisconnection);
+                }
                 _mqttClient.Dispose();
             }
 
-            var factory = new MqttFactory();
+            var factory = new MqttClientFactory();
+            _mqttClient = factory.CreateMqttClient();
 
-            // Create managed client options
+            // Create client options using MQTTnet 5 API
             var clientOptionsBuilder = new MqttClientOptionsBuilder()
                 .WithClientId(_settings.MqttClientId)
                 .WithTcpServer(_settings.MqttBrokerHost, _settings.MqttBrokerPort)
-                .WithCleanSession();
+                .WithCleanSession(true)
+                .WithProtocolVersion(MqttProtocolVersion.V500); // Use MQTT 5.0
 
             // Add credentials if provided
             if (!string.IsNullOrEmpty(_settings.MqttUsername))
@@ -93,25 +102,26 @@ namespace EliteInfoPanel.Services
             // Add TLS if enabled
             if (_settings.MqttUseTls)
             {
-                clientOptionsBuilder.WithTls();
+                clientOptionsBuilder.WithTlsOptions(o =>
+                {
+                        o.UseTls(); // Correctly invoke the method instead of assigning
+                        o.WithAllowUntrustedCertificates(false);
+                        o.WithIgnoreCertificateChainErrors(false);
+                    // With the correct method call:
+                    o.WithIgnoreCertificateRevocationErrors(false);
+                                      
+                });
+                  
             }
 
             var clientOptions = clientOptionsBuilder.Build();
 
-            var managedOptions = new ManagedMqttClientOptionsBuilder()
-                .WithClientOptions(clientOptions)
-                .WithAutoReconnectDelay(TimeSpan.FromSeconds(10))
-                .Build();
-
-            _mqttClient = factory.CreateManagedMqttClient();
-
             // Set up event handlers
             _mqttClient.ConnectedAsync += OnConnectedAsync;
             _mqttClient.DisconnectedAsync += OnDisconnectedAsync;
-            _mqttClient.ConnectingFailedAsync += OnConnectingFailedAsync;
 
-            // Start the client
-            await _mqttClient.StartAsync(managedOptions);
+            // Connect the client
+            await _mqttClient.ConnectAsync(clientOptions, _cancellationTokenSource.Token);
         }
 
         private Task OnConnectedAsync(MqttClientConnectedEventArgs arg)
@@ -125,16 +135,32 @@ namespace EliteInfoPanel.Services
         {
             Log.Warning("MQTT client disconnected: {Reason}", arg.Reason);
             ConnectionStateChanged?.Invoke(this, false);
+
+            // Auto-reconnect if not a normal disconnection
+            if (arg.Reason != MqttClientDisconnectReason.NormalDisconnection &&
+                _settings?.MqttEnabled == true && !_cancellationTokenSource.IsCancellationRequested)
+            {
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(5), _cancellationTokenSource.Token);
+                    if (!_cancellationTokenSource.IsCancellationRequested)
+                    {
+                        try
+                        {
+                            await SetupMqttClientAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Error(ex, "Failed to reconnect MQTT client");
+                        }
+                    }
+                });
+            }
+
             return Task.CompletedTask;
         }
 
-        private Task OnConnectingFailedAsync(ConnectingFailedEventArgs arg)
-        {
-            Log.Error(arg.Exception, "MQTT connection failed");
-            return Task.CompletedTask;
-        }
-
-        public async Task PublishFlagStatesAsync(StatusJson status)
+        public async Task PublishFlagStatesAsync(StatusJson status, bool? isDocking = null)
         {
             if (!_settings.MqttEnabled || _mqttClient == null || !_mqttClient.IsConnected || status == null)
                 return;
@@ -145,7 +171,7 @@ namespace EliteInfoPanel.Services
 
             try
             {
-                var currentFlags = GetCurrentFlagStates(status);
+                var currentFlags = GetCurrentFlagStates(status, isDocking);
                 var currentFlags2 = GetCurrentFlags2States(status);
 
                 // Check if we should publish (only on changes if configured)
@@ -171,7 +197,7 @@ namespace EliteInfoPanel.Services
             }
         }
 
-        private Dictionary<Flag, bool> GetCurrentFlagStates(StatusJson status)
+        private Dictionary<Flag, bool> GetCurrentFlagStates(StatusJson status, bool? isDocking = null)
         {
             var states = new Dictionary<Flag, bool>();
 
@@ -186,8 +212,7 @@ namespace EliteInfoPanel.Services
                 }
                 else if (flag == SyntheticFlags.Docking)
                 {
-                    // You'd need to inject docking state here or get it from GameStateService
-                    states[flag] = false; // Placeholder - implement based on your docking logic
+                    states[flag] = isDocking ?? false;
                 }
                 else
                 {
@@ -234,8 +259,8 @@ namespace EliteInfoPanel.Services
         {
             var tasks = new List<Task>();
 
-            // Publish primary flags
-            foreach (var kvp in flags.Where(f => f.Value)) // Only publish active flags
+            // Publish primary flags (only active ones to reduce traffic)
+            foreach (var kvp in flags.Where(f => f.Value))
             {
                 var topic = $"{_settings.MqttTopicPrefix}/flags/{kvp.Key.ToString().ToLower()}";
                 var payload = JsonSerializer.Serialize(new
@@ -248,8 +273,8 @@ namespace EliteInfoPanel.Services
                 tasks.Add(PublishAsync(topic, payload));
             }
 
-            // Publish Flags2
-            foreach (var kvp in flags2.Where(f => f.Value)) // Only publish active flags
+            // Publish Flags2 (only active ones to reduce traffic)
+            foreach (var kvp in flags2.Where(f => f.Value))
             {
                 var topic = $"{_settings.MqttTopicPrefix}/flags2/{kvp.Key.ToString().ToLower()}";
                 var payload = JsonSerializer.Serialize(new
@@ -289,14 +314,21 @@ namespace EliteInfoPanel.Services
             if (_mqttClient == null || !_mqttClient.IsConnected)
                 return;
 
-            var message = new MqttApplicationMessageBuilder()
-                .WithTopic(topic)
-                .WithPayload(payload)
-                .WithQualityOfServiceLevel((MQTTnet.Protocol.MqttQualityOfServiceLevel)_settings.MqttQosLevel)
-                .WithRetainFlag(_settings.MqttRetainMessages)
-                .Build();
+            try
+            {
+                var applicationMessage = new MqttApplicationMessageBuilder()
+                    .WithTopic(topic)
+                    .WithPayload(payload)
+                    .WithQualityOfServiceLevel((MqttQualityOfServiceLevel)_settings.MqttQosLevel)
+                    .WithRetainFlag(_settings.MqttRetainMessages)
+                    .Build();
 
-            await _mqttClient.EnqueueAsync(message);
+                await _mqttClient.PublishAsync(applicationMessage, _cancellationTokenSource.Token);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error publishing MQTT message to topic: {Topic}", topic);
+            }
         }
 
         public async Task PublishCommanderStatusAsync(string commanderName, string system, string ship)
@@ -323,13 +355,91 @@ namespace EliteInfoPanel.Services
             }
         }
 
+        public async Task PublishGameEventAsync(string eventType, object eventData)
+        {
+            if (!_settings.MqttEnabled || _mqttClient == null || !_mqttClient.IsConnected)
+                return;
+
+            try
+            {
+                var topic = $"{_settings.MqttTopicPrefix}/events/{eventType.ToLower()}";
+                var payload = JsonSerializer.Serialize(new
+                {
+                    eventType = eventType,
+                    timestamp = DateTime.UtcNow.ToString("O"),
+                    data = eventData
+                }, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+                await PublishAsync(topic, payload);
+                Log.Debug("Published MQTT game event: {EventType}", eventType);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error publishing game event to MQTT: {EventType}", eventType);
+            }
+        }
+
+        public async Task<bool> TestConnectionAsync(AppSettings testSettings)
+        {
+            var factory = new MqttClientFactory();
+            using var testClient = factory.CreateMqttClient();
+
+            try
+            {
+                var optionsBuilder = new MqttClientOptionsBuilder()
+                    .WithClientId(testSettings.MqttClientId + "_test")
+                    .WithTcpServer(testSettings.MqttBrokerHost, testSettings.MqttBrokerPort)
+                    .WithCleanSession(true)
+                    .WithProtocolVersion(MqttProtocolVersion.V500);
+
+                if (!string.IsNullOrEmpty(testSettings.MqttUsername))
+                {
+                    optionsBuilder.WithCredentials(testSettings.MqttUsername, testSettings.MqttPassword);
+                }
+
+                if (testSettings.MqttUseTls)
+                {
+                    optionsBuilder.WithTlsOptions(o =>
+                    {
+                        o.UseTls(); // Correctly invoke the method instead of assigning
+                        o.WithAllowUntrustedCertificates(false);
+                        o.WithIgnoreCertificateChainErrors(false);
+                        // With the correct method call:
+                        o.WithIgnoreCertificateRevocationErrors(false);
+                    });
+                }
+
+                var options = optionsBuilder.Build();
+
+                // Try to connect with a timeout
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                var result = await testClient.ConnectAsync(options, cts.Token);
+
+                if (result.ResultCode == MqttClientConnectResultCode.Success)
+                {
+                    await testClient.DisconnectAsync(MqttClientDisconnectOptionsReason.NormalDisconnection);
+                    return true;
+                }
+                else
+                {
+                    Log.Warning("MQTT test connection failed: {ResultCode}", result.ResultCode);
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "MQTT test connection error");
+                return false;
+            }
+        }
+
         public async Task DisconnectAsync()
         {
-            if (_mqttClient != null)
+            if (_mqttClient != null && _mqttClient.IsConnected)
             {
                 try
                 {
-                    await _mqttClient.StopAsync();
+                    await _mqttClient.DisconnectAsync(MqttClientDisconnectOptionsReason.NormalDisconnection);
                     Log.Information("MQTT client disconnected");
                 }
                 catch (Exception ex)
@@ -344,7 +454,7 @@ namespace EliteInfoPanel.Services
             if (_settings?.MqttEnabled == true && (_mqttClient == null || !_mqttClient.IsConnected))
             {
                 Log.Debug("MQTT connection check - attempting reconnection");
-                Task.Run(async () =>
+                _ = Task.Run(async () =>
                 {
                     try
                     {
@@ -360,13 +470,17 @@ namespace EliteInfoPanel.Services
 
         public void Dispose()
         {
+            _cancellationTokenSource?.Cancel();
             _reconnectTimer?.Dispose();
 
             if (_mqttClient != null)
             {
                 try
                 {
-                    _mqttClient.StopAsync().Wait(5000);
+                    if (_mqttClient.IsConnected)
+                    {
+                        _mqttClient.DisconnectAsync(MqttClientDisconnectOptionsReason.NormalDisconnection).Wait(5000);
+                    }
                     _mqttClient.Dispose();
                 }
                 catch (Exception ex)
@@ -374,6 +488,8 @@ namespace EliteInfoPanel.Services
                     Log.Error(ex, "Error disposing MQTT client");
                 }
             }
+
+            _cancellationTokenSource?.Dispose();
         }
     }
 }
