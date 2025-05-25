@@ -91,28 +91,43 @@ namespace EliteInfoPanel.Dialogs
                 // Save the settings
                 _viewModel.SaveSettings();
 
+                // Refresh MQTT settings if they changed
+                Task.Run(async () =>
+                {
+                    try
+                    {
+                        if (Application.Current.MainWindow?.DataContext is MainViewModel mainViewModel)
+                        {
+                            await mainViewModel._gameState.RefreshMqttSettingsAsync();
+                            Log.Information("MQTT settings refreshed after save");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "Error refreshing MQTT settings");
+                    }
+                });
+
                 // Notify for changes requiring UI updates
                 if (windowModeChanged)
                 {
-                    // Notify about window mode change
                     Log.Information("Window mode changed - notifying main window");
                     WindowModeChanged?.Invoke(_viewModel.IsFloatingWindowMode);
                 }
 
                 if (fontScaleChanged)
                 {
-                    // Notify about font size change
                     Log.Information("Font scale changed - notifying main window");
                     FontSizeChanged?.Invoke();
                 }
 
                 // Always notify about card visibility changes
-                if (Application.Current.MainWindow?.DataContext is MainViewModel mainViewModel)
+                if (Application.Current.MainWindow?.DataContext is MainViewModel mainViewModel2)
                 {
                     Log.Information("Refreshing card visibility based on new settings");
-                    mainViewModel.RefreshLayout(true);
+                    mainViewModel2.RefreshLayout(true);
                 }
-                Loaded += Window_Loaded;
+
                 DialogResult = true;
                 Close();
             });
@@ -134,11 +149,11 @@ namespace EliteInfoPanel.Dialogs
             // Load UI when window is shown
             Loaded += (s, e) =>
             {
-
                 PopulateDisplayOptions();
                 PopulateFlagOptions();
                 PopulateWindowModeOptions();
                 PopulateCardOptions();
+                PopulateMqttOptions(); // Add this line
             };
         }
 
@@ -160,12 +175,36 @@ namespace EliteInfoPanel.Dialogs
         #endregion Public Properties
 
         #region Private Methods
+        private void PopulateMqttOptions()
+        {
+            try
+            {
+                // Handle password box binding manually since PasswordBox doesn't support data binding
+                var passwordBox = FindName("MqttPasswordBox") as PasswordBox;
+                if (passwordBox != null)
+                {
+                    // Set initial password
+                    passwordBox.Password = _viewModel.MqttPassword ?? "";
 
+                    // Handle password changes
+                    passwordBox.PasswordChanged += (s, e) =>
+                    {
+                        _viewModel.MqttPassword = passwordBox.Password;
+                    };
+                }
+
+                Log.Debug("MQTT options populated successfully");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error populating MQTT options");
+            }
+        }
         private void CancelButton_Click(object sender, RoutedEventArgs e)
         {
             _viewModel.CancelCommand.Execute(null);
         }
-       
+
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             // Copy all application resources
@@ -186,6 +225,7 @@ namespace EliteInfoPanel.Dialogs
             PopulateFlagOptions();
             PopulateWindowModeOptions();
             PopulateCardOptions();
+            PopulateMqttOptions(); // Add this line
         }
 
         private void ApplyEliteThemeToAllElements()

@@ -1,4 +1,7 @@
 ﻿using System;
+using MQTTnet;
+using MQTTnet.Formatter;
+using MQTTnet.Protocol;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Windows;
@@ -9,6 +12,7 @@ using WpfScreenHelper;
 
 namespace EliteInfoPanel.ViewModels
 {
+  
     public class QosLevelOption
     {
         #region Public Properties
@@ -27,7 +31,12 @@ namespace EliteInfoPanel.ViewModels
         private AppSettings _appSettings;
         private int _fontSize = 14;
         private double _fontSizePreview = 14;
-
+        private string _mqttConnectionStatus = "Not tested";
+        public string MqttConnectionStatus
+        {
+            get => _mqttConnectionStatus;
+            set => SetProperty(ref _mqttConnectionStatus, value);
+        }
         #endregion Private Fields
 
         #region Public Constructors
@@ -520,6 +529,9 @@ namespace EliteInfoPanel.ViewModels
         // Add this public method to the SettingsViewModel class
         public void SaveSettings()
         {
+            if (!ValidateMqttSettings())
+                return;
+
             SettingsManager.Save(_appSettings);
             Log.Information("💾 Saving: FloatingWindow = {Mode}, FullscreenScale = {F}, FloatingScale = {S}",
                 _appSettings.UseFloatingWindow,
@@ -544,72 +556,62 @@ namespace EliteInfoPanel.ViewModels
             {
                 ShowMessage("Testing MQTT connection...");
 
-                // Create a temporary test settings object
-                var testSettings = new AppSettings
+                // Use the correct MQTTnet v5 API - no .Client namespace
+                var factory = new MqttClientFactory();
+                using var testClient = factory.CreateMqttClient();
+
+                var optionsBuilder = new MqttClientOptionsBuilder()
+                    .WithClientId(MqttClientId + "_test")
+                    .WithTcpServer(MqttBrokerHost, MqttBrokerPort)
+                    .WithCleanSession(true)
+                    .WithProtocolVersion(MqttProtocolVersion.V500);
+
+                if (!string.IsNullOrEmpty(MqttUsername))
                 {
-                    MqttEnabled = true,
-                    MqttBrokerHost = MqttBrokerHost,
-                    MqttBrokerPort = MqttBrokerPort,
-                    MqttUsername = MqttUsername,
-                    MqttPassword = MqttPassword,
-                    MqttClientId = MqttClientId + "_test",
-                    MqttUseTls = MqttUseTls,
-                    MqttTopicPrefix = MqttTopicPrefix
-                };
-
-                // Test connection using a temporary MQTT service instance
-                using (var testClient = new MQTTnet.MqttFactory().CreateMqttClient())
-                {
-                    var optionsBuilder = new MQTTnet.Client.MqttClientOptionsBuilder()
-                        .WithClientId(testSettings.MqttClientId)
-                        .WithTcpServer(testSettings.MqttBrokerHost, testSettings.MqttBrokerPort)
-                        .WithCleanSession();
-
-                    if (!string.IsNullOrEmpty(testSettings.MqttUsername))
-                    {
-                        optionsBuilder.WithCredentials(testSettings.MqttUsername, testSettings.MqttPassword);
-                    }
-
-                    if (testSettings.MqttUseTls)
-                    {
-                        optionsBuilder.WithTls();
-                    }
-
-                    var options = optionsBuilder.Build();
-
-                    // Try to connect with a timeout
-                    using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
-                    {
-                        var result = await testClient.ConnectAsync(options, cts.Token);
-
-                        if (result.ResultCode == MQTTnet.Client.MqttClientConnectResultCode.Success)
-                        {
-                            ShowMessage("✓ MQTT connection successful!");
-                            await testClient.DisconnectAsync();
-                        }
-                        else
-                        {
-                            ShowMessage($"✗ MQTT connection failed: {result.ResultCode}");
-                        }
-                    }
+                    optionsBuilder.WithCredentials(MqttUsername, MqttPassword);
                 }
+
+                if (MqttUseTls)
+                {
+                    optionsBuilder.WithTlsOptions(o =>
+                    {
+                        o.UseTls();
+                        o.WithAllowUntrustedCertificates(false);
+                        o.WithIgnoreCertificateChainErrors(false);
+                        o.WithIgnoreCertificateRevocationErrors(false);
+                    });
+                }
+
+                var options = optionsBuilder.Build();
+
+                // Try to connect with a timeout
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                var result = await testClient.ConnectAsync(options, cts.Token);
+
+                if (result.ResultCode == MqttClientConnectResultCode.Success)
+                {
+                    ShowMessage("✓ MQTT connection successful!");
+                    await testClient.DisconnectAsync(MqttClientDisconnectOptionsReason.NormalDisconnection);
+                }
+                else
+                {
+                    ShowMessage($"✗ MQTT connection failed: {result.ResultCode}");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                ShowMessage("✗ MQTT connection timed out");
             }
             catch (Exception ex)
             {
                 ShowMessage($"✗ MQTT connection error: {ex.Message}");
                 Serilog.Log.Error(ex, "MQTT connection test failed");
             }
-        }
-
-        // Helper method to show messages (you might need to implement this based on your UI framework)
+        }        // Helper method to show messages (you might need to implement this based on your UI framework)
         private void ShowMessage(string message)
         {
-            // You could use a MessageBox, toast notification, or update a status label
-            // For now, just log it
+            MqttConnectionStatus = message;
             Serilog.Log.Information("MQTT Test: {Message}", message);
-
-            // If you have a status message property, update it:
-            // StatusMessage = message;
         }
         // Method to handle screen selection
         public void SelectScreen(Screen screen)
@@ -621,11 +623,49 @@ namespace EliteInfoPanel.ViewModels
                 ScreenChanged?.Invoke(screen);
             }
         }
+        public void UpdateMqttPassword(string password)
+        {
+            if (_appSettings.MqttPassword != password)
+            {
+                _appSettings.MqttPassword = password;
+                OnPropertyChanged(nameof(MqttPassword));
+            }
+        }
 
         #endregion Public Methods
 
         #region Private Methods
+        public bool ValidateMqttSettings()
+        {
+            if (!MqttEnabled)
+                return true;
 
+            if (string.IsNullOrWhiteSpace(MqttBrokerHost))
+            {
+                ShowMessage("Broker host is required when MQTT is enabled");
+                return false;
+            }
+
+            if (MqttBrokerPort <= 0 || MqttBrokerPort > 65535)
+            {
+                ShowMessage("Broker port must be between 1 and 65535");
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(MqttClientId))
+            {
+                ShowMessage("Client ID is required when MQTT is enabled");
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(MqttTopicPrefix))
+            {
+                ShowMessage("Topic prefix is required when MQTT is enabled");
+                return false;
+            }
+
+            return true;
+        }
         private void RequestDisplayChange()
         {
             DisplayChangeRequested?.Invoke();

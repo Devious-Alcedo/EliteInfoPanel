@@ -4,7 +4,7 @@
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         xmlns:converters="clr-namespace:EliteInfoPanel.Converters"
         xmlns:controls="clr-namespace:EliteInfoPanel.Controls"
-        Title="Options" Height="600" Width="520"
+        Title="Options" Height="696" Width="520"
         WindowStartupLocation="Manual"
         Background="{DynamicResource MaterialDesignPaper}"
         WindowStyle="SingleBorderWindow"
@@ -153,8 +153,10 @@
             </Grid.RowDefinitions>
 
             <!-- Main Content Tabs -->
+            <!-- Replace the TabControl section in OptionsWindow.xaml with this updated version that includes the MQTT tab -->
+
             <TabControl Grid.Row="0" Style="{StaticResource EliteTabControl}">
-                <!-- Window Settings -->
+                <!-- Window Settings Tab -->
                 <TabItem Header="Window Settings" Style="{StaticResource EliteTabItem}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Background="#11FFFFFF">
                         <StackPanel Margin="10">
@@ -168,10 +170,10 @@
                             <GroupBox Header="Font Size" Margin="0,0,0,12" Style="{StaticResource EliteGroupBox}">
                                 <StackPanel Margin="0,8,0,0">
                                     <TextBlock Text="Sample Text" 
-                                              FontSize="{Binding FontSizePreview}"
-                                              HorizontalAlignment="Center" 
-                                              Margin="0,0,0,10"
-                                              Foreground="{DynamicResource MaterialDesignBody}"/>
+                                  FontSize="{Binding FontSizePreview}"
+                                  HorizontalAlignment="Center" 
+                                  Margin="0,0,0,10"
+                                  Foreground="{DynamicResource MaterialDesignBody}"/>
 
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -181,63 +183,66 @@
                                         </Grid.ColumnDefinitions>
 
                                         <TextBlock Text="A" FontSize="12" Grid.Column="0" Margin="0,0,8,0"
-                                                  VerticalAlignment="Center"
-                                                  Foreground="{DynamicResource MaterialDesignBody}"/>
+                                      VerticalAlignment="Center"
+                                      Foreground="{DynamicResource MaterialDesignBody}"/>
 
                                         <Slider x:Name="fontSizeSlider" 
-                                           Grid.Column="1"
-                                           Minimum="{Binding MinFontScale}"
-                                           Maximum="{Binding MaxFontScale}"
-                                           Value="{Binding CurrentFontScale, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                           TickFrequency="{Binding FontScaleStep}"
-                                           IsSnapToTickEnabled="True"
-                                           ValueChanged="FontSizeSlider_ValueChanged"
-                                           VerticalAlignment="Center"
-                                           Foreground="{DynamicResource EliteHudMain}"/>
+                               Grid.Column="1"
+                               Minimum="{Binding MinFontScale}"
+                               Maximum="{Binding MaxFontScale}"
+                               Value="{Binding CurrentFontScale, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                               TickFrequency="{Binding FontScaleStep}"
+                               IsSnapToTickEnabled="True"
+                               ValueChanged="FontSizeSlider_ValueChanged"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource EliteHudMain}"/>
 
                                         <TextBlock Text="A" FontSize="20" Grid.Column="2" Margin="8,0,0,0"
-                                                  VerticalAlignment="Center"
-                                                  Foreground="{DynamicResource MaterialDesignBody}"/>
+                                      VerticalAlignment="Center"
+                                      Foreground="{DynamicResource MaterialDesignBody}"/>
                                     </Grid>
 
                                     <TextBlock x:Name="scalePercentageText"
-                                              Text="Scale: 100%"
-                                              HorizontalAlignment="Center"
-                                              Margin="0,4,0,0"
-                                              Foreground="{DynamicResource MaterialDesignBody}"/>
+                                  Text="Scale: 100%"
+                                  HorizontalAlignment="Center"
+                                  Margin="0,4,0,0"
+                                  Foreground="{DynamicResource MaterialDesignBody}"/>
                                 </StackPanel>
                             </GroupBox>
-                            <!-- Add this to the Settings tab -->
+
+                            <!-- Development Settings -->
                             <GroupBox Header="Development Settings" Margin="0,0,0,12" Style="{StaticResource EliteGroupBox}">
                                 <StackPanel>
                                     <CheckBox Content="Enable Development Mode" 
-                 IsChecked="{Binding DevelopmentMode}" 
-                 ToolTip="Uses simulated journal entries for testing"
-                 Margin="0,5,0,5"/>
+                                 IsChecked="{Binding DevelopmentMode}" 
+                                 ToolTip="Uses simulated journal entries for testing"
+                                 Margin="0,5,0,5"
+                                 Foreground="{DynamicResource MaterialDesignBody}"/>
                                     <TextBlock Text="WARNING: Application must be restarted for changes to take effect!" 
-                  Foreground="Orange"
-                  Visibility="{Binding DevelopmentMode, Converter={StaticResource BoolToVis}}"
-                  FontStyle="Italic" 
-                  Margin="24,0,0,5"/>
+                                  Foreground="Orange"
+                                  Visibility="{Binding DevelopmentMode, Converter={StaticResource BoolToVis}}"
+                                  FontStyle="Italic" 
+                                  Margin="24,0,0,5"/>
                                 </StackPanel>
                             </GroupBox>
+
                             <!-- Change Display Button -->
                             <StackPanel Orientation="Horizontal"
-                                       HorizontalAlignment="Right"
-                                       Margin="0,0,0,12"
-                                       IsEnabled="{Binding IsFullScreenMode}">
+                           HorizontalAlignment="Right"
+                           Margin="0,0,0,12"
+                           IsEnabled="{Binding IsFullScreenMode}">
                                 <Button Content="Change Display"
-                                       Command="{Binding ChangeDisplayCommand}"
-                                       Style="{DynamicResource MaterialDesignOutlinedButton}" 
-                                       Foreground="{DynamicResource EliteHudMain}"
-                                       BorderBrush="{DynamicResource EliteHudMain}"/>
+                           Command="{Binding ChangeDisplayCommand}"
+                           Style="{DynamicResource MaterialDesignOutlinedButton}" 
+                           Foreground="{DynamicResource EliteHudMain}"
+                           BorderBrush="{DynamicResource EliteHudMain}"/>
                             </StackPanel>
 
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>
 
-                <!-- Status Flags -->
+                <!-- Status Flags Tab -->
                 <TabItem Header="Status Flags" Style="{StaticResource EliteTabItem}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Background="#11FFFFFF">
                         <StackPanel Margin="10">
@@ -248,10 +253,184 @@
                     </ScrollViewer>
                 </TabItem>
 
+                <!-- Cards Tab -->
                 <TabItem Header="Cards" Style="{StaticResource EliteTabItem}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Background="#11FFFFFF">
                         <StackPanel Margin="10" x:Name="CardsOptionsPanel">
                             <!-- Cards will be added dynamically -->
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- MQTT Configuration Tab -->
+                <TabItem Header="MQTT" Style="{StaticResource EliteTabItem}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Background="#11FFFFFF">
+                        <StackPanel Margin="10">
+
+                            <!-- MQTT Enable/Disable -->
+                            <GroupBox Header="MQTT Configuration" Margin="0,0,0,12" Style="{StaticResource EliteGroupBox}">
+                                <StackPanel>
+                                    <CheckBox Content="Enable MQTT Publishing" 
+                                 IsChecked="{Binding MqttEnabled}" 
+                                 ToolTip="Enable publishing Elite Dangerous status to MQTT broker"
+                                 Margin="0,5,0,10"
+                                 Foreground="{DynamicResource MaterialDesignBody}"/>
+
+                                    <!-- MQTT Configuration Panel (only visible when MQTT is enabled) -->
+                                    <StackPanel Visibility="{Binding MqttEnabled, Converter={StaticResource BoolToVis}}">
+
+                                        <!-- Broker Settings -->
+                                        <GroupBox Header="Broker Settings" Margin="0,0,0,12" Style="{StaticResource EliteGroupBox}">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="120"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="80"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <!-- Broker Host -->
+                                                <TextBlock Text="Host:" Grid.Row="0" Grid.Column="0" 
+                                              VerticalAlignment="Center" Margin="0,0,10,5"
+                                              Foreground="{DynamicResource MaterialDesignBody}"/>
+                                                <TextBox Text="{Binding MqttBrokerHost}" Grid.Row="0" Grid.Column="1" 
+                                            Margin="0,0,10,5" ToolTip="MQTT broker hostname or IP address"/>
+
+                                                <!-- Broker Port -->
+                                                <TextBlock Text="Port:" Grid.Row="0" Grid.Column="2" 
+                                              VerticalAlignment="Center" Margin="0,0,10,5"
+                                              Foreground="{DynamicResource MaterialDesignBody}"/>
+                                                <TextBox Text="{Binding MqttBrokerPort}" Grid.Row="0" Grid.Column="3" 
+                                            Margin="0,0,0,5" ToolTip="MQTT broker port (usually 1883)"/>
+
+                                                <!-- Client ID -->
+                                                <TextBlock Text="Client ID:" Grid.Row="1" Grid.Column="0" 
+                                              VerticalAlignment="Center" Margin="0,0,10,5"
+                                              Foreground="{DynamicResource MaterialDesignBody}"/>
+                                                <TextBox Text="{Binding MqttClientId}" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3"
+                                            Margin="0,0,0,5" ToolTip="Unique client identifier"/>
+
+                                                <!-- Topic Prefix -->
+                                                <TextBlock Text="Topic Prefix:" Grid.Row="2" Grid.Column="0" 
+                                              VerticalAlignment="Center" Margin="0,0,10,5"
+                                              Foreground="{DynamicResource MaterialDesignBody}"/>
+                                                <TextBox Text="{Binding MqttTopicPrefix}" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3"
+                                            Margin="0,0,0,5" ToolTip="Base topic path for all messages"/>
+
+                                                <!-- TLS Settings -->
+                                                <CheckBox Content="Use TLS/SSL" Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
+                                             IsChecked="{Binding MqttUseTls}" 
+                                             Margin="0,5,0,0"
+                                             Foreground="{DynamicResource MaterialDesignBody}"/>
+                                            </Grid>
+                                        </GroupBox>
+
+                                        <!-- Authentication -->
+                                        <GroupBox Header="Authentication (Optional)" Margin="0,0,0,12" Style="{StaticResource EliteGroupBox}">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="120"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <!-- Username -->
+                                                <TextBlock Text="Username:" Grid.Row="0" Grid.Column="0" 
+                                              VerticalAlignment="Center" Margin="0,0,10,5"
+                                              Foreground="{DynamicResource MaterialDesignBody}"/>
+                                                <TextBox Text="{Binding MqttUsername}" Grid.Row="0" Grid.Column="1" 
+                                            Margin="0,0,0,5" ToolTip="MQTT username (leave blank if not required)"/>
+
+                                                <!-- Password -->
+                                                <TextBlock Text="Password:" Grid.Row="1" Grid.Column="0" 
+                                              VerticalAlignment="Center" Margin="0,0,10,0"
+                                              Foreground="{DynamicResource MaterialDesignBody}"/>
+                                                <PasswordBox x:Name="MqttPasswordBox" Grid.Row="1" Grid.Column="1" 
+                                                Margin="0,0,0,0" ToolTip="MQTT password"/>
+                                            </Grid>
+                                        </GroupBox>
+
+                                        <!-- Publishing Settings -->
+                                        <GroupBox Header="Publishing Settings" Margin="0,0,0,12" Style="{StaticResource EliteGroupBox}">
+                                            <StackPanel>
+                                                <!-- QoS Level -->
+                                                <Grid Margin="0,0,0,5">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="120"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <TextBlock Text="QoS Level:" Grid.Column="0" 
+                                                  VerticalAlignment="Center" Margin="0,0,10,0"
+                                                  Foreground="{DynamicResource MaterialDesignBody}"/>
+                                                    <ComboBox Grid.Column="1" 
+                                                 ItemsSource="{Binding MqttQosLevelOptions}"
+                                                 SelectedValue="{Binding MqttQosLevel}" 
+                                                 SelectedValuePath="Value"
+                                                 DisplayMemberPath="Description"/>
+                                                </Grid>
+
+                                                <!-- Publishing Options -->
+                                                <CheckBox Content="Retain messages" 
+                                             IsChecked="{Binding MqttRetainMessages}" 
+                                             Margin="0,5,0,5"
+                                             Foreground="{DynamicResource MaterialDesignBody}"
+                                             ToolTip="Keep last message on broker for new subscribers"/>
+
+                                                <CheckBox Content="Publish only on changes" 
+                                             IsChecked="{Binding MqttPublishOnlyChanges}" 
+                                             Margin="0,0,0,5"
+                                             Foreground="{DynamicResource MaterialDesignBody}"
+                                             ToolTip="Only send messages when flag states change"/>
+
+                                                <!-- Publish Interval -->
+                                                <Grid Margin="0,5,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="180"/>
+                                                        <ColumnDefinition Width="80"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <TextBlock Text="Publish interval (ms):" Grid.Column="0" 
+                                                  VerticalAlignment="Center"
+                                                  Foreground="{DynamicResource MaterialDesignBody}"/>
+                                                    <TextBox Text="{Binding MqttPublishIntervalMs}" Grid.Column="1" 
+                                                Margin="0,0,5,0"/>
+                                                    <TextBlock Text="(minimum: 100ms)" Grid.Column="2" 
+                                                  VerticalAlignment="Center" FontStyle="Italic"
+                                                  Foreground="{DynamicResource MaterialDesignBody}"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </GroupBox>
+
+                                        <!-- Connection Test -->
+                                        <GroupBox Header="Connection Test" Margin="0,0,0,12" Style="{StaticResource EliteGroupBox}">
+                                            <StackPanel>
+                                                <Button Content="Test Connection" 
+                                           Command="{Binding TestMqttConnectionCommand}"
+                                           HorizontalAlignment="Left"
+                                           Margin="0,0,0,10"
+                                           Style="{DynamicResource MaterialDesignRaisedButton}"/>
+
+                                                <TextBlock Text="{Binding MqttConnectionStatus}" 
+                                              Foreground="{DynamicResource MaterialDesignBody}"
+                                              TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </GroupBox>
+
+                                    </StackPanel>
+                                </StackPanel>
+                            </GroupBox>
+
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>

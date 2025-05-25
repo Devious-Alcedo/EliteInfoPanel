@@ -1476,6 +1476,21 @@ namespace EliteInfoPanel.Core
                 Log.Error(ex, "Error publishing status to MQTT");
             }
         }
+        public async Task PublishCurrentStateToMqtt()
+        {
+            if (_mqttInitialized && CurrentStatus != null)
+            {
+                try
+                {
+                    await MqttService.Instance.PublishFlagStatesAsync(CurrentStatus, IsDocking);
+                    Log.Information("Published current state to MQTT");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error publishing current state to MQTT");
+                }
+            }
+        }
         public async Task RefreshMqttSettingsAsync()
         {
             try
