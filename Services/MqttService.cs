@@ -19,7 +19,7 @@ namespace EliteInfoPanel.Services
     {
         private static readonly Lazy<MqttService> _instance = new Lazy<MqttService>(() => new MqttService());
         public static MqttService Instance => _instance.Value;
-
+        private readonly HashSet<string> _haConfigSent = new(); // Track sent configs
         private IMqttClient _mqttClient;
         private AppSettings _settings;
         private readonly object _lockObject = new object();
@@ -29,7 +29,7 @@ namespace EliteInfoPanel.Services
         private bool _isInitialized = false;
         private readonly Timer _reconnectTimer;
         private CancellationTokenSource _cancellationTokenSource;
-
+        private string deviceName = "eliteinfopanel";
         public bool IsConnected => _mqttClient?.IsConnected ?? false;
         public event EventHandler<bool> ConnectionStateChanged;
 
@@ -69,6 +69,39 @@ namespace EliteInfoPanel.Services
                 Log.Error(ex, "Failed to initialize MQTT service");
                 throw;
             }
+        }
+        private async Task PublishHomeAssistantConfigIfNeeded(Enum flag, string stateTopic)
+        {
+            if (!_settings.MqttEnabled || _mqttClient == null || !_mqttClient.IsConnected)
+                return;
+
+           
+            string baseTopic = _settings.MqttTopicPrefix?.TrimEnd('/') ?? "homeassistant";
+            string sensor = flag.ToString().ToLowerInvariant();
+            string configTopic = $"{baseTopic}/binary_sensor/{deviceName}/{sensor}/config";
+
+            if (_haConfigSent.Contains(configTopic)) return;
+
+            var configPayload = new
+            {
+                name = sensor,
+                state_topic = stateTopic,
+                unique_id = $"{deviceName}_{sensor}",
+                device_class = "connectivity",
+                payload_on = "ON",
+                payload_off = "OFF",
+                device = new
+                {
+                    identifiers = new[] { deviceName },
+                    name = deviceName,
+                    manufacturer = "Elite Dangerous",
+                    model = "Elite Info Panel"
+                }
+            };
+
+            string configJson = JsonSerializer.Serialize(configPayload);
+            await PublishAsync(configTopic, configJson, retain: true);
+            _haConfigSent.Add(configTopic);
         }
 
         private async Task SetupMqttClientAsync()
@@ -129,6 +162,14 @@ namespace EliteInfoPanel.Services
             Log.Information("MQTT client connected to {Host}:{Port}", _settings.MqttBrokerHost, _settings.MqttBrokerPort);
             ConnectionStateChanged?.Invoke(this, true);
             return Task.CompletedTask;
+        }
+        public async Task PublishInitialState(StatusJson status)
+        {
+            if (status != null)
+            {
+                await PublishFlagStatesAsync(status);
+                Log.Information("Published initial flag states to MQTT.");
+            }
         }
 
         private Task OnDisconnectedAsync(MqttClientDisconnectedEventArgs arg)
@@ -259,36 +300,30 @@ namespace EliteInfoPanel.Services
         {
             var tasks = new List<Task>();
 
-            // Publish primary flags (only active ones to reduce traffic)
-            foreach (var kvp in flags.Where(f => f.Value))
+            foreach (var kvp in flags)
             {
-                var topic = $"{_settings.MqttTopicPrefix}/flags/{kvp.Key.ToString().ToLower()}";
-                var payload = JsonSerializer.Serialize(new
-                {
-                    flag = kvp.Key.ToString(),
-                    active = kvp.Value,
-                    timestamp = DateTime.UtcNow.ToString("O")
-                });
+                string sensor = kvp.Key.ToString().ToLowerInvariant();
+                string stateTopic = $"{_settings.MqttTopicPrefix}/binary_sensor/{deviceName}/{sensor}/state";
+                string payload = kvp.Value ? "ON" : "OFF";
 
-                tasks.Add(PublishAsync(topic, payload));
+                await PublishHomeAssistantConfigIfNeeded(kvp.Key, stateTopic);
+                tasks.Add(PublishAsync(stateTopic, payload, retain: true));
             }
 
-            // Publish Flags2 (only active ones to reduce traffic)
-            foreach (var kvp in flags2.Where(f => f.Value))
+            foreach (var kvp in flags2)
             {
-                var topic = $"{_settings.MqttTopicPrefix}/flags2/{kvp.Key.ToString().ToLower()}";
-                var payload = JsonSerializer.Serialize(new
-                {
-                    flag = kvp.Key.ToString(),
-                    active = kvp.Value,
-                    timestamp = DateTime.UtcNow.ToString("O")
-                });
+                string sensor = kvp.Key.ToString().ToLowerInvariant();
+                string stateTopic = $"{_settings.MqttTopicPrefix}/binary_sensor/{deviceName}/{sensor}/state";
+                string payload = kvp.Value ? "ON" : "OFF";
 
-                tasks.Add(PublishAsync(topic, payload));
+                await PublishHomeAssistantConfigIfNeeded(kvp.Key, stateTopic); // Now uses correct overload
+                tasks.Add(PublishAsync(stateTopic, payload, retain: true));
             }
 
             await Task.WhenAll(tasks);
         }
+
+
 
         private async Task PublishCombinedStatusAsync(StatusJson status, Dictionary<Flag, bool> flags, Dictionary<Flags2, bool> flags2)
         {
@@ -309,7 +344,7 @@ namespace EliteInfoPanel.Services
             await PublishAsync(topic, payload);
         }
 
-        private async Task PublishAsync(string topic, string payload)
+        private async Task PublishAsync(string topic, string payload, bool retain = false)
         {
             if (_mqttClient == null || !_mqttClient.IsConnected)
                 return;
@@ -320,7 +355,7 @@ namespace EliteInfoPanel.Services
                     .WithTopic(topic)
                     .WithPayload(payload)
                     .WithQualityOfServiceLevel((MqttQualityOfServiceLevel)_settings.MqttQosLevel)
-                    .WithRetainFlag(_settings.MqttRetainMessages)
+                    .WithRetainFlag(retain) // Use the retain parameter here
                     .Build();
 
                 await _mqttClient.PublishAsync(applicationMessage, _cancellationTokenSource.Token);

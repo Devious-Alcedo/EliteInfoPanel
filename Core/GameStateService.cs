@@ -255,6 +255,11 @@ namespace EliteInfoPanel.Core
             // Scan journal for pending carrier jump
             ScanJournalForPendingCarrierJump();
             Task.Run(InitializeMqttAsync);
+            if (CurrentStatus != null)
+            {
+                Task.Run(() => PublishStatusToMqtt(CurrentStatus));
+                Log.Information("✅ Initial flag state pushed to MQTT on startup");
+            }
         }
         private void EnsureDevelopmentFilesExist(string devPath)
         {
@@ -1445,7 +1450,7 @@ namespace EliteInfoPanel.Core
                 {
                     Log.Warning("Status.json loaded but Flags property is null");
                 }
-
+                PublishStatusToMqtt(CurrentStatus);
                 // Notify dependent properties
                 OnPropertyChanged(nameof(Balance));
             }
