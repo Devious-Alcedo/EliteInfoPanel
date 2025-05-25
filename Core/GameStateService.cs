@@ -36,6 +36,7 @@ namespace EliteInfoPanel.Core
             "EliteInfoPanel",
             "ColonizationData.json");
         private readonly MqttService _mqttService;
+
         private bool _mqttInitialized = false;
         private Dictionary<string, int> _carrierCargo = new();
         private string _carrierJumpDestinationBody;
@@ -1950,17 +1951,7 @@ namespace EliteInfoPanel.Core
                                             CarrierCargo.Count);
                                     }
                                     break;
-                                case "CarrierCancelJump":
-                                    FleetCarrierJumpTime = null;
-                                    CarrierJumpScheduledTime = null;
-                                    CarrierJumpDestinationSystem = null;
-                                    CarrierJumpDestinationBody = null;
-                                    FleetCarrierJumpInProgress = false;
-                                    Log.Information("Setting FleetCarrierJumpInProgress to false from {Method}",
-    new StackTrace().GetFrame(1)?.GetMethod()?.Name ?? "unknown");
-                                    OnPropertyChanged(nameof(CarrierJumpDestinationSystem));
-                                    OnPropertyChanged(nameof(FleetCarrierJumpTime));
-                                    break;
+                              
 
                                 case "CarrierJumpRequest":
                                     if (root.TryGetProperty("DepartureTime", out var departureTimeProp) &&
@@ -1968,6 +1959,14 @@ namespace EliteInfoPanel.Core
                                     {
                                         if (departureTime > DateTime.UtcNow)
                                         {
+                                            // CRITICAL: Process carrier jump outside of batch update to ensure immediate UI response
+                                            bool wasBatchMode2 = _isUpdating;
+                                            if (wasBatchMode2)
+                                            {
+                                                Log.Information("🚀 Temporarily disabling batch mode for carrier jump request");
+                                                _isUpdating = false;
+                                            }
+
                                             FleetCarrierJumpTime = departureTime;
                                             CarrierJumpScheduledTime = departureTime;
 
@@ -1979,7 +1978,14 @@ namespace EliteInfoPanel.Core
 
                                             JumpArrived = false;
                                             FleetCarrierJumpInProgress = true;
-                                            Log.Debug($"Carrier jump scheduled for {departureTime:u}");
+
+                                            Log.Information("🚀 Carrier jump scheduled for {Time}", departureTime);
+
+                                            // Restore batch mode if it was active
+                                            if (wasBatchMode2)
+                                            {
+                                                _isUpdating = true;
+                                            }
                                         }
                                         else
                                         {
@@ -1990,32 +1996,49 @@ namespace EliteInfoPanel.Core
 
                                 case "CarrierJump":
                                     Log.Information("CarrierJump event detected - hiding overlay");
+
+                                    // CRITICAL: Process carrier jump completion outside of batch update for immediate UI response
+                                    bool wasBatchMode3 = _isUpdating;
+                                    if (wasBatchMode3)
+                                    {
+                                        Log.Information("🚀 Temporarily disabling batch mode for carrier jump completion");
+                                        _isUpdating = false;
+                                    }
+
                                     JumpArrived = true;
-                                    // Clear jump state
                                     FleetCarrierJumpInProgress = false;
-                                    Log.Information("Setting FleetCarrierJumpInProgress to false from {Method}",
-    new StackTrace().GetFrame(1)?.GetMethod()?.Name ?? "unknown");
                                     CarrierJumpScheduledTime = null;
                                     CarrierJumpDestinationSystem = null;
                                     CarrierJumpDestinationBody = null;
+
+                                    // Restore batch mode if it was active
+                                    if (wasBatchMode3)
+                                    {
+                                        _isUpdating = true;
+                                    }
                                     break;
 
                                 case "CarrierJumpCancelled":
-                                    if (FleetCarrierJumpTime != null || CarrierJumpScheduledTime != null)
+                                case "CarrierCancelJump":
+                                    // CRITICAL: Process cancellation outside of batch update for immediate UI response
+                                    bool wasBatchMode4 = _isUpdating;
+                                    if (wasBatchMode4)
                                     {
-                                        Log.Information("Carrier jump was cancelled ... clearing jump state");
-                                        FleetCarrierJumpTime = null;
-                                        CarrierJumpScheduledTime = null;
-                                        CarrierJumpDestinationSystem = null;
-                                        CarrierJumpDestinationBody = null;
-                                        FleetCarrierJumpInProgress = false;
-                                        Log.Information("Setting FleetCarrierJumpInProgress to false from {Method}",
-    new StackTrace().GetFrame(1)?.GetMethod()?.Name ?? "unknown");
+                                        _isUpdating = false;
                                     }
-                                    else
+
+                                    FleetCarrierJumpTime = null;
+                                    CarrierJumpScheduledTime = null;
+                                    CarrierJumpDestinationSystem = null;
+                                    CarrierJumpDestinationBody = null;
+                                    FleetCarrierJumpInProgress = false;
+
+                                    if (wasBatchMode4)
                                     {
-                                        Log.Debug("Ignoring CarrierJumpCancelled as no jump was active.");
+                                        _isUpdating = true;
                                     }
+
+                                    Log.Information("Carrier jump cancelled");
                                     break;
 
                                 case "CarrierLocation":
