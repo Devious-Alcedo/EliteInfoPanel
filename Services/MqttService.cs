@@ -87,9 +87,9 @@ namespace EliteInfoPanel.Services
                 name = sensor,
                 state_topic = stateTopic,
                 unique_id = $"{deviceName}_{sensor}",
-                device_class = "connectivity",
-                payload_on = "ON",
-                payload_off = "OFF",
+              //  device_class = "connectivity", // Or change based on the sensor type
+                payload_on = "ON",   // ✅ Explicitly define payloads
+                payload_off = "OFF",  // ✅ Explicitly define payloads
                 device = new
                 {
                     identifiers = new[] { deviceName },

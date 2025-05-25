@@ -922,6 +922,17 @@ namespace EliteInfoPanel.Core
                     await MqttService.Instance.InitializeAsync(settings);
                     _mqttInitialized = true;
                     Log.Information("MQTT service initialized for GameStateService");
+
+                    // ✅ Publish initial state if available
+                    if (CurrentStatus != null)
+                    {
+                        await MqttService.Instance.PublishFlagStatesAsync(CurrentStatus);
+                        Log.Information("✅ Initial state published to MQTT after MQTT initialization.");
+                    }
+                    else
+                    {
+                        Log.Warning("⚠️ Cannot publish initial state: CurrentStatus is null.");
+                    }
                 }
             }
             catch (Exception ex)
@@ -929,6 +940,7 @@ namespace EliteInfoPanel.Core
                 Log.Error(ex, "Failed to initialize MQTT service in GameStateService");
             }
         }
+
         public void BatchUpdate(Action updateAction)
         {
             using (BeginUpdate())
