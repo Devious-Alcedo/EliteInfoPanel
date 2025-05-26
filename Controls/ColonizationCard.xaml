@@ -118,11 +118,15 @@
                           VirtualizingPanel.IsVirtualizing="True"
                           Margin="0,0,5,0">
                 <ItemsControl.ItemTemplate>
+                    <!-- Replace the main DataTemplate section in ColonizationCard.xaml with this enhanced version -->
+
+                    <!-- Replace the main DataTemplate section in ColonizationCard.xaml with this enhanced version -->
+
                     <DataTemplate>
                         <Border Margin="0,2,0,4" 
-                                Padding="6,4" 
-                                BorderThickness="0,0,0,1" 
-                                BorderBrush="#22FFFFFF">
+            Padding="6,4" 
+            BorderThickness="0,0,0,1" 
+            BorderBrush="#22FFFFFF">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -131,9 +135,10 @@
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
-                                <!-- Resource Name and Progress -->
+                                <!-- Resource Name and Status -->
                                 <Grid Grid.Column="0" Grid.Row="0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
@@ -141,37 +146,39 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
-                                    <!-- Commodity Name - Always visible -->
+                                    <!-- Commodity Name -->
                                     <TextBlock Grid.Column="0"
-                                       Text="{Binding Name}" 
-                                       FontWeight="SemiBold"
-                                       FontSize="{Binding FontSize}"
-                                       Foreground="White"
-                                       VerticalAlignment="Center"
-                                       TextWrapping="Wrap"
-                                       TextTrimming="None"/>
+                   Text="{Binding Name}" 
+                   FontWeight="SemiBold"
+                   FontSize="{Binding FontSize}"
+                   Foreground="White"
+                   VerticalAlignment="Center"
+                   TextWrapping="Wrap"
+                   TextTrimming="None"/>
+
+                                    <!-- Remaining amount (only if not complete) -->
                                     <TextBlock Grid.Column="1"
-                                           Visibility="{Binding IsComplete, Converter={StaticResource InverseBoolConverter}}"
-                                           VerticalAlignment="Center"
-                                           Margin="4,0,0,0"
-                                                Style="{StaticResource CardTitleStyle}">
-                                       
-                                    <Run Text="(" />
-                                    <Run Text="{Binding Remaining, Mode=OneWay}"  FontWeight="Bold" />
-                                    <Run Text=")" />
+                       Visibility="{Binding IsComplete, Converter={StaticResource InverseBoolConverter}}"
+                       VerticalAlignment="Center"
+                       Margin="4,0,0,0"
+                       Style="{StaticResource CardTitleStyle}">
+                   <Run Text="(" />
+                   <Run Text="{Binding RemainingToAcquire, Mode=OneWay}" FontWeight="Bold" />
+                   <Run Text=" needed)" />
                                     </TextBlock>
 
                                     <!-- Checkmark for completed items -->
                                     <materialDesign:PackIcon Grid.Column="2"
-                           Kind="Check" 
-                           Foreground="LimeGreen"
-                           Width="18" 
-                           Height="18"
-                           Margin="4,0,0,0"
-                           VerticalAlignment="Center" 
-                           Visibility="{Binding IsComplete, Converter={StaticResource BoolToVis}}" />
+                       Kind="Check" 
+                       Foreground="LimeGreen"
+                       Width="18" 
+                       Height="18"
+                       Margin="4,0,0,0"
+                       VerticalAlignment="Center" 
+                       Visibility="{Binding IsComplete, Converter={StaticResource BoolToVis}}" />
                                 </Grid>
-                                <!-- Progress Bar and Numbers -->
+
+                                <!-- Progress Bar -->
                                 <StackPanel Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="1">
                                     <Grid Margin="0,4,0,0">
                                         <Grid.ColumnDefinitions>
@@ -179,14 +186,14 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
 
-                                        <!-- Replace the single ProgressBar with this custom implementation -->
+                                        <!-- Enhanced Progress Bar showing completion + available cargo -->
                                         <Grid Height="8" Grid.Column="0" VerticalAlignment="Center">
-                                            <!-- Background (gray) -->
+                                            <!-- Background -->
                                             <Rectangle Fill="#22FFFFFF" Height="8"/>
 
-                                            <!-- Container for both progress segments -->
+                                            <!-- Progress Segments -->
                                             <StackPanel Orientation="Horizontal">
-                                                <!-- Completed Portion (green/yellow/orange) -->
+                                                <!-- Completed Portion -->
                                                 <Rectangle Fill="{Binding ProgressColor}" Height="8">
                                                     <Rectangle.Width>
                                                         <MultiBinding Converter="{StaticResource ProgressToWidthMultiConverter}">
@@ -201,7 +208,7 @@
                                                     </Rectangle.Width>
                                                 </Rectangle>
 
-                                                <!-- Available Cargo Portion (blue) - follows immediately after -->
+                                                <!-- Available Cargo Portion -->
                                                 <Rectangle Fill="DeepSkyBlue" Height="8">
                                                     <Rectangle.Width>
                                                         <MultiBinding Converter="{StaticResource ProgressToWidthMultiConverter}">
@@ -217,63 +224,77 @@
                                                 </Rectangle>
                                             </StackPanel>
                                         </Grid>
+
+                                        <!-- Progress Text -->
                                         <TextBlock Grid.Column="1"
-                                                   Margin="8,0,0,0"
-                                                   VerticalAlignment="Center"
-                                                   Foreground="#AAFFFFFF"
-                                                   FontSize="{Binding FontSize}">
-                                            <Run Text="{Binding Provided, Mode=OneWay}" />
-                                            <Run Text="/" />
-                                            <Run Text="{Binding Required, Mode=OneWay}" />
-                                            <Run Text="{Binding CompletionPercentage, StringFormat=({0:N1}%), Mode=OneWay}" />
-                                        </TextBlock>
-                                    </Grid>
-
-                                    <!-- Additional details -->
-                                    <Grid Margin="0,2,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                        </Grid.RowDefinitions>
-
-                                        <!-- Still needed text -->
-                                        <TextBlock Grid.Column="0" Grid.Row="0"
-                                            FontSize="{Binding FontSize}"
-                                            Foreground="#CCFFFFFF"
-                                            Visibility="{Binding IsComplete, Converter={StaticResource BoolToVis}, ConverterParameter=Collapsed}">
-                                            <Run Text="Still needed:" />
-                                            <Run Text="{Binding Remaining, Mode=OneWay}" FontWeight="SemiBold" />
-                                        </TextBlock>
-
-                                        <!-- Available cargo (NEW ROW) -->
-                                        <TextBlock Grid.Column="0" Grid.Row="1"
-                                            FontSize="{Binding FontSize}"
-                                            Foreground="#AAFFFFFF"
-                                            Visibility="{Binding HasAvailableCargo, Converter={StaticResource BoolToVis}}">
-                                            <Run Text="Available: Ship " />
-                                            <Run Text="{Binding ShipCargoQuantity, Mode=OneWay}" Foreground="LightGreen" FontWeight="SemiBold" />
-                                            <Run Text=", Carrier " />
-                                            <Run Text="{Binding CarrierCargoQuantity, Mode=OneWay}" Foreground="LightGreen" FontWeight="SemiBold" />
-                                            <Run Text=" (" />
-                                            <Run Text="{Binding AvailableCargoPercentage, StringFormat={}{0:N1}%, Mode=OneWay}" Foreground="DeepSkyBlue" />
-                                            <Run Text=")" />
-                                        </TextBlock>
-
-                                        <!-- Reward text spans both rows -->
-                                        <TextBlock Grid.Column="1" Grid.Row="0" Grid.RowSpan="2"
-                                            Margin="4,0,0,0"
-                                            FontSize="{Binding FontSize}"
-                                            Foreground="#CCFFFFFF">
-                                            <Run Text="Reward:" />
-                                            <Run Text="{Binding Payment, StringFormat={}{0:N0} cr/unit, Mode=OneWay}" Foreground="LightGreen" />
+                               Margin="8,0,0,0"
+                               VerticalAlignment="Center"
+                               Foreground="#AAFFFFFF"
+                               FontSize="{Binding FontSize}">
+                        <Run Text="{Binding Provided, Mode=OneWay}" />
+                        <Run Text="/" />
+                        <Run Text="{Binding Required, Mode=OneWay}" />
+                        <Run Text="{Binding CompletionPercentage, StringFormat=({0:N1}%), Mode=OneWay}" />
                                         </TextBlock>
                                     </Grid>
                                 </StackPanel>
+
+                                <!-- Enhanced Cargo and Status Information -->
+                                <Grid Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="2" Margin="0,4,0,0">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Cargo Status Text -->
+                                    <TextBlock Grid.Row="0" Grid.Column="0"
+                          Text="{Binding CargoStatusText}"
+                          Foreground="{Binding CargoStatusColor}"
+                          FontSize="{Binding FontSize}"
+                          FontWeight="SemiBold"
+                          Visibility="{Binding IsComplete, Converter={StaticResource InverseBoolConverter}}" />
+
+                                    <!-- Detailed Cargo Breakdown -->
+                                    <TextBlock Grid.Row="1" Grid.Column="0"
+                          FontSize="{Binding FontSize}"
+                          Foreground="#CCFFFFFF"
+                          Visibility="{Binding HasAvailableCargo, Converter={StaticResource BoolToVis}}">
+                    <Run Text="Ship: " />
+                    <Run Text="{Binding ShipCargoQuantity, Mode=OneWay}" Foreground="LightGreen" FontWeight="SemiBold" />
+                    <Run Text=", Carrier: " />
+                    <Run Text="{Binding CarrierCargoQuantity, Mode=OneWay}" Foreground="LightGreen" FontWeight="SemiBold" />
+                    <Run Text=" | Still need: " />
+                    <Run Text="{Binding RemainingToAcquire, Mode=OneWay}" Foreground="Orange" FontWeight="SemiBold" />
+                                    </TextBlock>
+
+                                    <!-- Payment Information -->
+                                    <TextBlock Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
+                          Margin="8,0,0,0"
+                          FontSize="{Binding FontSize}"
+                          Foreground="#CCFFFFFF"
+                          VerticalAlignment="Center">
+                    <Run Text="Reward: " />
+                    <Run Text="{Binding Payment, StringFormat={}{0:N0} cr/unit, Mode=OneWay}" Foreground="LightGreen" />
+                                    </TextBlock>
+
+                                    <!-- Total Value of Remaining Work -->
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+                          FontSize="{Binding FontSize}"
+                          Foreground="#AAFFFFFF"
+                          Visibility="{Binding IsComplete, Converter={StaticResource InverseBoolConverter}}">
+                    <Run Text="Value of remaining work: " />
+                    <Run Text="{Binding RemainingToAcquire, Mode=OneWay}" />
+                    <Run Text=" × " />
+                    <Run Text="{Binding Payment, Mode=OneWay}" />
+                    <Run Text=" = " />
+                    <Run Text="{Binding RemainingValueText, Mode=OneWay}" FontWeight="SemiBold" Foreground="LightGreen" />
+                                    </TextBlock>
+                                </Grid>
                             </Grid>
                         </Border>
                     </DataTemplate>

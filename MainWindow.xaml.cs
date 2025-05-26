@@ -406,76 +406,94 @@ namespace EliteInfoPanel
 
         private void OpenOptions()
         {
-            var options = new OptionsWindow();
+            // Store the current topmost state
+            bool wasTopmost = this.Topmost;
 
-            // Important: Set initial settings reference
-            options.Settings.FloatingFontScale = _appSettings.FloatingFontScale;
-            options.Settings.FullscreenFontScale = _appSettings.FullscreenFontScale;
-
-            // Center on the primary screen
-            var allScreens = WpfScreenHelper.Screen.AllScreens;
-            var primaryScreen = WpfScreenHelper.Screen.PrimaryScreen;
-            if (primaryScreen != null)
+            try
             {
-                // Store the primary screen ID in LastOptionsScreenId
-                _appSettings.LastOptionsScreenId = primaryScreen.DeviceName;
-                SettingsManager.Save(_appSettings);
-            }
-
-            options.ScreenChanged += screen =>
-            {
-                _currentScreen = screen;
-
-                if (!_appSettings.UseFloatingWindow)
+                // Temporarily disable topmost behavior for the main window
+                if (wasTopmost)
                 {
-                    ApplyScreenBounds(screen);
+                    this.Topmost = false;
                 }
-            };
 
-            // This is the key handler for real-time updates
-            options.FontSizeChanged += () =>
-            {
-                // Directly update our app settings from the dialog's settings to get real-time values
-                _appSettings.FloatingFontScale = options.Settings.FloatingFontScale;
-                _appSettings.FullscreenFontScale = options.Settings.FullscreenFontScale;
+                var options = new OptionsWindow();
 
-                // Now apply the changes immediately
-                UpdateFontResources();
-                App.RefreshResources();
-                InvalidateVisual();
-                _viewModel.RefreshLayout();
-                UpdateLayout();
-            };
+                // Set the main window as owner to ensure proper modal behavior
+                options.Owner = this;
 
-            // If dialog is closed with OK
-            if (options.ShowDialog() == true)
-            {
-                // Since we can't reassign _appSettings, we'll manually update the important properties
-                var updatedSettings = SettingsManager.Load();
+                // Ensure the options window appears on top
+                options.Topmost = true;
 
-                // Check if window mode changed
-                bool modeChanged = updatedSettings.UseFloatingWindow != _appSettings.UseFloatingWindow;
+                // Important: Set initial settings reference
+                options.Settings.FloatingFontScale = _appSettings.FloatingFontScale;
+                options.Settings.FullscreenFontScale = _appSettings.FullscreenFontScale;
 
-                // Update individual properties instead of the whole object
-                _appSettings.UseFloatingWindow = updatedSettings.UseFloatingWindow;
-                _appSettings.FloatingFontScale = updatedSettings.FloatingFontScale;
-                _appSettings.FullscreenFontScale = updatedSettings.FullscreenFontScale;
-                _appSettings.AlwaysOnTop = updatedSettings.AlwaysOnTop;
-
-                // Update window settings if mode changed
-                if (modeChanged)
+                // Center on the primary screen or main window
+                var allScreens = WpfScreenHelper.Screen.AllScreens;
+                var primaryScreen = WpfScreenHelper.Screen.PrimaryScreen;
+                if (primaryScreen != null)
                 {
-                    ApplyWindowSettings();
-                    _viewModel.ApplyWindowModeFromSettings();
+                    _appSettings.LastOptionsScreenId = primaryScreen.DeviceName;
+                    SettingsManager.Save(_appSettings);
                 }
-                else
+
+                options.ScreenChanged += screen =>
                 {
-                    // Always update font resources to ensure consistency
+                    _currentScreen = screen;
+
+                    if (!_appSettings.UseFloatingWindow)
+                    {
+                        ApplyScreenBounds(screen);
+                    }
+                };
+
+                // This is the key handler for real-time updates
+                options.FontSizeChanged += () =>
+                {
+                    _appSettings.FloatingFontScale = options.Settings.FloatingFontScale;
+                    _appSettings.FullscreenFontScale = options.Settings.FullscreenFontScale;
+
                     UpdateFontResources();
                     App.RefreshResources();
                     InvalidateVisual();
                     _viewModel.RefreshLayout();
                     UpdateLayout();
+                };
+
+                // Show the dialog modally
+                if (options.ShowDialog() == true)
+                {
+                    var updatedSettings = SettingsManager.Load();
+
+                    bool modeChanged = updatedSettings.UseFloatingWindow != _appSettings.UseFloatingWindow;
+
+                    _appSettings.UseFloatingWindow = updatedSettings.UseFloatingWindow;
+                    _appSettings.FloatingFontScale = updatedSettings.FloatingFontScale;
+                    _appSettings.FullscreenFontScale = updatedSettings.FullscreenFontScale;
+                    _appSettings.AlwaysOnTop = updatedSettings.AlwaysOnTop;
+
+                    if (modeChanged)
+                    {
+                        ApplyWindowSettings();
+                        _viewModel.ApplyWindowModeFromSettings();
+                    }
+                    else
+                    {
+                        UpdateFontResources();
+                        App.RefreshResources();
+                        InvalidateVisual();
+                        _viewModel.RefreshLayout();
+                        UpdateLayout();
+                    }
+                }
+            }
+            finally
+            {
+                // Always restore the original topmost state
+                if (wasTopmost)
+                {
+                    this.Topmost = true;
                 }
             }
         }
