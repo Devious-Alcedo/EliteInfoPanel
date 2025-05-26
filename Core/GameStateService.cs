@@ -704,18 +704,21 @@ namespace EliteInfoPanel.Core
                     _currentDockingState = DockingState.DockingRequested;
                     IsDocking = true;
                     Log.Debug("Docking requested - IsDocking set to true");
+                    PublishStatusToMqtt(CurrentStatus); // Force MQTT update
                     break;
 
                 case "DockingGranted":
                     _currentDockingState = DockingState.DockingGranted;
                     IsDocking = true;
                     Log.Debug("Docking granted - IsDocking set to true");
+                    PublishStatusToMqtt(CurrentStatus); // Force MQTT update
                     break;
 
                 case "Docked":
                     _currentDockingState = DockingState.Docked;
                     IsDocking = false;
                     Log.Debug("Docked - IsDocking set to false");
+                    PublishStatusToMqtt(CurrentStatus); // Force MQTT update - this is the key fix!
                     break;
 
                 case "DockingCancelled":
@@ -724,6 +727,7 @@ namespace EliteInfoPanel.Core
                     _currentDockingState = DockingState.NotDocking;
                     IsDocking = false;
                     Log.Debug($"{eventType} - IsDocking set to false");
+                    PublishStatusToMqtt(CurrentStatus); // Force MQTT update
                     break;
             }
         }
@@ -1477,8 +1481,8 @@ namespace EliteInfoPanel.Core
 
             try
             {
-                // Publish flag states with docking state for synthetic flag support
-                await MqttService.Instance.PublishFlagStatesAsync(status, IsDocking);
+                // Force publish with the current docking state
+                await MqttService.Instance.PublishFlagStatesAsync(status, IsDocking, forcePublish: true);
 
                 // Also publish commander status if we have the data
                 if (!string.IsNullOrEmpty(CommanderName) && !string.IsNullOrEmpty(CurrentSystem))

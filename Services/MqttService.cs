@@ -282,8 +282,8 @@ namespace EliteInfoPanel.Services
                 return;
 
             string sensor = flagName.ToLowerInvariant();
-            // Use the same device name for both flags and flags2 to keep them together
-            string configTopic = $"homeassistant/binary_sensor/{deviceName}_{sensor}/config";
+            // Change the config topic to not include the device name prefix
+            string configTopic = $"homeassistant/binary_sensor/eliteinfopanel/{sensor}/config";
 
             if (_haConfigSent.Contains(configTopic)) return;
 
@@ -310,17 +310,18 @@ namespace EliteInfoPanel.Services
 
             var configPayload = new
             {
-                name = friendlyName,
+                name = friendlyName, // Use just the friendly name without device prefix
                 state_topic = stateTopic,
-                unique_id = $"{deviceName}_{sensor}",
+                unique_id = $"eliteinfopanel_{sensor}", // Keep unique ID with prefix for uniqueness
+                object_id = sensor, // Add this to control the entity ID
                 icon = icon,
                 payload_on = "ON",
                 payload_off = "OFF",
                 device_class = GetDeviceClass(flagName),
                 device = new
                 {
-                    identifiers = new[] { deviceName }, // Same device for all sensors
-                    name = "Elite Dangerous",
+                    identifiers = new[] { "eliteinfopanel" }, // Consistent device identifier
+                    name = "Elite Info Panel", // More readable device name
                     manufacturer = "Frontier Developments",
                     model = "Elite Dangerous Game State",
                     sw_version = "1.0"
@@ -333,7 +334,36 @@ namespace EliteInfoPanel.Services
 
             Log.Debug("Published Home Assistant config for {FlagType} {Flag}: {FriendlyName}", flagType, flagName, friendlyName);
         }
+        public async Task ClearAllHomeAssistantEntities()
+        {
+            if (!_settings.MqttEnabled || _mqttClient == null || !_mqttClient.IsConnected)
+                return;
 
+            try
+            {
+                // Publish empty payloads to remove all existing configs
+                foreach (var configTopic in _haConfigSent.ToList())
+                {
+                    await PublishAsync(configTopic, "", retain: true);
+                    Log.Debug("Cleared Home Assistant config: {Topic}", configTopic);
+                }
+
+                // Clear the sent configs cache
+                _haConfigSent.Clear();
+
+                // Wait a moment for Home Assistant to process
+                await Task.Delay(2000);
+
+                // Force republish all current states
+                await ForceReconfigureHomeAssistant();
+
+                Log.Information("Cleared and reconfigured all Home Assistant entities");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error clearing Home Assistant entities");
+            }
+        }
         private string GetDeviceClass(string flagName)
         {
             // Be more conservative with device classes to avoid "Connected" states
