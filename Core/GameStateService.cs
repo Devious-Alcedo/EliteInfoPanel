@@ -572,14 +572,19 @@ namespace EliteInfoPanel.Core
         {
             get
             {
-                // Simple conditions: on carrier + jump in progress + countdown reached zero
-                bool shouldShow = IsOnFleetCarrier &&
-                                 FleetCarrierJumpInProgress &&
-                                 CarrierJumpCountdownSeconds <= 0 &&
-                                 !JumpArrived;
+                bool onCarrier = IsOnFleetCarrier;
+                bool jumpInProgress = FleetCarrierJumpInProgress;
+                int countdown = CarrierJumpCountdownSeconds;
+                bool jumpArrived = JumpArrived;
 
-                Log.Debug("ShowCarrierJumpOverlay: On Carrier={0}, Jump In Progress={1}, Countdown={2}, Jump Arrived={3}, Result={4}",
-                    IsOnFleetCarrier, FleetCarrierJumpInProgress, CarrierJumpCountdownSeconds, JumpArrived, shouldShow);
+                bool shouldShow = onCarrier && jumpInProgress && countdown <= 0 && !jumpArrived;
+
+                // Always log when this property is accessed during carrier operations
+                if (jumpInProgress || onCarrier || jumpArrived)
+                {
+                    Log.Debug("🚀 ShowCarrierJumpOverlay: OnCarrier={OnCarrier}, JumpInProgress={InProgress}, Countdown={Countdown}, JumpArrived={Arrived} → {Result}",
+                        onCarrier, jumpInProgress, countdown, jumpArrived, shouldShow);
+                }
 
                 return shouldShow;
             }
@@ -1558,7 +1563,7 @@ namespace EliteInfoPanel.Core
 
        
 
-        private async Task ProcessJournalAsync()
+        public async Task ProcessJournalAsync()
         {
             if (string.IsNullOrEmpty(latestJournalPath))
                 return;
@@ -2023,27 +2028,29 @@ namespace EliteInfoPanel.Core
                                     break;
 
                                 case "CarrierJump":
-                                    Log.Information("CarrierJump event detected - hiding overlay");
+                                    // CRITICAL: Break out of batch mode immediately for this event
+                                    bool originalBatchMode = _isUpdating;
+                                    _isUpdating = false;
 
-                                    // CRITICAL: Process carrier jump completion outside of batch update for immediate UI response
-                                    bool wasBatchMode3 = _isUpdating;
-                                    if (wasBatchMode3)
-                                    {
-                                        Log.Information("🚀 Temporarily disabling batch mode for carrier jump completion");
-                                        _isUpdating = false;
-                                    }
+                                    Log.Information("🚀 CarrierJump event detected - hiding overlay");
+                                    Log.Information("🚀 Current state before: JumpArrived={JumpArrived}, FleetCarrierJumpInProgress={InProgress}, ShowOverlay={Show}",
+                                        JumpArrived, FleetCarrierJumpInProgress, ShowCarrierJumpOverlay);
 
+                                    // Force immediate property updates
                                     JumpArrived = true;
                                     FleetCarrierJumpInProgress = false;
                                     CarrierJumpScheduledTime = null;
                                     CarrierJumpDestinationSystem = null;
                                     CarrierJumpDestinationBody = null;
 
-                                    // Restore batch mode if it was active
-                                    if (wasBatchMode3)
-                                    {
-                                        _isUpdating = true;
-                                    }
+                                    // Force immediate notification of the overlay property
+                                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
+
+                                    Log.Information("🚀 Current state after: JumpArrived={JumpArrived}, FleetCarrierJumpInProgress={InProgress}, ShowOverlay={Show}",
+                                        JumpArrived, FleetCarrierJumpInProgress, ShowCarrierJumpOverlay);
+
+                                    // Restore batch mode
+                                    _isUpdating = originalBatchMode;
                                     break;
 
                                 case "CarrierJumpCancelled":
@@ -2211,12 +2218,13 @@ namespace EliteInfoPanel.Core
 
                                         // 🔥 NEW: Publish colonization data via MQTT
                                         await MqttService.Instance.PublishColonizationDepotAsync(
-                                            marketId: colonizationData.MarketID,
-                                            progress: colonizationData.ConstructionProgress,
-                                            complete: colonizationData.ConstructionComplete,
-                                            failed: colonizationData.ConstructionFailed,
-                                            resources: colonizationData.ResourcesRequired
-                                        );
+                                          colonizationData.MarketID,
+                                          colonizationData.ConstructionProgress,
+                                          colonizationData.ConstructionComplete,
+                                          colonizationData.ConstructionFailed,
+                                          colonizationData.ResourcesRequired);
+                                   
+
                                     }
                                     catch (Exception ex)
                                     {
@@ -2226,8 +2234,8 @@ namespace EliteInfoPanel.Core
                                 // Also add handling for ColonisationContribution events
                                 case "ColonisationContribution":
                                     Log.Information("📋 Detected ColonisationContribution event - forcing colonization data refresh");
-                                    // This event indicates resources were contributed, so we should refresh
-                                    // The next ColonisationConstructionDepot event should have updated data
+                                  
+                                   
                                     break;
                                 #endregion
 
@@ -2274,6 +2282,68 @@ namespace EliteInfoPanel.Core
             catch (Exception ex)
             {
                 Log.Warning(ex, "Error reading journal file");
+            }
+        }
+        public void DebugJournalPosition()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(latestJournalPath) || !File.Exists(latestJournalPath))
+                {
+                    Log.Error("📖 DEBUG: No valid journal file");
+                    return;
+                }
+
+                var fileInfo = new FileInfo(latestJournalPath);
+                Log.Information("📖 DEBUG Journal State:");
+                Log.Information("  File: {File}", Path.GetFileName(latestJournalPath));
+                Log.Information("  File Size: {Size} bytes", fileInfo.Length);
+                Log.Information("  Current Position: {Position} bytes", lastJournalPosition);
+                Log.Information("  Last Modified: {LastWrite}", fileInfo.LastWriteTime);
+                Log.Information("  Bytes Remaining: {Remaining}", fileInfo.Length - lastJournalPosition);
+
+                // Check for recent CarrierJump events
+                using var fs = new FileStream(latestJournalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+
+                // Read the last 10KB of the file to check for recent events
+                long startPos = Math.Max(0, fileInfo.Length - 10240);
+                fs.Seek(startPos, SeekOrigin.Begin);
+
+                using var sr = new StreamReader(fs);
+                var recentLines = new List<string>();
+                var carrierEvents = new List<string>();
+
+                while (!sr.EndOfStream)
+                {
+                    string line = sr.ReadLine();
+                    if (!string.IsNullOrWhiteSpace(line))
+                    {
+                        recentLines.Add(line);
+                        if (line.Contains("CarrierJump") || line.Contains("Carrier"))
+                        {
+                            carrierEvents.Add(line);
+                        }
+                    }
+                }
+
+                Log.Information("📖 DEBUG: Last {LineCount} lines in journal, {CarrierCount} carrier-related events",
+                    recentLines.Count, carrierEvents.Count);
+
+                foreach (var carrierEvent in carrierEvents.TakeLast(3))
+                {
+                    Log.Information("📖 CARRIER EVENT: {Event}", carrierEvent);
+                }
+
+                // Check if we missed the CarrierJump event
+                bool missedCarrierJump = carrierEvents.Any(e => e.Contains("\"event\":\"CarrierJump\""));
+                if (missedCarrierJump)
+                {
+                    Log.Warning("📖 ⚠️  FOUND UNPROCESSED CarrierJump EVENT - journal position may be incorrect!");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "📖 DEBUG: Error checking journal position");
             }
         }
         public void ForceRefreshColonizationData()

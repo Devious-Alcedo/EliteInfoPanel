@@ -523,14 +523,54 @@ namespace EliteInfoPanel.Services
                 Log.Error(ex, "Error publishing commander status to MQTT");
             }
         }
+        public async Task PublishAllColonizationDepotsAsync(List<ColonizationData> activeDepots)
+        {
+            if (!_settings.MqttEnabled || _mqttClient == null || !_mqttClient.IsConnected)
+                return;
+
+            // Aggregate data for all active depots
+            var depotsPayload = new
+            {
+                depots = activeDepots.Select(depot => new
+                {
+                    depot.MarketID,
+                    depot.ConstructionProgress,
+                    depot.ConstructionComplete,
+                    depot.ConstructionFailed,
+                    ResourcesRequired = depot.ResourcesRequired.Select(r => new
+                    {
+                        r.Name,
+                        r.Name_Localised,
+                        r.RequiredAmount,
+                        r.ProvidedAmount,
+                        r.ShipAmount,
+                        r.CarrierAmount,
+                        AvailableAmount = r.ShipAmount + r.CarrierAmount,
+                        StillNeeded = r.RequiredAmount - r.ProvidedAmount,
+                        ReadyToDeliver = (r.ShipAmount + r.CarrierAmount) >= (r.RequiredAmount - r.ProvidedAmount),
+                        ValueOfRemainingWork = (r.RequiredAmount - r.ProvidedAmount) * r.Payment,
+                        PaymentPerUnit = r.Payment
+                    }).ToList()
+                }).ToList()
+            };
+
+            string topic = $"{_settings.MqttTopicPrefix}/colonisation/all";
+            string stateJson = JsonSerializer.Serialize(depotsPayload, new JsonSerializerOptions { WriteIndented = false });
+
+            await PublishAsync(topic, stateJson, retain: _settings.MqttRetainMessages);
+            Log.Information("MQTT: Published aggregated colonization data with {DepotCount} depots", activeDepots.Count);
+        }
+
         public async Task PublishColonizationDepotAsync(long marketId, double progress, bool complete, bool failed, List<ColonizationResource> resources)
         {
             if (!_settings.MqttEnabled || _mqttClient == null || !_mqttClient.IsConnected)
                 return;
 
+            // Dynamic topic based on MarketID
             string topic = $"{_settings.MqttTopicPrefix}/colonisation/{marketId}";
             string configTopic = $"homeassistant/sensor/eliteinfopanel_colonisation_{marketId}/config";
 
+            // Discovery payload
             var configPayload = new
             {
                 name = $"Colonisation Depot {marketId}",
@@ -549,9 +589,12 @@ namespace EliteInfoPanel.Services
                 }
             };
 
+            // Serialize and publish discovery config
             string configJson = JsonSerializer.Serialize(configPayload);
             await PublishAsync(configTopic, configJson, retain: true);
+            Log.Information("MQTT: Published Home Assistant discovery for depot {MarketID}", marketId);
 
+            // Prepare state payload
             var statePayload = new
             {
                 MarketID = marketId,
@@ -564,18 +607,20 @@ namespace EliteInfoPanel.Services
                     r.Name_Localised,
                     r.RequiredAmount,
                     r.ProvidedAmount,
-                    r.StillNeeded,
                     r.ShipAmount,
                     r.CarrierAmount,
-                    r.AvailableAmount,
-                    r.ReadyToDeliver,
-                    r.RewardPerUnit,
-                    r.ValueOfRemainingWork
+                    AvailableAmount = r.ShipAmount + r.CarrierAmount,
+                    StillNeeded = r.RequiredAmount - r.ProvidedAmount,
+                    ReadyToDeliver = (r.ShipAmount + r.CarrierAmount) >= (r.RequiredAmount - r.ProvidedAmount),
+                    ValueOfRemainingWork = (r.RequiredAmount - r.ProvidedAmount) * r.Payment,
+                    PaymentPerUnit = r.Payment
                 }).ToList()
             };
 
-            string stateJson = JsonSerializer.Serialize(statePayload, new JsonSerializerOptions { WriteIndented = false });
+            // Serialize and publish state
+            string stateJson = JsonSerializer.Serialize(statePayload);
             await PublishAsync(topic, stateJson, retain: _settings.MqttRetainMessages);
+            Log.Information("MQTT: Published colonisation depot {MarketID} state with {ResourceCount} resources", marketId, resources.Count);
         }
 
         private async Task PublishHomeAssistantCommanderConfigsIfNeeded()
