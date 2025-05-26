@@ -16,6 +16,7 @@ using System.Windows;
 using static MaterialDesignThemes.Wpf.Theme.ToolBar;
 using System.IO;
 using System.Windows.Threading;
+using EliteInfoPanel.Services;
 
 namespace EliteInfoPanel.ViewModels
 {
@@ -360,11 +361,54 @@ namespace EliteInfoPanel.ViewModels
                 {
                     Application.Current.Dispatcher.BeginInvoke(new Action(() =>
                     {
-                        RefreshCargoQuantities(); // Use the new method
+                        RefreshCargoQuantities(); // Updates the UI quantities
+
+                        // 🔥 NEW: Push colonization data via MQTT
+                        PublishColonizationMqtt();
                     }), DispatcherPriority.Background);
                 }
             }
         }
+        private async void PublishColonizationMqtt()
+        {
+            try
+            {
+                var colonizationData = _gameState.CurrentColonization;
+                if (colonizationData == null || !Items.Any())
+                {
+                    Log.Warning("ColonizationViewModel: No colonization data to publish via MQTT");
+                    return;
+                }
+
+                // Construct resource list for MQTT
+                var resources = Items.Select(item => new ColonizationResource
+                {
+                    Name = item.Name,
+                    Name_Localised = item.Name, // Or adjust if needed
+                    RequiredAmount = item.Required,
+                    ProvidedAmount = item.Provided,
+                    Payment = item.Payment,
+                    // Additional fields
+                    ShipAmount = item.ShipCargoQuantity,
+                    CarrierAmount = item.CarrierCargoQuantity,
+                }).ToList();
+
+                await MqttService.Instance.PublishColonizationDepotAsync(
+                    marketId: colonizationData.MarketID,
+                    progress: colonizationData.ConstructionProgress,
+                    complete: colonizationData.ConstructionComplete,
+                    failed: colonizationData.ConstructionFailed,
+                    resources: resources
+                );
+
+                Log.Information("ColonizationViewModel: Published colonization data via MQTT for depot {MarketID}", colonizationData.MarketID);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "ColonizationViewModel: Error publishing colonization data via MQTT");
+            }
+        }
+
         private void ForceRefresh()
         {
             try

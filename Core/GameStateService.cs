@@ -2199,10 +2199,8 @@ namespace EliteInfoPanel.Core
                                             _isUpdating = false;
                                         }
 
-                                        // Update the property which will trigger UI updates
                                         CurrentColonization = colonizationData;
 
-                                        // Restore batch mode if it was active
                                         if (wasBatchMode2)
                                         {
                                             _isUpdating = true;
@@ -2210,6 +2208,15 @@ namespace EliteInfoPanel.Core
 
                                         Log.Information("📋 Colonization data updated successfully - Progress: {Progress:P2}, Resources: {Count}",
                                             colonizationData.ConstructionProgress, colonizationData.ResourcesRequired?.Count ?? 0);
+
+                                        // 🔥 NEW: Publish colonization data via MQTT
+                                        await MqttService.Instance.PublishColonizationDepotAsync(
+                                            marketId: colonizationData.MarketID,
+                                            progress: colonizationData.ConstructionProgress,
+                                            complete: colonizationData.ConstructionComplete,
+                                            failed: colonizationData.ConstructionFailed,
+                                            resources: colonizationData.ResourcesRequired
+                                        );
                                     }
                                     catch (Exception ex)
                                     {

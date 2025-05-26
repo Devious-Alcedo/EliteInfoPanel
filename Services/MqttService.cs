@@ -1,4 +1,5 @@
 ﻿using EliteInfoPanel.Core;
+using EliteInfoPanel.Core.Models;
 using EliteInfoPanel.Util;
 using MQTTnet;
 using MQTTnet.Formatter;
@@ -521,6 +522,60 @@ namespace EliteInfoPanel.Services
             {
                 Log.Error(ex, "Error publishing commander status to MQTT");
             }
+        }
+        public async Task PublishColonizationDepotAsync(long marketId, double progress, bool complete, bool failed, List<ColonizationResource> resources)
+        {
+            if (!_settings.MqttEnabled || _mqttClient == null || !_mqttClient.IsConnected)
+                return;
+
+            string topic = $"{_settings.MqttTopicPrefix}/colonisation/{marketId}";
+            string configTopic = $"homeassistant/sensor/eliteinfopanel_colonisation_{marketId}/config";
+
+            var configPayload = new
+            {
+                name = $"Colonisation Depot {marketId}",
+                state_topic = topic,
+                unique_id = $"eliteinfopanel_colonisation_{marketId}",
+                object_id = $"colonisation_{marketId}",
+                value_template = "{{ value_json.ConstructionProgress }}",
+                json_attributes_topic = topic,
+                device = new
+                {
+                    identifiers = new[] { "eliteinfopanel" },
+                    name = "Elite Info Panel",
+                    manufacturer = "Frontier Developments",
+                    model = "Elite Dangerous Game State",
+                    sw_version = "1.0"
+                }
+            };
+
+            string configJson = JsonSerializer.Serialize(configPayload);
+            await PublishAsync(configTopic, configJson, retain: true);
+
+            var statePayload = new
+            {
+                MarketID = marketId,
+                ConstructionProgress = progress,
+                ConstructionComplete = complete,
+                ConstructionFailed = failed,
+                ResourcesRequired = resources.Select(r => new
+                {
+                    r.Name,
+                    r.Name_Localised,
+                    r.RequiredAmount,
+                    r.ProvidedAmount,
+                    r.StillNeeded,
+                    r.ShipAmount,
+                    r.CarrierAmount,
+                    r.AvailableAmount,
+                    r.ReadyToDeliver,
+                    r.RewardPerUnit,
+                    r.ValueOfRemainingWork
+                }).ToList()
+            };
+
+            string stateJson = JsonSerializer.Serialize(statePayload, new JsonSerializerOptions { WriteIndented = false });
+            await PublishAsync(topic, stateJson, retain: _settings.MqttRetainMessages);
         }
 
         private async Task PublishHomeAssistantCommanderConfigsIfNeeded()
