@@ -1477,8 +1477,8 @@ namespace EliteInfoPanel.Core
 
             try
             {
-                // Publish flag states
-                await MqttService.Instance.PublishFlagStatesAsync(status);
+                // Publish flag states with docking state for synthetic flag support
+                await MqttService.Instance.PublishFlagStatesAsync(status, IsDocking);
 
                 // Also publish commander status if we have the data
                 if (!string.IsNullOrEmpty(CommanderName) && !string.IsNullOrEmpty(CurrentSystem))
