@@ -226,6 +226,8 @@ namespace EliteInfoPanel.ViewModels
 
         // Default to true for the main window
         // Add this method to ColonizationViewModel.cs
+        // Replace the ExportToCsv method in ColonizationViewModel.cs with this enhanced version
+
         private void ExportToCsv()
         {
             try
@@ -251,25 +253,68 @@ namespace EliteInfoPanel.ViewModels
                 {
                     var resources = _gameState.CurrentColonization.ResourcesRequired;
 
-                    // Format: Name,Required,Provided,Remaining,Completion %,Payment per unit
+                    // Enhanced CSV format with cargo information
                     var csvContent = new StringBuilder();
-                    csvContent.AppendLine("Resource,Required,Provided,Remaining,Completion %,Payment per unit");
+                    csvContent.AppendLine("Resource,Required,Provided,Remaining,Ship Cargo,Carrier Cargo,Total Available,Remaining to Acquire,Completion %,Payment per unit");
 
                     foreach (var resource in resources)
                     {
-                        csvContent.AppendLine($"\"{resource.DisplayName}\",{resource.RequiredAmount},{resource.ProvidedAmount}," +
-                                             $"{resource.RemainingAmount},{resource.CompletionPercentage:F1},{resource.Payment}");
+                        // Get cargo quantities using the display name (which matches what's shown in the UI)
+                        int shipCargo = GetShipCargoQuantity(resource.DisplayName);
+                        int carrierCargo = GetCarrierCargoQuantity(resource.DisplayName);
+                        int totalAvailable = shipCargo + carrierCargo;
+
+                        // Calculate how much we still need to acquire
+                        // This is the remaining amount minus what we already have
+                        int remainingToAcquire = Math.Max(0, resource.RemainingAmount - totalAvailable);
+
+                        csvContent.AppendLine($"\"{resource.DisplayName}\"," +
+                                             $"{resource.RequiredAmount}," +
+                                             $"{resource.ProvidedAmount}," +
+                                             $"{resource.RemainingAmount}," +
+                                             $"{shipCargo}," +
+                                             $"{carrierCargo}," +
+                                             $"{totalAvailable}," +
+                                             $"{remainingToAcquire}," +
+                                             $"{resource.CompletionPercentage:F1}," +
+                                             $"{resource.Payment}");
                     }
 
-                    // Add a summary line
+                    // Add summary information
                     csvContent.AppendLine();
-                    csvContent.AppendLine($"\"Overall Progress\",,,," +
+                    csvContent.AppendLine("Summary Information");
+                    csvContent.AppendLine($"\"Overall Progress\",,,,,,,," +
                                          $"{_gameState.CurrentColonization.CompletionPercentage:F1}%,");
-                    csvContent.AppendLine($"\"Last Updated\",\"{_gameState.CurrentColonization.LastUpdated:g}\",,,,");
+                    csvContent.AppendLine($"\"Last Updated\",\"{_gameState.CurrentColonization.LastUpdated:g}\",,,,,,,,");
+
+                    // Calculate totals for the summary
+                    int totalShipCargo = 0;
+                    int totalCarrierCargo = 0;
+                    int totalRemainingToAcquire = 0;
+                    long totalValue = 0;
+
+                    foreach (var resource in resources)
+                    {
+                        int shipCargo = GetShipCargoQuantity(resource.DisplayName);
+                        int carrierCargo = GetCarrierCargoQuantity(resource.DisplayName);
+                        int remainingToAcquire = Math.Max(0, resource.RemainingAmount - (shipCargo + carrierCargo));
+
+                        totalShipCargo += shipCargo;
+                        totalCarrierCargo += carrierCargo;
+                        totalRemainingToAcquire += remainingToAcquire;
+                        totalValue += (long)remainingToAcquire * resource.Payment;
+                    }
+
+                    csvContent.AppendLine();
+                    csvContent.AppendLine("Totals");
+                    csvContent.AppendLine($"\"Total Ship Cargo\",,,,,{totalShipCargo},,,,");
+                    csvContent.AppendLine($"\"Total Carrier Cargo\",,,,,,{totalCarrierCargo},,,");
+                    csvContent.AppendLine($"\"Total Still to Acquire\",,,,,,,{totalRemainingToAcquire},,");
+                    csvContent.AppendLine($"\"Estimated Value of Remaining Work\",,,,,,,\"{totalValue:N0} credits\",,");
 
                     File.WriteAllText(dialog.FileName, csvContent.ToString());
 
-                    ShowToast($"Exported to {dialog.FileName}");
+                    ShowToast($"Enhanced colonization data exported to {Path.GetFileName(dialog.FileName)}");
 
                     // Open the folder containing the file
                     Process.Start("explorer.exe", $"/select,\"{dialog.FileName}\"");
@@ -277,12 +322,20 @@ namespace EliteInfoPanel.ViewModels
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Error exporting colonization data to CSV");
+                Log.Error(ex, "Error exporting enhanced colonization data to CSV");
                 ShowToast("Failed to export data: " + ex.Message);
             }
         }
+        private void RefreshCargoQuantities()
+        {
+            // Refresh cargo quantities for all items when cargo data changes
+            foreach (var item in Items)
+            {
+                item.NotifyCargoChanged();
+            }
 
-        // In ColonizationViewModel.cs - GameState_PropertyChanged method
+            Log.Debug("ColonizationViewModel: Refreshed cargo quantities for {Count} items", Items.Count);
+        }
         private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             Log.Debug("ColonizationViewModel: PropertyChanged event received for {Property}", e.PropertyName);
@@ -307,7 +360,7 @@ namespace EliteInfoPanel.ViewModels
                 {
                     Application.Current.Dispatcher.BeginInvoke(new Action(() =>
                     {
-                        UpdateColonizationDataInternal();
+                        RefreshCargoQuantities(); // Use the new method
                     }), DispatcherPriority.Background);
                 }
             }

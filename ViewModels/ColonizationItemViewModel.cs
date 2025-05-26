@@ -139,7 +139,91 @@ namespace EliteInfoPanel.ViewModels
             get => _payment;
             set => SetProperty(ref _payment, value);
         }
+        public int TotalAvailableCargo => ShipCargoQuantity + CarrierCargoQuantity;
 
+        public int RemainingToAcquire => Math.Max(0, Remaining - TotalAvailableCargo);
+
+        public bool HasSufficientCargo => TotalAvailableCargo >= Remaining;
+        public string CargoStatusText
+        {
+            get
+            {
+                if (IsComplete)
+                    return "✅ Complete";
+
+                if (HasSufficientCargo)
+                    return $"✅ Ready to deliver ({TotalAvailableCargo} available)";
+
+                if (TotalAvailableCargo > 0)
+                    return $"⚠️ Partial ({TotalAvailableCargo} available, need {RemainingToAcquire} more)";
+
+                return $"❌ Need to acquire {RemainingToAcquire}";
+            }
+
+        }
+        public long RemainingValue => (long)RemainingToAcquire * Payment;
+        public void NotifyCargoChanged()
+        {
+            // Notify all cargo-related properties that they may have changed
+            OnPropertyChanged(nameof(ShipCargoQuantity));
+            OnPropertyChanged(nameof(CarrierCargoQuantity));
+            OnPropertyChanged(nameof(TotalAvailableCargo));
+            OnPropertyChanged(nameof(RemainingToAcquire));
+            OnPropertyChanged(nameof(HasSufficientCargo));
+            OnPropertyChanged(nameof(CargoCompletionPercentage));
+            OnPropertyChanged(nameof(EnhancedProgressColor));
+            OnPropertyChanged(nameof(CargoStatusText));
+            OnPropertyChanged(nameof(CargoStatusColor));
+            OnPropertyChanged(nameof(RemainingValue));
+            OnPropertyChanged(nameof(RemainingValueText));
+            OnPropertyChanged(nameof(HasAvailableCargo));
+            OnPropertyChanged(nameof(AvailableCargoPercentage));
+        }
+       
+        public string RemainingValueText => RemainingValue > 0 ? $"{RemainingValue:N0} credits" : "Complete";
+        public Brush CargoStatusColor
+        {
+            get
+            {
+                if (IsComplete || HasSufficientCargo)
+                    return new SolidColorBrush(Colors.LimeGreen);
+                else if (TotalAvailableCargo > 0)
+                    return new SolidColorBrush(Colors.Gold);
+                else
+                    return new SolidColorBrush(Colors.OrangeRed);
+            }
+        }
+        public Brush EnhancedProgressColor
+        {
+            get
+            {
+                if (IsComplete)
+                    return new SolidColorBrush(Colors.LimeGreen);
+
+                if (HasSufficientCargo)
+                    return new SolidColorBrush(Colors.Gold); // We have enough cargo to complete this
+
+                if (CargoCompletionPercentage > 75)
+                    return new SolidColorBrush(Colors.LightGreen);
+                else if (CargoCompletionPercentage > 50)
+                    return new SolidColorBrush(Colors.Yellow);
+                else if (CompletionPercentage > 25)
+                    return new SolidColorBrush(Colors.Orange);
+                else
+                    return new SolidColorBrush(Colors.OrangeRed);
+            }
+        }
+        public double CargoCompletionPercentage
+        {
+            get
+            {
+                if (Required <= 0) return 0;
+
+                // Calculate what percentage of the total requirement could be fulfilled with current cargo
+                int totalPotential = Provided + TotalAvailableCargo;
+                return Math.Min(100, (double)totalPotential / Required * 100.0);
+            }
+        }
         public int ProfitPerUnit
         {
             get => _profitPerUnit;
@@ -154,22 +238,40 @@ namespace EliteInfoPanel.ViewModels
                                              new SolidColorBrush(Colors.Yellow) :
                                              new SolidColorBrush(Colors.OrangeRed);
 
-        public int Provided
+        public  int Provided
         {
             get => _provided;
-            set => SetProperty(ref _provided, value);
+            set
+            {
+                if (SetProperty(ref _provided, value))
+                {
+                    NotifyCargoChanged();
+                }
+            }
         }
 
-        public int Remaining
+        public  int Remaining
         {
             get => _remaining;
-            set => SetProperty(ref _remaining, value);
+            set
+            {
+                if (SetProperty(ref _remaining, value))
+                {
+                    NotifyCargoChanged();
+                }
+            }
         }
 
-        public int Required
+        public  int Required
         {
             get => _required;
-            set => SetProperty(ref _required, value);
+            set
+            {
+                if (SetProperty(ref _required, value))
+                {
+                    NotifyCargoChanged();
+                }
+            }
         }
 
         #endregion Public Properties

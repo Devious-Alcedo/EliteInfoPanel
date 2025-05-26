@@ -7,7 +7,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-
+using EliteInfoPanel.Services;
 using System.Windows.Media;
 using System.Windows.Threading;
 using EliteInfoPanel.Core.EliteInfoPanel.Core;
@@ -35,7 +35,9 @@ namespace EliteInfoPanel.Core
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "EliteInfoPanel",
             "ColonizationData.json");
+        private readonly MqttService _mqttService;
 
+        private bool _mqttInitialized = false;
         private Dictionary<string, int> _carrierCargo = new();
         private string _carrierJumpDestinationBody;
         private string _carrierJumpDestinationSystem;
@@ -253,6 +255,12 @@ namespace EliteInfoPanel.Core
 
             // Scan journal for pending carrier jump
             ScanJournalForPendingCarrierJump();
+            Task.Run(InitializeMqttAsync);
+            if (CurrentStatus != null)
+            {
+                Task.Run(() => PublishStatusToMqtt(CurrentStatus));
+                Log.Information("✅ Initial flag state pushed to MQTT on startup");
+            }
         }
         private void EnsureDevelopmentFilesExist(string devPath)
         {
@@ -690,6 +698,8 @@ namespace EliteInfoPanel.Core
 
         private void ProcessDockingEvent(string eventType, JsonElement root)
         {
+            var previousDockingState = IsDocking; // Track the previous state
+
             switch (eventType)
             {
                 case "DockingRequested":
@@ -707,7 +717,7 @@ namespace EliteInfoPanel.Core
                 case "Docked":
                     _currentDockingState = DockingState.Docked;
                     IsDocking = false;
-                    Log.Debug("Docked - IsDocking set to false");
+                    Log.Debug("Docked - IsDocking set to false (was: {Previous})", previousDockingState);
                     break;
 
                 case "DockingCancelled":
@@ -715,11 +725,20 @@ namespace EliteInfoPanel.Core
                 case "DockingTimeout":
                     _currentDockingState = DockingState.NotDocking;
                     IsDocking = false;
-                    Log.Debug($"{eventType} - IsDocking set to false");
+                    Log.Debug("{EventType} - IsDocking set to false", eventType);
                     break;
             }
-        }
 
+            // Force an immediate MQTT update with explicit docking state
+            if (previousDockingState != IsDocking || eventType == "Docked")
+            {
+                Log.Debug("Docking state changed from {Previous} to {Current} - forcing MQTT update",
+                    previousDockingState, IsDocking);
+                Task.Run(async () => {
+                    await MqttService.Instance.PublishFlagStatesAsync(CurrentStatus, IsDocking, forcePublish: true);
+                });
+            }
+        }
         private void SaveColonizationData()
         {
             try
@@ -905,6 +924,34 @@ namespace EliteInfoPanel.Core
         #endregion Protected Methods
 
         #region Private Methods
+        private async Task InitializeMqttAsync()
+        {
+            try
+            {
+                var settings = SettingsManager.Load();
+                if (settings.MqttEnabled)
+                {
+                    await MqttService.Instance.InitializeAsync(settings);
+                    _mqttInitialized = true;
+                    Log.Information("MQTT service initialized for GameStateService");
+
+                    // ✅ Publish initial state if available
+                    if (CurrentStatus != null)
+                    {
+                        await MqttService.Instance.PublishFlagStatesAsync(CurrentStatus);
+                        Log.Information("✅ Initial state published to MQTT after MQTT initialization.");
+                    }
+                    else
+                    {
+                        Log.Warning("⚠️ Cannot publish initial state: CurrentStatus is null.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to initialize MQTT service in GameStateService");
+            }
+        }
 
         public void BatchUpdate(Action updateAction)
         {
@@ -1418,24 +1465,74 @@ namespace EliteInfoPanel.Core
                     {
                         Log.Debug("Raw Status Flags2 value: 0x{RawFlags2:X8} ({RawFlags2})",
                             CurrentStatus.Flags2, CurrentStatus.Flags2);
-
-                        // If Flags2 is defined as an enum, you could also log individual flags
-                        // Similar to the above code for Flags
                     }
+
+                    // Publish to MQTT if enabled
+                    PublishStatusToMqtt(CurrentStatus);
                 }
                 else
                 {
                     Log.Warning("Status.json loaded but Flags property is null");
                 }
-
-                // Check hyperspace status
-                //IsHyperspaceJumping = CurrentStatus?.Flags.HasFlag(Flag.FsdJump) ?? false;
-
+                PublishStatusToMqtt(CurrentStatus);
                 // Notify dependent properties
                 OnPropertyChanged(nameof(Balance));
             }
 
             return changed;
+        }
+        private async void PublishStatusToMqtt(StatusJson status)
+        {
+            if (!_mqttInitialized || status == null)
+                return;
+
+            try
+            {
+                // Force publish with the current docking state
+                await MqttService.Instance.PublishFlagStatesAsync(status, IsDocking, forcePublish: true);
+
+                // Also publish commander status if we have the data
+                if (!string.IsNullOrEmpty(CommanderName) && !string.IsNullOrEmpty(CurrentSystem))
+                {
+                    string shipInfo = !string.IsNullOrEmpty(ShipLocalised) ? ShipLocalised :
+                                     !string.IsNullOrEmpty(ShipName) ? ShipNameHelper.GetLocalisedName(ShipName) : "Unknown";
+
+                    await MqttService.Instance.PublishCommanderStatusAsync(CommanderName, CurrentSystem, shipInfo);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error publishing status to MQTT");
+            }
+        }
+        public async Task PublishCurrentStateToMqtt()
+        {
+            if (_mqttInitialized && CurrentStatus != null)
+            {
+                try
+                {
+                    await MqttService.Instance.PublishFlagStatesAsync(CurrentStatus, IsDocking);
+                    Log.Information("Published current state to MQTT");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error publishing current state to MQTT");
+                }
+            }
+        }
+        public async Task RefreshMqttSettingsAsync()
+        {
+            try
+            {
+                var settings = SettingsManager.Load();
+                await MqttService.Instance.InitializeAsync(settings);
+                _mqttInitialized = settings.MqttEnabled;
+                Log.Information("MQTT settings refreshed");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error refreshing MQTT settings");
+            }
         }
 
         private bool MaterialsEqual(FCMaterialsJson mat1, FCMaterialsJson mat2)
@@ -1643,6 +1740,10 @@ namespace EliteInfoPanel.Core
                                     break;
 
                                 case "Docked":
+                                    // Process the docking event first
+                                    ProcessDockingEvent(eventType, root);
+
+                                    // Then handle the rest of the Docked event
                                     if (root.TryGetProperty("Wanted", out var wantedProp) && wantedProp.GetBoolean())
                                     {
                                         LegalState = "Wanted";
@@ -1651,6 +1752,7 @@ namespace EliteInfoPanel.Core
                                     {
                                         LegalState = "Clean";
                                     }
+
                                     if (root.TryGetProperty("StationName", out var stationProp))
                                     {
                                         CurrentStationName = stationProp.GetString();
@@ -1659,7 +1761,6 @@ namespace EliteInfoPanel.Core
                                         {
                                             string stationType = dockStationTypeProp.GetString();
                                             isCarrier = string.Equals(stationType, "FleetCarrier", StringComparison.OrdinalIgnoreCase);
-
                                             Log.Debug("Docked at station: {Station}, StationType: {Type}, IsCarrier: {IsCarrier}",
                                                 CurrentStationName, stationType, isCarrier);
                                         }
@@ -1865,17 +1966,7 @@ namespace EliteInfoPanel.Core
                                             CarrierCargo.Count);
                                     }
                                     break;
-                                case "CarrierCancelJump":
-                                    FleetCarrierJumpTime = null;
-                                    CarrierJumpScheduledTime = null;
-                                    CarrierJumpDestinationSystem = null;
-                                    CarrierJumpDestinationBody = null;
-                                    FleetCarrierJumpInProgress = false;
-                                    Log.Information("Setting FleetCarrierJumpInProgress to false from {Method}",
-    new StackTrace().GetFrame(1)?.GetMethod()?.Name ?? "unknown");
-                                    OnPropertyChanged(nameof(CarrierJumpDestinationSystem));
-                                    OnPropertyChanged(nameof(FleetCarrierJumpTime));
-                                    break;
+                              
 
                                 case "CarrierJumpRequest":
                                     if (root.TryGetProperty("DepartureTime", out var departureTimeProp) &&
@@ -1883,6 +1974,14 @@ namespace EliteInfoPanel.Core
                                     {
                                         if (departureTime > DateTime.UtcNow)
                                         {
+                                            // CRITICAL: Process carrier jump outside of batch update to ensure immediate UI response
+                                            bool wasBatchMode2 = _isUpdating;
+                                            if (wasBatchMode2)
+                                            {
+                                                Log.Information("🚀 Temporarily disabling batch mode for carrier jump request");
+                                                _isUpdating = false;
+                                            }
+
                                             FleetCarrierJumpTime = departureTime;
                                             CarrierJumpScheduledTime = departureTime;
 
@@ -1894,7 +1993,14 @@ namespace EliteInfoPanel.Core
 
                                             JumpArrived = false;
                                             FleetCarrierJumpInProgress = true;
-                                            Log.Debug($"Carrier jump scheduled for {departureTime:u}");
+
+                                            Log.Information("🚀 Carrier jump scheduled for {Time}", departureTime);
+
+                                            // Restore batch mode if it was active
+                                            if (wasBatchMode2)
+                                            {
+                                                _isUpdating = true;
+                                            }
                                         }
                                         else
                                         {
@@ -1905,32 +2011,49 @@ namespace EliteInfoPanel.Core
 
                                 case "CarrierJump":
                                     Log.Information("CarrierJump event detected - hiding overlay");
+
+                                    // CRITICAL: Process carrier jump completion outside of batch update for immediate UI response
+                                    bool wasBatchMode3 = _isUpdating;
+                                    if (wasBatchMode3)
+                                    {
+                                        Log.Information("🚀 Temporarily disabling batch mode for carrier jump completion");
+                                        _isUpdating = false;
+                                    }
+
                                     JumpArrived = true;
-                                    // Clear jump state
                                     FleetCarrierJumpInProgress = false;
-                                    Log.Information("Setting FleetCarrierJumpInProgress to false from {Method}",
-    new StackTrace().GetFrame(1)?.GetMethod()?.Name ?? "unknown");
                                     CarrierJumpScheduledTime = null;
                                     CarrierJumpDestinationSystem = null;
                                     CarrierJumpDestinationBody = null;
+
+                                    // Restore batch mode if it was active
+                                    if (wasBatchMode3)
+                                    {
+                                        _isUpdating = true;
+                                    }
                                     break;
 
                                 case "CarrierJumpCancelled":
-                                    if (FleetCarrierJumpTime != null || CarrierJumpScheduledTime != null)
+                                case "CarrierCancelJump":
+                                    // CRITICAL: Process cancellation outside of batch update for immediate UI response
+                                    bool wasBatchMode4 = _isUpdating;
+                                    if (wasBatchMode4)
                                     {
-                                        Log.Information("Carrier jump was cancelled ... clearing jump state");
-                                        FleetCarrierJumpTime = null;
-                                        CarrierJumpScheduledTime = null;
-                                        CarrierJumpDestinationSystem = null;
-                                        CarrierJumpDestinationBody = null;
-                                        FleetCarrierJumpInProgress = false;
-                                        Log.Information("Setting FleetCarrierJumpInProgress to false from {Method}",
-    new StackTrace().GetFrame(1)?.GetMethod()?.Name ?? "unknown");
+                                        _isUpdating = false;
                                     }
-                                    else
+
+                                    FleetCarrierJumpTime = null;
+                                    CarrierJumpScheduledTime = null;
+                                    CarrierJumpDestinationSystem = null;
+                                    CarrierJumpDestinationBody = null;
+                                    FleetCarrierJumpInProgress = false;
+
+                                    if (wasBatchMode4)
                                     {
-                                        Log.Debug("Ignoring CarrierJumpCancelled as no jump was active.");
+                                        _isUpdating = true;
                                     }
+
+                                    Log.Information("Carrier jump cancelled");
                                     break;
 
                                 case "CarrierLocation":

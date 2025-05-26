@@ -6,7 +6,22 @@ namespace EliteInfoPanel.Util
 {
     public class AppSettings
     {
-        // Existing properties
+        // MQTT Configuration
+        public bool MqttEnabled { get; set; } = false;
+        public string MqttBrokerHost { get; set; } = "localhost";
+        public int MqttBrokerPort { get; set; } = 1883;
+        public string MqttUsername { get; set; } = "";
+        public string MqttPassword { get; set; } = "";
+        public string MqttClientId { get; set; } = "EliteInfoPanel";
+        public string MqttTopicPrefix { get; set; } = "elite/status";
+        public bool MqttUseTls { get; set; } = false;
+        public int MqttQosLevel { get; set; } = 0; // 0 = At most once, 1 = At least once, 2 = Exactly once
+        public bool MqttRetainMessages { get; set; } = true;
+        public int MqttPublishIntervalMs { get; set; } = 1000; // Rate limiting
+        public bool MqttPublishOnlyChanges { get; set; } = true; // Only publish when flags change
+
+
+
         public DisplayOptions DisplayOptions { get; set; } = new DisplayOptions();
         public string? LastOptionsScreenId { get; set; }
         public string? SelectedScreenId { get; set; }
