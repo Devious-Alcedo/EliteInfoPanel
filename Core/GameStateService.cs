@@ -36,6 +36,10 @@ namespace EliteInfoPanel.Core
             "EliteInfoPanel",
             "ColonizationData.json");
         private readonly MqttService _mqttService;
+        public double FuelMain => CurrentStatus?.Fuel?.FuelMain ?? 0;
+        public double FuelReserve => CurrentStatus?.Fuel?.FuelReservoir ?? 0;
+        public string CurrentShip => !string.IsNullOrEmpty(ShipLocalised) ? ShipLocalised :
+                                     !string.IsNullOrEmpty(ShipName) ? ShipName : "Unknown";
 
         private bool _mqttInitialized = false;
         private Dictionary<string, int> _carrierCargo = new();
@@ -1445,14 +1449,12 @@ namespace EliteInfoPanel.Core
 
             if (changed)
             {
-                // Log the flag values for debugging
                 if (CurrentStatus?.Flags != null)
                 {
                     uint rawFlags = (uint)CurrentStatus.Flags;
                     Log.Debug("Raw Status Flags value: 0x{RawFlags:X8} ({RawFlags})",
                         rawFlags, rawFlags);
 
-                    // Log individual flags that are set
                     Log.Debug("Active flags: {Flags}",
                         Enum.GetValues(typeof(Flag))
                             .Cast<Flag>()
@@ -1460,27 +1462,31 @@ namespace EliteInfoPanel.Core
                             .Select(f => f.ToString())
                             .ToList());
 
-                    // Log Flags2 if available
                     if (CurrentStatus.Flags2 != 0)
                     {
                         Log.Debug("Raw Status Flags2 value: 0x{RawFlags2:X8} ({RawFlags2})",
                             CurrentStatus.Flags2, CurrentStatus.Flags2);
                     }
-
-                    // Publish to MQTT if enabled
-                    PublishStatusToMqtt(CurrentStatus);
                 }
                 else
                 {
                     Log.Warning("Status.json loaded but Flags property is null");
                 }
-                PublishStatusToMqtt(CurrentStatus);
+
                 // Notify dependent properties
+                OnPropertyChanged(nameof(FuelMain));
+                OnPropertyChanged(nameof(CurrentShip));
                 OnPropertyChanged(nameof(Balance));
+                OnPropertyChanged(nameof(CurrentSystem));
+                OnPropertyChanged(nameof(CommanderName));
+                OnPropertyChanged(nameof(FuelReserve));
+                // Publish to MQTT if enabled
+                PublishStatusToMqtt(CurrentStatus);
             }
 
             return changed;
         }
+
         private async void PublishStatusToMqtt(StatusJson status)
         {
             if (!_mqttInitialized || status == null)
@@ -1497,7 +1503,14 @@ namespace EliteInfoPanel.Core
                     string shipInfo = !string.IsNullOrEmpty(ShipLocalised) ? ShipLocalised :
                                      !string.IsNullOrEmpty(ShipName) ? ShipNameHelper.GetLocalisedName(ShipName) : "Unknown";
 
-                    await MqttService.Instance.PublishCommanderStatusAsync(CommanderName, CurrentSystem, shipInfo);
+                    await MqttService.Instance.PublishCommanderStatusAsync(
+                         CommanderName,
+                         CurrentSystem,
+                         shipInfo,
+                         Balance ?? 0,              // Use Balance property for credits
+                         FuelMain,
+                         FuelReserve);                // Use the new FuelMain property
+                               // fuel level
                 }
             }
             catch (Exception ex)

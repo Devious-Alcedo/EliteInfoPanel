@@ -337,6 +337,8 @@ namespace EliteInfoPanel.Services
 
             Log.Debug("Published Home Assistant config for {FlagType} {Flag}: {FriendlyName}", flagType, flagName, friendlyName);
         }
+       
+
         public async Task ClearAllHomeAssistantEntities()
         {
             if (!_settings.MqttEnabled || _mqttClient == null || !_mqttClient.IsConnected)
@@ -492,19 +494,24 @@ namespace EliteInfoPanel.Services
             }
         }
 
-        public async Task PublishCommanderStatusAsync(string commanderName, string system, string ship)
+        public async Task PublishCommanderStatusAsync(string commanderName, string system, string ship, decimal credits, double fuel, double fuelreserve)
         {
             if (!_settings.MqttEnabled || _mqttClient == null || !_mqttClient.IsConnected)
                 return;
 
             try
             {
+                await PublishHomeAssistantCommanderConfigsIfNeeded();
+
                 var topic = $"{_settings.MqttTopicPrefix}/commander";
                 var payload = JsonSerializer.Serialize(new
                 {
                     commander = commanderName,
-                    system = system,
-                    ship = ship,
+                    system,
+                    ship,
+                    credits,
+                    fuel,
+                    fuelreserve,
                     timestamp = DateTime.UtcNow.ToString("O")
                 }, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
@@ -515,6 +522,52 @@ namespace EliteInfoPanel.Services
                 Log.Error(ex, "Error publishing commander status to MQTT");
             }
         }
+
+        private async Task PublishHomeAssistantCommanderConfigsIfNeeded()
+        {
+            string baseTopic = $"{_settings.MqttTopicPrefix}/commander";
+
+            var configs = new List<(string id, string name, string valueTemplate)>
+    {
+        ("commander", "Commander", "{{ value_json.commander }}"),
+        ("system", "System", "{{ value_json.system }}"),
+        ("ship", "Ship", "{{ value_json.ship }}"),
+        ("credits", "Credits", "{{ value_json.credits }}"),
+        ("fuel", "Fuel", "{{ value_json.fuel }}"),
+        ("fuelreserve", "Fuel Reserve", "{{ value_json.fuelreserve }}")
+    };
+
+            foreach (var (id, name, valueTemplate) in configs)
+            {
+                string configTopic = $"homeassistant/sensor/eliteinfopanel_{id}/config";
+                if (_haConfigSent.Contains(configTopic)) continue;
+
+                var configPayload = new
+                {
+                    name,
+                    state_topic = baseTopic,
+                    unique_id = $"eliteinfopanel_{id}",
+                    object_id = id,
+                    value_template = valueTemplate,
+                    json_attributes_topic = baseTopic,  // Optional, if you want other fields as attributes
+                    device = new
+                    {
+                        identifiers = new[] { "eliteinfopanel" },
+                        name = "Elite Info Panel",
+                        manufacturer = "Frontier Developments",
+                        model = "Elite Dangerous Game State",
+                        sw_version = "1.0"
+                    }
+                };
+
+                string configJson = JsonSerializer.Serialize(configPayload);
+                await PublishAsync(configTopic, configJson, retain: true);
+                _haConfigSent.Add(configTopic);
+
+                Log.Debug("Published Home Assistant config for {Name} sensor", name);
+            }
+        }
+
 
         public async Task PublishGameEventAsync(string eventType, object eventData)
         {
