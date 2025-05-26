@@ -159,6 +159,8 @@ namespace EliteInfoPanel.Services
 
         public async Task PublishFlagStatesAsync(StatusJson status, bool? isDocking = null, bool forcePublish = false)
         {
+            if (_settings == null)
+                return;
             if (!_settings.MqttEnabled || _mqttClient == null || !_mqttClient.IsConnected || status == null)
                 return;
 
@@ -229,6 +231,7 @@ namespace EliteInfoPanel.Services
                 }
             }
 
+            // Add debug logging for key states
             Log.Debug("Flag states: Docked={Docked}, Docking={Docking}, IsDockingParam={IsDockingParam}",
                 states.GetValueOrDefault(Flag.Docked),
                 states.GetValueOrDefault(SyntheticFlags.Docking),

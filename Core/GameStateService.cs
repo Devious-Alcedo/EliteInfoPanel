@@ -698,27 +698,26 @@ namespace EliteInfoPanel.Core
 
         private void ProcessDockingEvent(string eventType, JsonElement root)
         {
+            var previousDockingState = IsDocking; // Track the previous state
+
             switch (eventType)
             {
                 case "DockingRequested":
                     _currentDockingState = DockingState.DockingRequested;
                     IsDocking = true;
                     Log.Debug("Docking requested - IsDocking set to true");
-                    PublishStatusToMqtt(CurrentStatus); // Force MQTT update
                     break;
 
                 case "DockingGranted":
                     _currentDockingState = DockingState.DockingGranted;
                     IsDocking = true;
                     Log.Debug("Docking granted - IsDocking set to true");
-                    PublishStatusToMqtt(CurrentStatus); // Force MQTT update
                     break;
 
                 case "Docked":
                     _currentDockingState = DockingState.Docked;
                     IsDocking = false;
-                    Log.Debug("Docked - IsDocking set to false");
-                    PublishStatusToMqtt(CurrentStatus); // Force MQTT update - this is the key fix!
+                    Log.Debug("Docked - IsDocking set to false (was: {Previous})", previousDockingState);
                     break;
 
                 case "DockingCancelled":
@@ -726,12 +725,20 @@ namespace EliteInfoPanel.Core
                 case "DockingTimeout":
                     _currentDockingState = DockingState.NotDocking;
                     IsDocking = false;
-                    Log.Debug($"{eventType} - IsDocking set to false");
-                    PublishStatusToMqtt(CurrentStatus); // Force MQTT update
+                    Log.Debug("{EventType} - IsDocking set to false", eventType);
                     break;
             }
-        }
 
+            // Force an immediate MQTT update with explicit docking state
+            if (previousDockingState != IsDocking || eventType == "Docked")
+            {
+                Log.Debug("Docking state changed from {Previous} to {Current} - forcing MQTT update",
+                    previousDockingState, IsDocking);
+                Task.Run(async () => {
+                    await MqttService.Instance.PublishFlagStatesAsync(CurrentStatus, IsDocking, forcePublish: true);
+                });
+            }
+        }
         private void SaveColonizationData()
         {
             try
@@ -1733,6 +1740,10 @@ namespace EliteInfoPanel.Core
                                     break;
 
                                 case "Docked":
+                                    // Process the docking event first
+                                    ProcessDockingEvent(eventType, root);
+
+                                    // Then handle the rest of the Docked event
                                     if (root.TryGetProperty("Wanted", out var wantedProp) && wantedProp.GetBoolean())
                                     {
                                         LegalState = "Wanted";
@@ -1741,6 +1752,7 @@ namespace EliteInfoPanel.Core
                                     {
                                         LegalState = "Clean";
                                     }
+
                                     if (root.TryGetProperty("StationName", out var stationProp))
                                     {
                                         CurrentStationName = stationProp.GetString();
@@ -1749,7 +1761,6 @@ namespace EliteInfoPanel.Core
                                         {
                                             string stationType = dockStationTypeProp.GetString();
                                             isCarrier = string.Equals(stationType, "FleetCarrier", StringComparison.OrdinalIgnoreCase);
-
                                             Log.Debug("Docked at station: {Station}, StationType: {Type}, IsCarrier: {IsCarrier}",
                                                 CurrentStationName, stationType, isCarrier);
                                         }
