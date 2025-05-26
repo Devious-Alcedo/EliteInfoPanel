@@ -3,6 +3,8 @@
 EliteInfoPanel
 Coming soon to a small display on your desk!
 
+https://github.com/Devious-Alcedo/EliteInfoPanel/releases/tag/firstalpha
+
 🖱️ Quick Access Keys
 
 F2 – Open Settings
@@ -24,7 +26,12 @@ Bar Colors:
 
 🟦 Blue – Represents how much is "in stock" (on your ship or carrier).
 
-![image](https://github.com/user-attachments/assets/0208ea3f-381c-4654-b5af-104778f00aee)
+![WhatsApp Image 2025-05-26 at 17 25 48_8e1d9fa3](https://github.com/user-attachments/assets/7da8ef3a-49e8-4cba-87f9-bc0472847e5d)
+
+Export to CSV:
+
+![WhatsApp Image 2025-05-26 at 17 26 58_bf3ef9b4](https://github.com/user-attachments/assets/7e58c472-ab4e-4f06-9055-b245d3b363ec)
+
 
 🚀 Fleet Carrier Jump Overlays
 Enjoy dynamic overlays if you are onboard your fleet carrier when it jumps!
