@@ -1,11 +1,21 @@
 ![CodeQL](https://github.com/jimmyeao/EliteInfoPanel/actions/workflows/github-code-scanning/codeql/badge.svg)
 
 EliteInfoPanel
-Coming soon to a small display on your desk!
+Coming soon to a small display on your desk! The goal is a mulit-functional display to help commanders with colonization efforts, and to provide easily accessible visual information whether on foot, in ship, SRV, figter or a wing!
+Current progress:
+
+* In Ship - mainly complete, provided route information, cargo information, statuses and fuel info
+* Carrier Cargo - Provides a mechanic for tracking cargo - you will need to initially update the carrier cargo manually either by editin gthe Fleet Carrier Cargo Card, or by transferring cargo to a ship, then back to the carrier 
+* Colonisation Tracking - mainly complete, but can only currently track one colonisation effort at a time (future enhancement)
+* Ability to export Tracking Data to CSV
+* Can pop out colinization card and fleet carrier cargo card
+* On Foot backpack in development
 
 https://github.com/Devious-Alcedo/EliteInfoPanel/releases/tag/firstalpha
 
 🖱️ Quick Access Keys
+
+Esc - Exit full screen
 
 F2 – Open Settings
 
@@ -38,3 +48,10 @@ Enjoy dynamic overlays if you are onboard your fleet carrier when it jumps!
 
 
 ![Screen Recording 2025-04-21 141334 (1)](https://github.com/user-attachments/assets/ec8cc69e-3033-405d-828d-ed1d3407dbe9)
+
+MQTT integration
+
+Can push Status flags to MQTT for use in home automation!
+
+![image](https://github.com/user-attachments/assets/efb40c7f-661f-4384-8e5e-e8a01e43a780)
+
