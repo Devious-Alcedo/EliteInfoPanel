@@ -525,6 +525,8 @@ namespace EliteInfoPanel.Services
         }
         public async Task PublishAllColonizationDepotsAsync(List<ColonizationData> activeDepots)
         {
+            if (_settings == null)
+                return;
             if (!_settings.MqttEnabled || _mqttClient == null || !_mqttClient.IsConnected)
                 return;
 
@@ -562,6 +564,8 @@ namespace EliteInfoPanel.Services
         }
         public async Task PublishColonizationDepotAsync(long marketId, double progress, bool complete, bool failed, List<ColonizationResource> resources)
         {
+            if (_settings == null)
+                return;
             if (!_settings.MqttEnabled || _mqttClient == null || !_mqttClient.IsConnected)
                 return;
 

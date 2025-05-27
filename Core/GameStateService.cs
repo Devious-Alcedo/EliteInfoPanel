@@ -1315,7 +1315,7 @@ namespace EliteInfoPanel.Core
                 OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
                 OnPropertyChanged(nameof(JumpArrived));
                 LoadCarrierCargoFromDisk();
-
+                LoadPersistedColonizationData();
                 // Set cargo tracking as initialized after loading saved data
                 _cargoTrackingInitialized = true;
                 // Notify subscribers

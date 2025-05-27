@@ -88,8 +88,8 @@ namespace EliteInfoPanel.ViewModels
                 }
             }
         }
-
-        public bool HasMultipleDepots => AvailableDepots.Count > 1;
+        //set back to one for release!
+        public bool HasMultipleDepots => AvailableDepots.Count > 0;
         public int CompletedItems
         {
             get => _completedItems;
