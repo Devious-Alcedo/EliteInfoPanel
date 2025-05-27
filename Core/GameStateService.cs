@@ -52,7 +52,63 @@ namespace EliteInfoPanel.Core
         private BackpackJson _currentBackpack;
         private CargoJson _currentCargo;
         private List<CarrierCargoItem> _currentCarrierCargo = new();
-        private ColonizationData _currentColonization;
+        private Dictionary<long, ColonizationData> _colonizationDepots = new();
+        private long? _selectedDepotMarketId;
+
+        public IReadOnlyDictionary<long, ColonizationData> ColonizationDepots => _colonizationDepots;
+
+        public ColonizationData SelectedColonizationDepot
+        {
+            get => _selectedDepotMarketId.HasValue && _colonizationDepots.TryGetValue(_selectedDepotMarketId.Value, out var depot)
+                ? depot : null;
+            private set
+            {
+                if (value != null)
+                {
+                    _selectedDepotMarketId = value.MarketID;
+                    OnPropertyChanged();
+                }
+            }
+        }
+        public void SelectColonizationDepot(long marketId)
+        {
+            if (_colonizationDepots.ContainsKey(marketId))
+            {
+                SelectedDepotMarketId = marketId;
+            }
+        }
+        public long? SelectedDepotMarketId
+        {
+            get => _selectedDepotMarketId;
+            set
+            {
+                if (SetProperty(ref _selectedDepotMarketId, value))
+                {
+                    OnPropertyChanged(nameof(CurrentColonization));
+                }
+            }
+        }
+        public void UpdateColonizationDepot(long marketId, ColonizationData data)
+        {
+            _colonizationDepots[marketId] = data;
+
+            // If this is the first depot or currently selected depot, select it
+            if (!_selectedDepotMarketId.HasValue || _selectedDepotMarketId.Value == marketId)
+            {
+                _selectedDepotMarketId = marketId;
+            }
+
+            OnPropertyChanged(nameof(ColonizationDepots));
+            OnPropertyChanged(nameof(CurrentColonization));
+            SaveAllColonizationData();
+        }
+        public List<ColonizationData> GetActiveColonizationDepots()
+        {
+            return _colonizationDepots.Values
+                .Where(d => !d.ConstructionComplete && !d.ConstructionFailed)
+                .OrderBy(d => d.MarketID)
+                .ToList();
+        }
         private DockingState _currentDockingState = DockingState.NotDocking;
         private LoadoutJson _currentLoadout;
         private FCMaterialsJson _currentMaterials;
@@ -369,14 +425,48 @@ namespace EliteInfoPanel.Core
 
         public ColonizationData CurrentColonization
         {
-            get => _currentColonization;
+            get
+            {
+                if (_selectedDepotMarketId.HasValue &&
+                    _colonizationDepots.TryGetValue(_selectedDepotMarketId.Value, out var depot))
+                {
+                    return depot;
+                }
+                return null;
+            }
             private set
             {
-                if (SetProperty(ref _currentColonization, value))
+                if (value != null)
                 {
-                    // Save the data whenever it's updated
-                    SaveColonizationData();
+                    _colonizationDepots[value.MarketID] = value;
+                    _selectedDepotMarketId = value.MarketID;
+                    OnPropertyChanged();
+                    SaveAllColonizationData();
                 }
+            }
+        }
+        private void SaveAllColonizationData()
+        {
+            try
+            {
+                var activeDepots = GetActiveColonizationDepots();
+                if (!activeDepots.Any())
+                    return;
+
+                Directory.CreateDirectory(Path.GetDirectoryName(ColonizationDataFile));
+
+                string json = JsonSerializer.Serialize(activeDepots, new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                });
+
+                File.WriteAllText(ColonizationDataFile, json);
+
+                Log.Information("Saved {Count} colonization depots to file", activeDepots.Count);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error saving colonization data");
             }
         }
         public LoadoutJson CurrentLoadout
@@ -676,35 +766,29 @@ namespace EliteInfoPanel.Core
                     return;
                 }
 
-                var data = JsonSerializer.Deserialize<ColonizationData>(json);
-                if (data == null)
+                var depots = JsonSerializer.Deserialize<List<ColonizationData>>(json);
+                if (depots == null || !depots.Any())
                 {
-                    Log.Warning("Failed to deserialize colonization data");
+                    Log.Warning("No colonization depots found in file");
                     return;
                 }
 
-                // Only use the data if it's still active (not complete or failed)
-                if (!data.ConstructionComplete && !data.ConstructionFailed)
+                _colonizationDepots.Clear();
+                foreach (var depot in depots.Where(d => !d.ConstructionComplete && !d.ConstructionFailed))
                 {
-                    CurrentColonization = data;
-                    Log.Information("Loaded persisted colonization data: Progress={Progress:P2}, Resources={Count}, LastUpdated={LastUpdated}",
-                        data.ConstructionProgress,
-                        data.ResourcesRequired?.Count ?? 0,
-                        data.LastUpdated);
+                    _colonizationDepots[depot.MarketID] = depot;
                 }
-                else
-                {
-                    Log.Information("Persisted colonization data is no longer active (Complete={Complete}, Failed={Failed})",
-                        data.ConstructionComplete,
-                        data.ConstructionFailed);
-                }
+
+                // Select first depot
+                _selectedDepotMarketId = _colonizationDepots.Keys.FirstOrDefault();
+
+                Log.Information("Loaded {Count} active colonization depots from file", _colonizationDepots.Count);
             }
             catch (Exception ex)
             {
                 Log.Error(ex, "Error loading persisted colonization data");
             }
         }
-
         private void ProcessDockingEvent(string eventType, JsonElement root)
         {
             var previousDockingState = IsDocking; // Track the previous state
@@ -2154,6 +2238,8 @@ namespace EliteInfoPanel.Core
                                             colonizationData.MarketID = marketIdProp.GetInt64();
                                         }
 
+                                       
+
                                         if (root.TryGetProperty("ConstructionProgress", out var progressProp))
                                         {
                                             colonizationData.ConstructionProgress = progressProp.GetDouble();
@@ -2206,36 +2292,45 @@ namespace EliteInfoPanel.Core
                                             _isUpdating = false;
                                         }
 
-                                        CurrentColonization = colonizationData;
+                                        // Add or update depot in dictionary
+                                        _colonizationDepots[colonizationData.MarketID] = colonizationData;
+
+                                        // Set as selected if none selected or this is the only one
+                                        if (!_selectedDepotMarketId.HasValue || _colonizationDepots.Count == 1)
+                                        {
+                                            _selectedDepotMarketId = colonizationData.MarketID;
+                                        }
+
+                                        // Notify changes
+                                        OnPropertyChanged(nameof(ColonizationDepots));
+                                        OnPropertyChanged(nameof(SelectedColonizationDepot));
 
                                         if (wasBatchMode2)
                                         {
                                             _isUpdating = true;
                                         }
 
-                                        Log.Information("📋 Colonization data updated successfully - Progress: {Progress:P2}, Resources: {Count}",
-                                            colonizationData.ConstructionProgress, colonizationData.ResourcesRequired?.Count ?? 0);
+                                        // Save all depots
+                                        SaveAllColonizationData();
 
-                                        // 🔥 NEW: Publish colonization data via MQTT
+                                        // Publish to MQTT
                                         await MqttService.Instance.PublishColonizationDepotAsync(
-                                          colonizationData.MarketID,
-                                          colonizationData.ConstructionProgress,
-                                          colonizationData.ConstructionComplete,
-                                          colonizationData.ConstructionFailed,
-                                          colonizationData.ResourcesRequired);
-                                   
+                                            colonizationData.MarketID,
+                                            colonizationData.ConstructionProgress,
+                                            colonizationData.ConstructionComplete,
+                                            colonizationData.ConstructionFailed,
+                                            colonizationData.ResourcesRequired);
 
+                                        // Also publish aggregated data
+                                        await MqttService.Instance.PublishAllColonizationDepotsAsync(GetActiveColonizationDepots());
+
+                                        Log.Information("📋 Colonization depot {MarketID} updated - Progress: {Progress:P2}",
+                                            colonizationData.MarketID, colonizationData.ConstructionProgress);
                                     }
                                     catch (Exception ex)
                                     {
                                         Log.Error(ex, "📋 Error processing ColonisationConstructionDepot event");
                                     }
-                                    break;
-                                // Also add handling for ColonisationContribution events
-                                case "ColonisationContribution":
-                                    Log.Information("📋 Detected ColonisationContribution event - forcing colonization data refresh");
-                                  
-                                   
                                     break;
                                 #endregion
 

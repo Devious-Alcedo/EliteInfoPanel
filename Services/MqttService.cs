@@ -560,7 +560,6 @@ namespace EliteInfoPanel.Services
             await PublishAsync(topic, stateJson, retain: _settings.MqttRetainMessages);
             Log.Information("MQTT: Published aggregated colonization data with {DepotCount} depots", activeDepots.Count);
         }
-
         public async Task PublishColonizationDepotAsync(long marketId, double progress, bool complete, bool failed, List<ColonizationResource> resources)
         {
             if (!_settings.MqttEnabled || _mqttClient == null || !_mqttClient.IsConnected)

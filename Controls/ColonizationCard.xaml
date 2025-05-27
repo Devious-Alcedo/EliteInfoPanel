@@ -42,6 +42,7 @@
     </UserControl.Resources>
 
     <DockPanel>
+       
         <!-- Card Title (standalone) -->
         <TextBlock Text="{Binding Title}" 
                    Style="{StaticResource CardTitleStyle}"
@@ -53,6 +54,11 @@
                     Orientation="Horizontal" 
                     HorizontalAlignment="Right"
                     Margin="0,0,0,8">
+            <ComboBox ItemsSource="{Binding AvailableDepots}"
+               SelectedItem="{Binding SelectedDepot}"
+               DisplayMemberPath="DisplayName"
+               Visibility="{Binding HasMultipleDepots, Converter={StaticResource BoolToVis}}"
+               Margin="0,0,0,10"/>
             <Button Style="{DynamicResource MaterialDesignFlatButton}"
                     Command="{Binding ToggleShowCompleted}"
                     ToolTip="Toggle showing completed items"
