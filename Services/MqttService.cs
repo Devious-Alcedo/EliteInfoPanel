@@ -530,16 +530,88 @@ namespace EliteInfoPanel.Services
             if (!_settings.MqttEnabled || _mqttClient == null || !_mqttClient.IsConnected)
                 return;
 
-            // Aggregate data for all active depots
-            var depotsPayload = new
+            try
             {
-                depots = activeDepots.Select(depot => new
+                // Publish aggregated summary
+                var summary = new
                 {
-                    depot.MarketID,
-                    depot.ConstructionProgress,
-                    depot.ConstructionComplete,
-                    depot.ConstructionFailed,
-                    ResourcesRequired = depot.ResourcesRequired.Select(r => new
+                    ActiveDepots = activeDepots.Count,
+                    TotalProgress = activeDepots.Any() ? activeDepots.Average(d => d.ConstructionProgress) : 0,
+                    Depots = activeDepots.Select(d => new
+                    {
+                        d.MarketID,
+                        d.ConstructionProgress,
+                        d.CompletionPercentage,
+                        ResourcesTotal = d.ResourcesRequired?.Count ?? 0,
+                        ResourcesCompleted = d.ResourcesRequired?.Count(r => r.IsComplete) ?? 0
+                    }).ToList(),
+                    Timestamp = DateTime.UtcNow.ToString("O")
+                };
+
+                string summaryTopic = $"{_settings.MqttTopicPrefix}/colonisation/summary";
+                await PublishAsync(summaryTopic, JsonSerializer.Serialize(summary), retain: true);
+
+                // Publish each depot individually
+                foreach (var depot in activeDepots)
+                {
+                    await PublishColonizationDepotAsync(
+                        depot.MarketID,
+                        depot.ConstructionProgress,
+                        depot.ConstructionComplete,
+                        depot.ConstructionFailed,
+                        depot.ResourcesRequired);
+                }
+
+                // Publish Home Assistant discovery for the summary sensor
+                var summaryDiscovery = new
+                {
+                    name = "Elite Colonisation Summary",
+                    state_topic = summaryTopic,
+                    value_template = "{{ value_json.ActiveDepots }}",
+                    unit_of_measurement = "depots",
+                    icon = "mdi:home-group",
+                    unique_id = "eliteinfopanel_colonisation_summary",
+                    device = new
+                    {
+                        identifiers = new[] { "eliteinfopanel_colonisation" },
+                        name = "Elite Colonisation Tracker",
+                        manufacturer = "Frontier Developments",
+                        model = "Elite Dangerous Colonisation",
+                        sw_version = "1.0"
+                    },
+                    json_attributes_topic = summaryTopic
+                };
+
+                await PublishAsync("homeassistant/sensor/eliteinfopanel_colonisation_summary/config",
+                    JsonSerializer.Serialize(summaryDiscovery), retain: true);
+
+                Log.Information("MQTT: Published colonisation summary with {Count} active depots", activeDepots.Count);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error publishing all colonization depots to MQTT");
+            }
+        }
+        public async Task PublishColonizationDepotAsync(long marketId, double progress, bool complete, bool failed, List<ColonizationResource> resources)
+        {
+            if(_settings == null)
+                return; 
+            if (!_settings.MqttEnabled || _mqttClient == null || !_mqttClient.IsConnected)
+                return;
+
+            try
+            {
+                // Use a consistent topic structure with MarketID in the payload
+                string topic = $"{_settings.MqttTopicPrefix}/colonisation/status";
+
+                // Prepare state payload with MarketID included
+                var statePayload = new
+                {
+                    MarketID = marketId,
+                    ConstructionProgress = progress,
+                    ConstructionComplete = complete,
+                    ConstructionFailed = failed,
+                    ResourcesRequired = resources.Select(r => new
                     {
                         r.Name,
                         r.Name_Localised,
@@ -552,80 +624,96 @@ namespace EliteInfoPanel.Services
                         ReadyToDeliver = (r.ShipAmount + r.CarrierAmount) >= (r.RequiredAmount - r.ProvidedAmount),
                         ValueOfRemainingWork = (r.RequiredAmount - r.ProvidedAmount) * r.Payment,
                         PaymentPerUnit = r.Payment
-                    }).ToList()
-                }).ToList()
-            };
+                    }).ToList(),
+                    Timestamp = DateTime.UtcNow.ToString("O")
+                };
 
-            string topic = $"{_settings.MqttTopicPrefix}/colonisation/all";
-            string stateJson = JsonSerializer.Serialize(depotsPayload, new JsonSerializerOptions { WriteIndented = false });
+                // Publish the state
+                string stateJson = JsonSerializer.Serialize(statePayload);
+                await PublishAsync(topic, stateJson, retain: _settings.MqttRetainMessages);
 
-            await PublishAsync(topic, stateJson, retain: _settings.MqttRetainMessages);
-            Log.Information("MQTT: Published aggregated colonization data with {DepotCount} depots", activeDepots.Count);
-        }
-        public async Task PublishColonizationDepotAsync(long marketId, double progress, bool complete, bool failed, List<ColonizationResource> resources)
-        {
-            if (_settings == null)
-                return;
-            if (!_settings.MqttEnabled || _mqttClient == null || !_mqttClient.IsConnected)
-                return;
+                // Also publish to a MarketID-specific subtopic for direct access
+                string marketTopic = $"{_settings.MqttTopicPrefix}/colonisation/depots/{marketId}";
+                await PublishAsync(marketTopic, stateJson, retain: _settings.MqttRetainMessages);
 
-            // Dynamic topic based on MarketID
-            string topic = $"{_settings.MqttTopicPrefix}/colonisation/{marketId}";
-            string configTopic = $"homeassistant/sensor/eliteinfopanel_colonisation_{marketId}/config";
+                // Publish Home Assistant discovery config
+                await PublishColonizationHomeAssistantDiscovery(marketId);
 
-            // Discovery payload
-            var configPayload = new
+                Log.Information("MQTT: Published colonisation depot {MarketID} state", marketId);
+            }
+            catch (Exception ex)
             {
-                name = $"Colonisation Depot {marketId}",
-                state_topic = topic,
-                unique_id = $"eliteinfopanel_colonisation_{marketId}",
-                object_id = $"colonisation_{marketId}",
-                value_template = "{{ value_json.ConstructionProgress }}",
-                json_attributes_topic = topic,
+                Log.Error(ex, "Error publishing colonization depot to MQTT");
+            }
+        }
+        private async Task PublishColonizationHomeAssistantDiscovery(long marketId)
+        {
+            // Create Home Assistant discovery configs for this depot
+            var baseConfig = new
+            {
                 device = new
                 {
-                    identifiers = new[] { "eliteinfopanel" },
-                    name = "Elite Info Panel",
+                    identifiers = new[] { $"eliteinfopanel_colonisation_{marketId}" },
+                    name = $"Colonisation Depot {marketId}",
                     manufacturer = "Frontier Developments",
-                    model = "Elite Dangerous Game State",
+                    model = "Elite Dangerous Colonisation Depot",
                     sw_version = "1.0"
+                },
+                availability = new
+                {
+                    topic = $"{_settings.MqttTopicPrefix}/status",
+                    payload_available = "online",
+                    payload_not_available = "offline"
                 }
             };
 
-            // Serialize and publish discovery config
-            string configJson = JsonSerializer.Serialize(configPayload);
-            await PublishAsync(configTopic, configJson, retain: true);
-            Log.Information("MQTT: Published Home Assistant discovery for depot {MarketID}", marketId);
-
-            // Prepare state payload
-            var statePayload = new
+            // Progress sensor
+            var progressConfig = new
             {
-                MarketID = marketId,
-                ConstructionProgress = progress,
-                ConstructionComplete = complete,
-                ConstructionFailed = failed,
-                ResourcesRequired = resources.Select(r => new
-                {
-                    r.Name,
-                    r.Name_Localised,
-                    r.RequiredAmount,
-                    r.ProvidedAmount,
-                    r.ShipAmount,
-                    r.CarrierAmount,
-                    AvailableAmount = r.ShipAmount + r.CarrierAmount,
-                    StillNeeded = r.RequiredAmount - r.ProvidedAmount,
-                    ReadyToDeliver = (r.ShipAmount + r.CarrierAmount) >= (r.RequiredAmount - r.ProvidedAmount),
-                    ValueOfRemainingWork = (r.RequiredAmount - r.ProvidedAmount) * r.Payment,
-                    PaymentPerUnit = r.Payment
-                }).ToList()
+                name = $"Colonisation Progress {marketId}",
+                state_topic = $"{_settings.MqttTopicPrefix}/colonisation/depots/{marketId}",
+                value_template = "{{ value_json.ConstructionProgress | float * 100 | round(1) }}",
+                unit_of_measurement = "%",
+                icon = "mdi:progress-clock",
+                unique_id = $"eliteinfopanel_colonisation_progress_{marketId}",
+                device = baseConfig.device
             };
 
-            // Serialize and publish state
-            string stateJson = JsonSerializer.Serialize(statePayload);
-            await PublishAsync(topic, stateJson, retain: _settings.MqttRetainMessages);
-            Log.Information("MQTT: Published colonisation depot {MarketID} state with {ResourceCount} resources", marketId, resources.Count);
-        }
+            // Resources completed sensor
+            var resourcesConfig = new
+            {
+                name = $"Colonisation Resources {marketId}",
+                state_topic = $"{_settings.MqttTopicPrefix}/colonisation/depots/{marketId}",
+                value_template = "{{ value_json.ResourcesRequired | selectattr('IsComplete', 'equalto', true) | list | length }}",
+                unit_of_measurement = "resources",
+                icon = "mdi:package-check",
+                unique_id = $"eliteinfopanel_colonisation_resources_{marketId}",
+                device = baseConfig.device,
+                json_attributes_topic = $"{_settings.MqttTopicPrefix}/colonisation/depots/{marketId}",
+                json_attributes_template = "{{ {'total_resources': value_json.ResourcesRequired | length, 'resources': value_json.ResourcesRequired} | tojson }}"
+            };
 
+            // Status sensor (active/complete/failed)
+            var statusConfig = new
+            {
+                name = $"Colonisation Status {marketId}",
+                state_topic = $"{_settings.MqttTopicPrefix}/colonisation/depots/{marketId}",
+                value_template = "{% if value_json.ConstructionComplete %}complete{% elif value_json.ConstructionFailed %}failed{% else %}active{% endif %}",
+                icon = "mdi:home-city",
+                unique_id = $"eliteinfopanel_colonisation_status_{marketId}",
+                device = baseConfig.device
+            };
+
+            // Publish discovery configs
+            await PublishAsync($"homeassistant/sensor/eliteinfopanel_colonisation_progress_{marketId}/config",
+                JsonSerializer.Serialize(progressConfig), retain: true);
+
+            await PublishAsync($"homeassistant/sensor/eliteinfopanel_colonisation_resources_{marketId}/config",
+                JsonSerializer.Serialize(resourcesConfig), retain: true);
+
+            await PublishAsync($"homeassistant/sensor/eliteinfopanel_colonisation_status_{marketId}/config",
+                JsonSerializer.Serialize(statusConfig), retain: true);
+        }
         private async Task PublishHomeAssistantCommanderConfigsIfNeeded()
         {
             string baseTopic = $"{_settings.MqttTopicPrefix}/commander";
