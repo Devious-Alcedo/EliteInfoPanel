@@ -34,7 +34,7 @@ namespace EliteInfoPanel
         private readonly AppSettings _appSettings;
         private readonly MainViewModel _viewModel;
         private Screen _currentScreen;
-
+        private readonly System.Threading.Timer _cleanupTimer;
         #endregion Private Fields
 
         #region Public Constructors
@@ -43,7 +43,7 @@ namespace EliteInfoPanel
         {
             InitializeComponent();
             // Configure logging
-            LoggingConfig.Configure(enableDebugLogging: false);
+            LoggingConfig.Configure(enableDebugLogging: true);
             Log.Information("MainWindow: Getting EliteThemeManager instance...");
             var eliteTheme = EliteThemeManager.Instance;
             eliteTheme.ColorsChanged += (colors) =>
@@ -77,7 +77,12 @@ namespace EliteInfoPanel
             // Initialize the GameStateService
             var gamePath = EliteDangerousPaths.GetSavedGamesPath();
             _gameState = new GameStateService(gamePath);
-
+            _cleanupTimer = new System.Threading.Timer(
+                callback: _ => _gameState.ClearExpiredManualCargoChanges(),
+                state: null,
+                dueTime: TimeSpan.FromMinutes(5), // First cleanup after 5 minutes
+                period: TimeSpan.FromMinutes(10)  // Then every 10 minutes
+            );
             // Create and set ViewModel
             var settings = SettingsManager.Load();
             _viewModel = new MainViewModel(_gameState, settings.UseFloatingWindow);
@@ -261,6 +266,7 @@ namespace EliteInfoPanel
 
         private void MainWindow_Closing(object sender, CancelEventArgs e)
         {
+            _cleanupTimer?.Dispose();
             SaveWindowPosition();
         }
        
@@ -295,6 +301,49 @@ namespace EliteInfoPanel
                 SettingsManager.Save(_appSettings);
                 ApplyWindowSettings();
                 _viewModel.ApplyWindowModeFromSettings();
+            }
+            else if (e.Key == Key.F8) // ADD THIS
+            {
+                // Debug carrier jump state and force journal check
+                Log.Information("🔍 F8 pressed - debugging carrier jump state");
+
+                // Log current state
+                Log.Information("🚀 Current Carrier State:");
+                Log.Information("  IsOnFleetCarrier: {OnCarrier}", _gameState.IsOnFleetCarrier);
+                Log.Information("  FleetCarrierJumpInProgress: {InProgress}", _gameState.FleetCarrierJumpInProgress);
+                Log.Information("  JumpArrived: {Arrived}", _gameState.JumpArrived);
+                Log.Information("  ShowCarrierJumpOverlay: {Show}", _gameState.ShowCarrierJumpOverlay);
+                Log.Information("  CarrierJumpCountdownSeconds: {Countdown}", _gameState.CarrierJumpCountdownSeconds);
+
+                // Debug journal position
+                _gameState.DebugJournalPosition();
+
+                // Force reprocess recent journal entries
+                Task.Run(async () =>
+                {
+                    Log.Information("🔄 Force processing journal...");
+                    await _gameState.ProcessJournalAsync();
+                });
+            }
+            else if (e.Key == Key.F7) // ADD THIS TOO
+            {
+                // Emergency: Force hide carrier jump overlay
+                Log.Information("🚨 F7 pressed - FORCE HIDING carrier jump overlay");
+
+                // Force reset all carrier jump state
+                _gameState.GetType().GetProperty("FleetCarrierJumpInProgress")?.SetValue(_gameState, false);
+                _gameState.GetType().GetProperty("JumpArrived")?.SetValue(_gameState, true);
+                _gameState.GetType().GetProperty("CarrierJumpScheduledTime")?.SetValue(_gameState, null);
+                _gameState.GetType().GetProperty("CarrierJumpDestinationSystem")?.SetValue(_gameState, null);
+
+                // Force update overlay
+                _gameState.GetType().GetMethod("OnPropertyChanged", BindingFlags.NonPublic | BindingFlags.Instance)
+                    ?.Invoke(_gameState, new object[] { "ShowCarrierJumpOverlay" });
+
+                // Force hide overlay directly
+                CarrierJumpOverlay.ForceHidden();
+
+                Log.Information("🚨 Emergency overlay hide complete");
             }
 
             base.OnKeyDown(e);

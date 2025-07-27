@@ -16,6 +16,7 @@ using System.Windows;
 using static MaterialDesignThemes.Wpf.Theme.ToolBar;
 using System.IO;
 using System.Windows.Threading;
+using EliteInfoPanel.Services;
 
 namespace EliteInfoPanel.ViewModels
 {
@@ -31,6 +32,7 @@ namespace EliteInfoPanel.ViewModels
         private bool _isInMainWindow = true;
         private DateTime _lastUpdated;
         private double _progressPercentage;
+        private long? _selectedMarketId;
         private bool _showCompleted = true;
         private string _sortBy = "Missing";
         private int _totalItems;
@@ -50,20 +52,44 @@ namespace EliteInfoPanel.ViewModels
             SortByValue = new RelayCommand(_ => SortBy = "Value");
             ToggleShowCompleted = new RelayCommand(_ => ShowCompleted = !ShowCompleted);
             ForceRefreshCommand = new RelayCommand(_ => ForceRefresh());
-            // Subscribe to property changes
-            _gameState.PropertyChanged += GameState_PropertyChanged;
             OpenInNewWindowCommand = new RelayCommand(_ => OpenInNewWindow());
             ExportToCsvCommand = new RelayCommand(_ => ExportToCsv());
+
+            // Subscribe to property changes
+            _gameState.PropertyChanged += GameState_PropertyChanged;
+
+            // ADD THIS: Load available depots
+            RefreshAvailableDepots();
+
             // Initial update
             UpdateColonizationDataInternal();
+
             Log.Information("ColonizationViewModel initialized with GameState: {HasGameState}",
                 _gameState != null);
         }
 
+
         #endregion Public Constructors
 
         #region Public Properties
+        public ObservableCollection<ColonizationDepotInfo> AvailableDepots { get; } = new ObservableCollection<ColonizationDepotInfo>();
 
+        public ColonizationDepotInfo SelectedDepot
+        {
+            get => AvailableDepots.FirstOrDefault(d => d.MarketID == _selectedMarketId);
+            set
+            {
+                if (value != null && _selectedMarketId != value.MarketID)
+                {
+                    _selectedMarketId = value.MarketID;
+                    _gameState.SelectedDepotMarketId = value.MarketID;
+                    OnPropertyChanged();
+                    UpdateColonizationDataInternal();
+                }
+            }
+        }
+        //set back to one for release!
+        public bool HasMultipleDepots => AvailableDepots.Count > 0;
         public int CompletedItems
         {
             get => _completedItems;
@@ -340,13 +366,15 @@ namespace EliteInfoPanel.ViewModels
         {
             Log.Debug("ColonizationViewModel: PropertyChanged event received for {Property}", e.PropertyName);
 
-            if (e.PropertyName == nameof(GameStateService.CurrentColonization))
+            if (e.PropertyName == nameof(GameStateService.CurrentColonization) ||
+                e.PropertyName == nameof(GameStateService.ColonizationDepots)) // ADD THIS CHECK
             {
                 Log.Information("ColonizationViewModel: CurrentColonization changed - forcing update");
 
                 // Force immediate UI thread update
                 Application.Current.Dispatcher.BeginInvoke(new Action(() =>
                 {
+                    RefreshAvailableDepots(); // ADD THIS
                     UpdateColonizationDataInternal();
                 }), DispatcherPriority.Normal);
             }
@@ -360,11 +388,52 @@ namespace EliteInfoPanel.ViewModels
                 {
                     Application.Current.Dispatcher.BeginInvoke(new Action(() =>
                     {
-                        RefreshCargoQuantities(); // Use the new method
+                        RefreshCargoQuantities();
+                        PublishColonizationMqtt();
                     }), DispatcherPriority.Background);
                 }
             }
         }
+        private async void PublishColonizationMqtt()
+        {
+            try
+            {
+                var colonizationData = _gameState.CurrentColonization;
+                if (colonizationData == null || !Items.Any())
+                {
+                    Log.Warning("ColonizationViewModel: No colonization data to publish via MQTT");
+                    return;
+                }
+
+                // Construct resource list for MQTT
+                var resources = Items.Select(item => new ColonizationResource
+                {
+                    Name = item.Name,
+                    Name_Localised = item.Name, // Or adjust if needed
+                    RequiredAmount = item.Required,
+                    ProvidedAmount = item.Provided,
+                    Payment = item.Payment,
+                    // Additional fields
+                    ShipAmount = item.ShipCargoQuantity,
+                    CarrierAmount = item.CarrierCargoQuantity,
+                }).ToList();
+
+                await MqttService.Instance.PublishColonizationDepotAsync(
+                    marketId: colonizationData.MarketID,
+                    progress: colonizationData.ConstructionProgress,
+                    complete: colonizationData.ConstructionComplete,
+                    failed: colonizationData.ConstructionFailed,
+                    resources: resources
+                );
+
+                Log.Information("ColonizationViewModel: Published colonization data via MQTT for depot {MarketID}", colonizationData.MarketID);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "ColonizationViewModel: Error publishing colonization data via MQTT");
+            }
+        }
+
         private void ForceRefresh()
         {
             try
@@ -440,6 +509,37 @@ namespace EliteInfoPanel.ViewModels
 
             // Show the window
             window.Show();
+        }
+        private void RefreshAvailableDepots()
+        {
+            AvailableDepots.Clear();
+
+            foreach (var depot in _gameState.GetActiveColonizationDepots())
+            {
+                AvailableDepots.Add(new ColonizationDepotInfo
+                {
+                    MarketID = depot.MarketID,
+                    Progress = depot.ConstructionProgress,
+                    ResourceCount = depot.ResourcesRequired?.Count ?? 0,
+                    CompletedCount = depot.ResourcesRequired?.Count(r => r.IsComplete) ?? 0,
+                    SystemName = GetSystemNameForDepot(depot.MarketID)
+                });
+            }
+
+            // Select the currently selected depot or first if none
+            _selectedMarketId = _gameState.SelectedDepotMarketId ?? AvailableDepots.FirstOrDefault()?.MarketID;
+
+            OnPropertyChanged(nameof(AvailableDepots));
+            OnPropertyChanged(nameof(SelectedDepot));
+            OnPropertyChanged(nameof(HasMultipleDepots));
+        }
+
+        // ADD THIS NEW METHOD:
+        private string GetSystemNameForDepot(long marketId)
+        {
+            // For now, return a default format
+            // You might want to track the actual system name when processing the event
+            return $"Depot {marketId}";
         }
 
         // Add this to handle showing toast notifications
@@ -626,6 +726,16 @@ namespace EliteInfoPanel.ViewModels
         }
 
         #endregion Private Methods
+    }
+    // Add this class at the bottom of the ColonizationViewModel.cs file
+    public class ColonizationDepotInfo
+    {
+        public long MarketID { get; set; }
+        public double Progress { get; set; }
+        public int ResourceCount { get; set; }
+        public int CompletedCount { get; set; }
+        public string SystemName { get; set; }
+        public string DisplayName => $"{SystemName} ({Progress:P0} - {CompletedCount}/{ResourceCount})";
     }
 
 }

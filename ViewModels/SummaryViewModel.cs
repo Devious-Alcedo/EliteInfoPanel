@@ -306,6 +306,11 @@ namespace EliteInfoPanel.ViewModels
         }
         private void UpdateCommanderItem()
         {
+            if (!Application.Current.Dispatcher.CheckAccess())
+            {
+                Application.Current.Dispatcher.Invoke(UpdateCommanderItem);
+                return;
+            }
             try
             {
                 // More defensive check that handles the null case better

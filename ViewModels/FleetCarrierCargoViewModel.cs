@@ -271,30 +271,58 @@ namespace EliteInfoPanel.ViewModels
 
         private void UpdateItemQuantity(object parameter)
         {
-            if (parameter is CarrierCargoItem item)
+            if (parameter is not CarrierCargoItem item) return;
+
+            try
             {
+                Log.Information("Manual quantity update requested: {Name} = {Quantity}",
+                    item.Name, item.Quantity);
+
                 // Validate the quantity
-                if (item.Quantity >= 0)
+                if (item.Quantity < 0)
                 {
-                    if (item.Quantity == 0)
+                    item.Quantity = 0;
+                    Log.Warning("Invalid negative quantity for {Name}, set to 0", item.Name);
+                }
+
+                if (item.Quantity == 0)
+                {
+                    // Handle deletion with confirmation
+                    var result = MessageBox.Show(
+                        $"Remove {item.Name} from carrier cargo?",
+                        "Confirm Removal",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+
+                    if (result == MessageBoxResult.Yes)
                     {
-                        // If quantity is zero, delete the item
                         DeleteItem(item);
-                        return;
                     }
-
-                    // Update the GameState with the new quantity
-                    _gameState.UpdateCarrierCargoItem(item.Name, item.Quantity);
-
-                    Log.Debug("Updated {Name} quantity to {Quantity}", item.Name, item.Quantity);
+                    else
+                    {
+                        // User cancelled, revert to minimum of 1
+                        item.Quantity = 1;
+                        _gameState.UpdateCarrierCargoItem(item.Name, 1, isManualChange: true);
+                    }
+                    return;
                 }
-                else
-                {
-                    // If negative quantity, revert to 1 as minimum
-                    item.Quantity = 1;
-                    _gameState.UpdateCarrierCargoItem(item.Name, item.Quantity);
-                    Log.Warning("Invalid quantity input for {Name}, set to minimum of 1", item.Name);
-                }
+
+                // Update with manual change flag
+                _gameState.UpdateCarrierCargoItem(item.Name, item.Quantity, isManualChange: true);
+
+                Log.Information("Successfully updated {Name} quantity to {Quantity}",
+                    item.Name, item.Quantity);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error updating item quantity for {Name}", item.Name);
+
+                // Show user-friendly error message
+                MessageBox.Show(
+                    $"Failed to update {item.Name}: {ex.Message}",
+                    "Update Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
             }
         }
 
@@ -304,8 +332,8 @@ namespace EliteInfoPanel.ViewModels
             {
                 Log.Debug("Deleting item: {Name}", item.Name);
 
-                // Update GameState (setting quantity to 0 removes the item)
-                _gameState.UpdateCarrierCargoItem(item.Name, 0);
+                // Update GameState (setting quantity to 0 removes the item) - manual change
+                _gameState.UpdateCarrierCargoItem(item.Name, 0, isManualChange: true);
 
                 // Remove from UI collection directly
                 Cargo.Remove(item);
@@ -459,39 +487,50 @@ namespace EliteInfoPanel.ViewModels
         {
             if (parameter is CarrierCargoItem item)
             {
-                // Calculate new quantity first
                 int newQuantity = item.Quantity + 1;
-                Log.Debug("Incrementing {Name}: {OldQty} → {NewQty}", item.Name, item.Quantity, newQuantity);
+                Log.Debug("Incrementing {Name}: {OldQty} → {NewQty}",
+                    item.Name, item.Quantity, newQuantity);
 
-                // Update GameState FIRST (this will trigger UI updates)
-                _gameState.UpdateCarrierCargoItem(item.Name, newQuantity);
-
-                // Update our local UI model to match
+                _gameState.UpdateCarrierCargoItem(item.Name, newQuantity, isManualChange: true);
                 item.Quantity = newQuantity;
             }
         }
+
+        // STEP 8: REPLACE the DecrementCommodity method:
+        // Find "private void DecrementCommodity(object parameter)" and replace it:
 
         private void DecrementCommodity(object parameter)
         {
             if (parameter is CarrierCargoItem item && item.Quantity > 0)
             {
-                // Calculate new quantity first
                 int newQuantity = item.Quantity - 1;
-                Log.Debug("Decrementing {Name}: {OldQty} → {NewQty}", item.Name, item.Quantity, newQuantity);
+                Log.Debug("Decrementing {Name}: {OldQty} → {NewQty}",
+                    item.Name, item.Quantity, newQuantity);
 
-                // Update GameState FIRST
-                _gameState.UpdateCarrierCargoItem(item.Name, newQuantity);
-
-                // Update our local model
-                item.Quantity = newQuantity;
-
-                // Remove item from UI if quantity is zero
                 if (newQuantity == 0)
                 {
-                    Cargo.Remove(item);
-                    Log.Debug("Removed {Name} from UI list due to zero quantity", item.Name);
+                    var result = MessageBox.Show(
+                        $"Remove {item.Name} from carrier cargo?",
+                        "Confirm Removal",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+
+                    if (result == MessageBoxResult.Yes)
+                    {
+                        _gameState.UpdateCarrierCargoItem(item.Name, 0, isManualChange: true);
+                        Cargo.Remove(item);
+                    }
+                    else
+                    {
+                        // User cancelled - don't change anything
+                        return;
+                    }
                 }
-                _gameState.UpdateCarrierCargoItem(item.Name, newQuantity);
+                else
+                {
+                    _gameState.UpdateCarrierCargoItem(item.Name, newQuantity, isManualChange: true);
+                    item.Quantity = newQuantity;
+                }
             }
         }
 
@@ -509,10 +548,10 @@ namespace EliteInfoPanel.ViewModels
             var existingItem = Cargo.FirstOrDefault(i =>
                 string.Equals(i.Name, normalizedName, StringComparison.OrdinalIgnoreCase));
 
-            // Update GameState FIRST
+            // Update GameState FIRST - this is a manual change
             _gameState.UpdateCarrierCargoItem(normalizedName, existingItem != null
                 ? existingItem.Quantity + newQuantity
-                : newQuantity);
+                : newQuantity, isManualChange: true);
 
             // Clear input fields
             NewCommodityName = "";

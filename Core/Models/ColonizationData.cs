@@ -41,5 +41,13 @@ namespace EliteInfoPanel.Core.Models
 
         // The effective profit per ton
         public int ProfitPerUnit => Payment;
+
+        public int StillNeeded => RequiredAmount - ProvidedAmount;
+        public int ShipAmount { get; set; }
+        public int CarrierAmount { get; set; }
+        public int AvailableAmount => ShipAmount + CarrierAmount;
+        public bool ReadyToDeliver => AvailableAmount >= StillNeeded && StillNeeded > 0;
+        public double RewardPerUnit => Payment;
+        public double ValueOfRemainingWork => StillNeeded * Payment;
     }
 }
