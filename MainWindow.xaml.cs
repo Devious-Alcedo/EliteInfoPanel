@@ -34,7 +34,7 @@ namespace EliteInfoPanel
         private readonly AppSettings _appSettings;
         private readonly MainViewModel _viewModel;
         private Screen _currentScreen;
-
+        private readonly System.Threading.Timer _cleanupTimer;
         #endregion Private Fields
 
         #region Public Constructors
@@ -77,7 +77,12 @@ namespace EliteInfoPanel
             // Initialize the GameStateService
             var gamePath = EliteDangerousPaths.GetSavedGamesPath();
             _gameState = new GameStateService(gamePath);
-
+            _cleanupTimer = new System.Threading.Timer(
+                callback: _ => _gameState.ClearExpiredManualCargoChanges(),
+                state: null,
+                dueTime: TimeSpan.FromMinutes(5), // First cleanup after 5 minutes
+                period: TimeSpan.FromMinutes(10)  // Then every 10 minutes
+            );
             // Create and set ViewModel
             var settings = SettingsManager.Load();
             _viewModel = new MainViewModel(_gameState, settings.UseFloatingWindow);
@@ -261,6 +266,7 @@ namespace EliteInfoPanel
 
         private void MainWindow_Closing(object sender, CancelEventArgs e)
         {
+            _cleanupTimer?.Dispose();
             SaveWindowPosition();
         }
        
