@@ -710,9 +710,9 @@ namespace EliteInfoPanel.ViewModels
             Log.Information("   - Pulse: {Pulse}", _carrierCountdownItem.Pulse);
             Log.Information("   - Items count: {Count}", Items.Count);
 
-            // Use local time to match GameStateService.JumpCountdown calculation
-            var targetTime = DateTime.Now.Add(initialCountdown);
-            Log.Information("🎯 Target time: {TargetTime}, Current time: {CurrentTime}", targetTime, DateTime.Now);
+            // Use UTC time for robust countdown calculation
+            var targetTime = DateTime.UtcNow.Add(initialCountdown);
+            Log.Information("🎯 Target time: {TargetTime}, Current time: {CurrentTime}", targetTime, DateTime.UtcNow);
 
             _carrierCountdownTimer = new System.Timers.Timer(1000);
             _carrierCountdownTimer.AutoReset = true;
