@@ -21,7 +21,7 @@ namespace EliteInfoPanel.ViewModels
         private bool _initialSyncComplete = false;
         private string _newCommodityName;
         private bool _isInMainWindow = true;
-        private int _newCommodityQuantity = 1;
+        private int? _newCommodityQuantity = 1;
         private Dictionary<string, int> _lastKnownGameState = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private string _sortBy = "Quantity"; // Default sort
 
@@ -72,10 +72,10 @@ namespace EliteInfoPanel.ViewModels
             set => SetProperty(ref _newCommodityName, value);
         }
 
-        public int NewCommodityQuantity
+        public int? NewCommodityQuantity
         {
             get => _newCommodityQuantity;
-            set => SetProperty(ref _newCommodityQuantity, Math.Max(1, value));
+            set => SetProperty(ref _newCommodityQuantity, value.HasValue ? Math.Max(1, value.Value) : 1);
         }
 
         public RelayCommand IncrementCommand { get; }
@@ -540,7 +540,7 @@ namespace EliteInfoPanel.ViewModels
 
             // Normalize name to handle case sensitivity
             string normalizedName = NewCommodityName.Trim();
-            int newQuantity = NewCommodityQuantity;
+            int newQuantity = NewCommodityQuantity ?? 1; // Use 1 as default if null
 
             Log.Debug("Adding commodity: {Name} = {Quantity}", normalizedName, newQuantity);
 
@@ -564,7 +564,7 @@ namespace EliteInfoPanel.ViewModels
 
         private bool CanAddCommodity()
         {
-            return !string.IsNullOrWhiteSpace(NewCommodityName) && NewCommodityQuantity > 0;
+            return !string.IsNullOrWhiteSpace(NewCommodityName) && NewCommodityQuantity.HasValue && NewCommodityQuantity.Value > 0;
         }
     }
 }
