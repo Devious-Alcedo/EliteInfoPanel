@@ -107,14 +107,6 @@ namespace EliteInfoPanel.ViewModels
                
             }), System.Windows.Threading.DispatcherPriority.Background);
 
-            // TEST: Add a simple test timer to verify System.Timers.Timer works
-            //var testTimer = new System.Timers.Timer(5000); // 5 seconds
-            //testTimer.Elapsed += (s, e) => {
-            //    Log.Information("📡 TEST TIMER: System.Timers.Timer is working! Time: {Time}", DateTime.Now.ToString("HH:mm:ss"));
-            //};
-            //testTimer.AutoReset = true;
-            //testTimer.Start();
-            //Log.Information("📡 TEST: Started test timer to verify System.Timers.Timer functionality");
         }
 
         #endregion
