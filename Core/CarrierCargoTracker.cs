@@ -283,5 +283,42 @@ namespace EliteInfoPanel.Core
             return _cargo.Keys.FirstOrDefault(k => 
                 string.Equals(k, targetName, StringComparison.OrdinalIgnoreCase));
         }
+        
+        /// <summary>
+        /// Normalizes all cargo keys to use consistent display names
+        /// </summary>
+        public void NormalizeCargoKeys()
+        {
+            var itemsToNormalize = new List<(string oldKey, string newKey, int quantity)>();
+            
+            foreach (var item in _cargo.ToList())
+            {
+                // Convert internal names to display names if needed
+                string normalizedKey = CommodityMapper.GetDisplayName(item.Key);
+                
+                if (!string.Equals(item.Key, normalizedKey, StringComparison.Ordinal))
+                {
+                    itemsToNormalize.Add((item.Key, normalizedKey, item.Value));
+                }
+            }
+            
+            foreach (var (oldKey, newKey, quantity) in itemsToNormalize)
+            {
+                _cargo.Remove(oldKey);
+                
+                // Combine with existing if there's already an item with the new key
+                if (_cargo.TryGetValue(newKey, out int existingQty))
+                {
+                    _cargo[newKey] = existingQty + quantity;
+                    Log.Information("🔄 Consolidated cargo: {OldKey} + {NewKey} = {TotalQty}",
+                        oldKey, newKey, _cargo[newKey]);
+                }
+                else
+                {
+                    _cargo[newKey] = quantity;
+                    Log.Information("🔄 Normalized cargo key: {OldKey} → {NewKey}", oldKey, newKey);
+                }
+            }
+        }
     }
 }
