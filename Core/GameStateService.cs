@@ -36,7 +36,7 @@ namespace EliteInfoPanel.Core
             "ColonizationData.json");
 
         private bool _cargoTrackingInitialized = false;
-        private Dictionary<string, int> _carrierCargo = new();
+        private Dictionary<string, int> _carrierCargo = new(StringComparer.OrdinalIgnoreCase);
         private string _carrierJumpDestinationBody;
         private string _carrierJumpDestinationSystem;
         private DateTime? _carrierJumpScheduledTime;
@@ -2953,13 +2953,13 @@ namespace EliteInfoPanel.Core
                     else
                     {
                         Log.Warning("Carrier cargo file exists but is empty or invalid");
-                        _carrierCargo = new Dictionary<string, int>();
+                        _carrierCargo = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                     }
                 }
                 else
                 {
                     Log.Information("No carrier cargo file found - starting with empty cargo");
-                    _carrierCargo = new Dictionary<string, int>();
+                    _carrierCargo = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 }
                 
                 // Always try to load manual changes
@@ -2968,7 +2968,7 @@ namespace EliteInfoPanel.Core
             catch (Exception ex)
             {
                 Log.Error(ex, "Failed to load carrier cargo from disk");
-                _carrierCargo = new Dictionary<string, int>();
+                _carrierCargo = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             }
         }
 

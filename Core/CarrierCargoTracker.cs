@@ -7,7 +7,7 @@ namespace EliteInfoPanel.Core
 {
     public class CarrierCargoTracker
     {
-        private readonly Dictionary<string, int> _cargo = new();
+        private readonly Dictionary<string, int> _cargo = new(StringComparer.OrdinalIgnoreCase);
 
         public IReadOnlyDictionary<string, int> Cargo => _cargo;
 
