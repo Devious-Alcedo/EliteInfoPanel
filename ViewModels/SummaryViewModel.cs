@@ -107,14 +107,6 @@ namespace EliteInfoPanel.ViewModels
                
             }), System.Windows.Threading.DispatcherPriority.Background);
 
-            // TEST: Add a simple test timer to verify System.Timers.Timer works
-            //var testTimer = new System.Timers.Timer(5000); // 5 seconds
-            //testTimer.Elapsed += (s, e) => {
-            //    Log.Information("📡 TEST TIMER: System.Timers.Timer is working! Time: {Time}", DateTime.Now.ToString("HH:mm:ss"));
-            //};
-            //testTimer.AutoReset = true;
-            //testTimer.Start();
-            //Log.Information("📡 TEST: Started test timer to verify System.Timers.Timer functionality");
         }
 
         #endregion
@@ -710,9 +702,9 @@ namespace EliteInfoPanel.ViewModels
             Log.Information("   - Pulse: {Pulse}", _carrierCountdownItem.Pulse);
             Log.Information("   - Items count: {Count}", Items.Count);
 
-            // Use local time to match GameStateService.JumpCountdown calculation
-            var targetTime = DateTime.Now.Add(initialCountdown);
-            Log.Information("🎯 Target time: {TargetTime}, Current time: {CurrentTime}", targetTime, DateTime.Now);
+            // Use UTC time for robust countdown calculation
+            var targetTime = DateTime.UtcNow.Add(initialCountdown);
+            Log.Information("🎯 Target time: {TargetTime}, Current time: {CurrentTime}", targetTime, DateTime.UtcNow);
 
             _carrierCountdownTimer = new System.Timers.Timer(1000);
             _carrierCountdownTimer.AutoReset = true;
