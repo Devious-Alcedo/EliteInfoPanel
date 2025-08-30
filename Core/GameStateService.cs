@@ -599,6 +599,57 @@ namespace EliteInfoPanel.Core
             }
         }
 
+        public void DebugCarrierJumpState()
+        {
+            try
+            {
+                Log.Information("=== CARRIER JUMP STATE DEBUG INFO ===");
+                Log.Information("FleetCarrierJumpInProgress: {InProgress}", FleetCarrierJumpInProgress);
+                Log.Information("JumpArrived: {JumpArrived}", JumpArrived);
+                Log.Information("IsOnFleetCarrier: {OnCarrier}", IsOnFleetCarrier);
+                Log.Information("CarrierJumpScheduledTime: {ScheduledTime}", CarrierJumpScheduledTime);
+                Log.Information("CarrierJumpDestinationSystem: {System}", CarrierJumpDestinationSystem);
+                Log.Information("CarrierJumpDestinationBody: {Body}", CarrierJumpDestinationBody);
+                Log.Information("ShowCarrierJumpOverlay: {ShowOverlay}", ShowCarrierJumpOverlay);
+                Log.Information("CarrierJumpCountdownSeconds: {Countdown}", CarrierJumpCountdownSeconds);
+                
+                // Check journal for recent carrier events
+                if (!string.IsNullOrEmpty(latestJournalPath) && File.Exists(latestJournalPath))
+                {
+                    var fileInfo = new FileInfo(latestJournalPath);
+                    using var fs = new FileStream(latestJournalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    
+                    // Read the last 20KB to look for recent carrier events
+                    long startPos = Math.Max(0, fileInfo.Length - 20480);
+                    fs.Seek(startPos, SeekOrigin.Begin);
+                    
+                    using var sr = new StreamReader(fs);
+                    var carrierEvents = new List<string>();
+                    
+                    while (!sr.EndOfStream)
+                    {
+                        string line = sr.ReadLine();
+                        if (!string.IsNullOrWhiteSpace(line) && (line.Contains("CarrierJump") || line.Contains("Carrier")))
+                        {
+                            carrierEvents.Add(line);
+                        }
+                    }
+                    
+                    Log.Information("Found {Count} recent carrier-related events:", carrierEvents.Count);
+                    foreach (var evt in carrierEvents.TakeLast(5))
+                    {
+                        Log.Information("  {Event}", evt);
+                    }
+                }
+                
+                Log.Information("=== END CARRIER JUMP STATE DEBUG ===");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error in carrier jump state debug");
+            }
+        }
+
         public void DebugCargoTransferState()
         {
             try
@@ -854,7 +905,7 @@ namespace EliteInfoPanel.Core
                     // Update our cargo state
                     using (BeginUpdate())
                     {
-                        _carrierCargo = new Dictionary<string, int>(_carrierCargoTracker.Cargo);
+                        _carrierCargo = new Dictionary<string, int>(_carrierCargoTracker.Cargo, StringComparer.OrdinalIgnoreCase);
                         UpdateCurrentCarrierCargoFromDictionary();
                         SaveCarrierCargoToDisk();
                     }
@@ -876,6 +927,111 @@ namespace EliteInfoPanel.Core
             catch (Exception ex)
             {
                 Log.Error(ex, "Error force processing recent cargo events");
+            }
+        }
+
+        public void ForceProcessRecentJournalEvents()
+        {
+            try
+            {
+                Log.Information("🔄 Force processing recent journal events to catch missed carrier events");
+                
+                if (string.IsNullOrEmpty(latestJournalPath) || !File.Exists(latestJournalPath))
+                {
+                    Log.Warning("No journal file available for processing");
+                    return;
+                }
+                
+                var fileInfo = new FileInfo(latestJournalPath);
+                using var fs = new FileStream(latestJournalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                
+                // Read the last 50KB to look for recent events we might have missed
+                long startPos = Math.Max(0, fileInfo.Length - 51200);
+                fs.Seek(startPos, SeekOrigin.Begin);
+                
+                using var sr = new StreamReader(fs);
+                var eventsToProcess = new List<string>();
+                
+                while (!sr.EndOfStream)
+                {
+                    string line = sr.ReadLine();
+                    if (!string.IsNullOrWhiteSpace(line) && 
+                        (line.Contains("CarrierJumpRequest") || line.Contains("CarrierJump") || line.Contains("CarrierLocation")))
+                    {
+                        eventsToProcess.Add(line);
+                    }
+                }
+                
+                Log.Information("Found {Count} recent carrier events to reprocess", eventsToProcess.Count);
+                
+                // Process each event
+                int processedCount = 0;
+                foreach (var eventLine in eventsToProcess)
+                {
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(eventLine);
+                        var root = doc.RootElement;
+                        
+                        if (root.TryGetProperty("event", out var eventProp))
+                        {
+                            string eventType = eventProp.GetString();
+                            Log.Information("Reprocessing: {Event}", eventType);
+                            
+                            // Process the event inline (simplified version of the main switch)
+                            switch (eventType)
+                            {
+                                case "CarrierJumpRequest":
+                                    if (root.TryGetProperty("DepartureTime", out var departureTimeProp) &&
+                                        DateTime.TryParse(departureTimeProp.GetString(), out var departureTime) &&
+                                        departureTime > DateTime.UtcNow)
+                                    {
+                                        FleetCarrierJumpTime = departureTime;
+                                        CarrierJumpScheduledTime = departureTime;
+                                        
+                                        if (root.TryGetProperty("SystemName", out var sysName))
+                                            CarrierJumpDestinationSystem = sysName.GetString();
+                                        
+                                        if (root.TryGetProperty("Body", out var bodyName))
+                                            CarrierJumpDestinationBody = bodyName.GetString();
+                                        
+                                        JumpArrived = false;
+                                        FleetCarrierJumpInProgress = true;
+                                        
+                                        Log.Information("✅ Recovered CarrierJumpRequest: {System} at {Time}", 
+                                            CarrierJumpDestinationSystem, departureTime);
+                                    }
+                                    break;
+                                    
+                                case "CarrierJump":
+                                    JumpArrived = true;
+                                    FleetCarrierJumpInProgress = false;
+                                    Log.Information("✅ Processed CarrierJump completion");
+                                    break;
+                            }
+                            
+                            processedCount++;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning(ex, "Error reprocessing event: {Event}", eventLine);
+                    }
+                }
+                
+                if (processedCount > 0)
+                {
+                    Log.Information("✅ Reprocessed {Count} carrier events", processedCount);
+                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
+                }
+                else
+                {
+                    Log.Information("No carrier events needed reprocessing");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error force processing recent journal events");
             }
         }
 
@@ -952,7 +1108,13 @@ namespace EliteInfoPanel.Core
                 fs.Seek(lastJournalPosition, SeekOrigin.Begin);
 
                 using var sr = new StreamReader(fs);
-                bool suppressUIUpdates = !_firstLoadCompleted; // true if this is the first pass
+                bool isInitialScan = !_firstLoadCompleted; // true if this is the first pass
+                
+                // Track where we are for position management
+                long initialPosition = lastJournalPosition;
+                
+                Log.Information("📖 ProcessJournalAsync: isInitialScan={InitialScan}, position={Position}", 
+                    isInitialScan, lastJournalPosition);
 
                 // Use the batch update system to reduce property change notifications
                 using (BeginUpdate())
@@ -973,7 +1135,15 @@ namespace EliteInfoPanel.Core
                                 continue;
 
                             string eventType = eventProp.GetString();
-                            Log.Debug("Processing journal event: {Event}", eventType);
+                            
+                            // During initial scan, skip carrier jump events to avoid interfering with detected state
+                            if (isInitialScan && (eventType == "CarrierJumpRequest" || eventType == "CarrierJump" || eventType == "CarrierJumpCancelled"))
+                            {
+                                Log.Debug("Skipping historical carrier event during initialization: {Event}", eventType);
+                                continue;
+                            }
+                            
+                            Log.Debug("Processing journal event: {Event} (InitialScan: {InitialScan})", eventType, isInitialScan);
 
                             // All the existing switch cases and handling logic remains the same
                             // Full expanded and grouped switch statement with all original logic
@@ -1780,7 +1950,14 @@ namespace EliteInfoPanel.Core
                             if (!_firstLoadCompleted)
                             {
                                 _firstLoadCompleted = true;
-                                Log.Information("✅ First journal scan completed");
+                                
+                                // CRITICAL: After initialization scan, move to end of file for ongoing monitoring
+                                // This prevents reprocessing old events that could interfere with carrier jump state
+                                var fileInfo = new FileInfo(latestJournalPath);
+                                lastJournalPosition = fileInfo.Length;
+                                
+                                Log.Information("✅ First journal scan completed - now monitoring from end (position {Position})", 
+                                    lastJournalPosition);
                             }
                         }
                         catch (Exception ex)
@@ -3677,7 +3854,14 @@ namespace EliteInfoPanel.Core
                     return;
                 }
 
-                Log.Information("📖 Monitoring journal: {Journal}", Path.GetFileName(latestJournalPath));
+                // CRITICAL FIX: Do a full initialization scan first, then start monitoring from end
+                var fileInfo = new FileInfo(latestJournalPath);
+                Log.Information("📖 Monitoring journal: {Journal} (will scan for initialization, then monitor from end)", 
+                    Path.GetFileName(latestJournalPath));
+                
+                // Start from beginning for initial scan to get all important data
+                lastJournalPosition = 0;
+                // After initialization scan, we'll set position to end
 
                 var dirWatcher = new FileSystemWatcher(gamePath)
                 {
@@ -3730,9 +3914,12 @@ namespace EliteInfoPanel.Core
                         File.GetLastWriteTime(e.FullPath) > File.GetLastWriteTime(latestJournalPath))
                     {
                         latestJournalPath = e.FullPath;
-                        lastJournalPosition = 0;
+                        // For new journal files, start from end (we already did initialization from previous file)
+                        var newFileInfo = new FileInfo(latestJournalPath);
+                        lastJournalPosition = newFileInfo.Length;
                         pendingUpdate = true;
-                        Log.Information("📖 Switched to new journal: {Journal}", Path.GetFileName(latestJournalPath));
+                        Log.Information("📖 Switched to new journal: {Journal} (starting from end at position {Position})", 
+                            Path.GetFileName(latestJournalPath), lastJournalPosition);
                     }
                 };
 

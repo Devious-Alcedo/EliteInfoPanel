@@ -302,28 +302,15 @@ namespace EliteInfoPanel
                 ApplyWindowSettings();
                 _viewModel.ApplyWindowModeFromSettings();
             }
-            else if (e.Key == Key.F8) // ADD THIS
+            else if (e.Key == Key.F8) // Carrier Jump Debug
             {
-                // Debug carrier jump state and force journal check
-                Log.Information("🔍 F8 pressed - debugging carrier jump state");
-
-                // Log current state
-                Log.Information("🚀 Current Carrier State:");
-                Log.Information("  IsOnFleetCarrier: {OnCarrier}", _gameState.IsOnFleetCarrier);
-                Log.Information("  FleetCarrierJumpInProgress: {InProgress}", _gameState.FleetCarrierJumpInProgress);
-                Log.Information("  JumpArrived: {Arrived}", _gameState.JumpArrived);
-                Log.Information("  ShowCarrierJumpOverlay: {Show}", _gameState.ShowCarrierJumpOverlay);
-                Log.Information("  CarrierJumpCountdownSeconds: {Countdown}", _gameState.CarrierJumpCountdownSeconds);
-
-                // Debug journal position
-                _gameState.DebugJournalPosition();
-
-                // Force reprocess recent journal entries
-                Task.Run(async () =>
-                {
-                    Log.Information("🔄 Force processing journal...");
-                    await _gameState.ProcessJournalAsync();
-                });
+                Log.Information("🔍 F8 pressed - debugging carrier jump state and force processing recent events");
+                
+                // Use the new comprehensive debug method
+                _gameState.DebugCarrierJumpState();
+                
+                // Force process recent journal events to catch any missed carrier events
+                _gameState.ForceProcessRecentJournalEvents();
             }
             else if (e.Key == Key.F7) // ADD THIS TOO
             {
