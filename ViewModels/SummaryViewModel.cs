@@ -260,6 +260,7 @@ namespace EliteInfoPanel.ViewModels
                     break;
                 case nameof(GameStateService.FleetCarrierJumpTime):
                 case nameof(GameStateService.CarrierJumpDestinationSystem):
+                case nameof(GameStateService.JumpCountdown):
                     UpdateCarrierCountdown();
                     break;
             }
@@ -602,9 +603,11 @@ namespace EliteInfoPanel.ViewModels
         {
             try
             {
-                Log.Information("🔄 UpdateCarrierCountdown called, preserveState={PreserveState}", preserveState);
-                Log.Information("   - JumpCountdown: {JumpCountdown}", _gameState.JumpCountdown);
+                // Add comprehensive debug logging
+                Log.Information("🔍 UpdateCarrierCountdown called - PreserveState: {PreserveState}", preserveState);
+                Log.Information("   - JumpCountdown: {JumpCountdown} ({Seconds}s)", _gameState.JumpCountdown, _gameState.JumpCountdown?.TotalSeconds ?? 0);
                 Log.Information("   - Destination: {Destination}", _gameState.CarrierJumpDestinationSystem);
+                Log.Information("   - FleetCarrierJumpTime: {JumpTime}", _gameState.FleetCarrierJumpTime);
                 Log.Information("   - Timer exists: {TimerExists}", _carrierCountdownTimer != null);
                 Log.Information("   - Item exists: {ItemExists}", _carrierCountdownItem != null);
                 
@@ -617,12 +620,13 @@ namespace EliteInfoPanel.ViewModels
 
                 if (_gameState.JumpCountdown is TimeSpan countdown && countdown.TotalSeconds > 0)
                 {
-                    Log.Information("✅ Starting countdown with {Seconds} seconds remaining", countdown.TotalSeconds);
+                    Log.Information("✅ Starting carrier countdown - {Seconds}s remaining to {Destination}", 
+                        countdown.TotalSeconds, _gameState.CarrierJumpDestinationSystem);
                     StartCarrierCountdown(countdown, _gameState.CarrierJumpDestinationSystem);
                 }
                 else
                 {
-                    Log.Information("❌ Stopping countdown - no valid countdown time");
+                    Log.Information("❌ Stopping carrier countdown - JumpCountdown is null or <= 0");
                     StopCarrierCountdown();
                 }
             }
@@ -712,7 +716,8 @@ namespace EliteInfoPanel.ViewModels
             {
                 try
                 {
-                    var now = DateTime.Now;
+                    // Use UTC for both target and now
+                    var now = DateTime.UtcNow;
                     var remaining = targetTime - now;
                     Log.Debug("⏰ Timer tick: Target={TargetTime}, Now={Now}, Remaining={Remaining}", 
                         targetTime.ToString("HH:mm:ss.fff"), now.ToString("HH:mm:ss.fff"), remaining.ToString(@"mm\:ss"));

@@ -44,8 +44,6 @@ namespace EliteInfoPanel.Controls
 
         private Point _center;
 
-        private DispatcherTimer _countdownMonitorTimer;
-
         private GameStateService _gameState;
 
         private bool _isRendering = false;
@@ -88,45 +86,24 @@ namespace EliteInfoPanel.Controls
         {
             _gameState = gameState;
             _gameState.PropertyChanged += GameState_PropertyChanged;
-
-            _countdownMonitorTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromSeconds(1) // Check every second
-            };
-
-            _countdownMonitorTimer.Tick += (s, e) =>
-            {
-                if (_gameState.ShowCarrierJumpOverlay)
-                    UpdateVisibility(); // Re-check visibility conditions
-            };
-            _countdownMonitorTimer.Start();
-
+            // Remove countdownMonitorTimer and related logic
             UpdateVisibility(); // Initial check on visibility when the state is set
+        }
+
+        private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(GameStateService.ShowCarrierJumpOverlay))
+                Dispatcher.Invoke(UpdateVisibility);
         }
 
         public void UpdateVisibility()
         {
-            // Always log detailed information about current state
-            Log.Information("CarrierJumpOverlay.UpdateVisibility: ShowCarrierJumpOverlay={0}, " +
-                           "JumpInProgress={1}, CountdownSeconds={2}, IsOnFleetCarrier={3}, JumpArrived={4}",
-                           _gameState.ShowCarrierJumpOverlay,
-                           _gameState.FleetCarrierJumpInProgress,
-                           _gameState.CarrierJumpCountdownSeconds,
-                           _gameState.IsOnFleetCarrier,
-                           _gameState.JumpArrived);
-
-            // Add explicit check for countdown in progress (when countdown > 0)
-            bool isCountdownInProgress = _gameState.FleetCarrierJumpInProgress &&
-                                        _gameState.CarrierJumpCountdownSeconds > 0 &&
-                                        _gameState.IsOnFleetCarrier;
-
-            if (isCountdownInProgress)
-            {
-                Log.Information("Countdown in progress, overlay should be HIDDEN. " +
-                               "Seconds remaining: {0}", _gameState.CarrierJumpCountdownSeconds);
-                OverlayGrid.Visibility = Visibility.Collapsed;
-                return;
-            }
+            Log.Information("CarrierJumpOverlay.UpdateVisibility: ShowCarrierJumpOverlay={0}, JumpInProgress={1}, CountdownSeconds={2}, IsOnFleetCarrier={3}, JumpArrived={4}",
+                _gameState.ShowCarrierJumpOverlay,
+                _gameState.FleetCarrierJumpInProgress,
+                _gameState.CarrierJumpCountdownSeconds,
+                _gameState.IsOnFleetCarrier,
+                _gameState.JumpArrived);
 
             if (_gameState?.ShowCarrierJumpOverlay == true)
             {
@@ -142,19 +119,17 @@ namespace EliteInfoPanel.Controls
                 }
 
                 DestinationText.Text = string.IsNullOrEmpty(_gameState.CarrierJumpDestinationSystem)
-                    ? "???" // Default if destination is unknown
-                    : _gameState.CarrierJumpDestinationSystem; // Set the actual destination
+                    ? "???"
+                    : _gameState.CarrierJumpDestinationSystem;
             }
             else
             {
                 Log.Information("Overlay HIDDEN — conditions not met");
-                OverlayGrid.Visibility = Visibility.Collapsed;  // Hide overlay
-
-                // Stop the render thread if it's running
+                OverlayGrid.Visibility = Visibility.Collapsed;
                 if (_isRendering)
                 {
-                    StopRenderThread(); // Stop the rendering thread
-                    _isRendering = false; // Mark rendering as stopped
+                    StopRenderThread();
+                    _isRendering = false;
                 }
             }
         }
@@ -208,12 +183,6 @@ namespace EliteInfoPanel.Controls
                 if (e2 > -dy) { err -= dy; x0 += sx; }
                 if (e2 < dx) { err += dx; y0 += sy; }
             }
-        }
-
-        private void GameState_PropertyChanged(object sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName == nameof(GameStateService.ShowCarrierJumpOverlay))
-                Dispatcher.Invoke(UpdateVisibility);
         }
 
         private void GenerateFork()
@@ -304,7 +273,6 @@ namespace EliteInfoPanel.Controls
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
             StopRenderThread();
-            _countdownMonitorTimer?.Stop();
         }
         private void ProcessStars()
         {

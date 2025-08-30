@@ -76,7 +76,7 @@ namespace EliteInfoPanel.Core
         // Add this field to track changes
         private int _lastCarrierJumpCountdown = -1;
         private readonly Dictionary<string, ManualCargoChange> _manualCarrierCargoChanges = new(StringComparer.OrdinalIgnoreCase);
-        private string ManualCarrierCargoFilePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"EliteCompanion", "ManualCarrierCargo.json");
+        private string ManualCarrierCargoFilePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EliteCompanion", "ManualCarrierCargo.json");
         private readonly object _cargoLock = new object();
         private bool _suppressNextCargoUpdate = false;
         private string _lastFsdTargetSystem;
@@ -364,14 +364,23 @@ namespace EliteInfoPanel.Core
                 Log.Information("📡 FleetCarrierJumpInProgress changed to {0} - Stack trace: {1}",
                     value, Environment.StackTrace);
                 if (SetProperty(ref _fleetCarrierJumpInProgress, value))
+                {
                     OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // notify
+                    OnPropertyChanged(nameof(ShowCarrierJumpCountdown)); // <-- add this
+                }
             }
         }
 
         public DateTime? FleetCarrierJumpTime
         {
             get => _fleetCarrierJumpTime;
-            private set => SetProperty(ref _fleetCarrierJumpTime, value);
+            private set
+            {
+                if (SetProperty(ref _fleetCarrierJumpTime, value))
+                {
+                    OnPropertyChanged(nameof(JumpCountdown)); // Notify that countdown changed
+                }
+            }
         }
 
         public double FuelMain => CurrentStatus?.Fuel?.FuelMain ?? 0;
@@ -540,6 +549,15 @@ namespace EliteInfoPanel.Core
             }
         }
 
+        // Add this property to GameStateService.cs
+        public bool ShowCarrierJumpCountdown
+        {
+            get
+            {
+                return FleetCarrierJumpInProgress && CarrierJumpCountdownSeconds > 0;
+            }
+        }
+
         public string SquadronName
         {
             get => _squadronName;
@@ -612,20 +630,20 @@ namespace EliteInfoPanel.Core
                 Log.Information("CarrierJumpDestinationBody: {Body}", CarrierJumpDestinationBody);
                 Log.Information("ShowCarrierJumpOverlay: {ShowOverlay}", ShowCarrierJumpOverlay);
                 Log.Information("CarrierJumpCountdownSeconds: {Countdown}", CarrierJumpCountdownSeconds);
-                
+
                 // Check journal for recent carrier events
                 if (!string.IsNullOrEmpty(latestJournalPath) && File.Exists(latestJournalPath))
                 {
                     var fileInfo = new FileInfo(latestJournalPath);
                     using var fs = new FileStream(latestJournalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                    
+
                     // Read the last 20KB to look for recent carrier events
                     long startPos = Math.Max(0, fileInfo.Length - 20480);
                     fs.Seek(startPos, SeekOrigin.Begin);
-                    
+
                     using var sr = new StreamReader(fs);
                     var carrierEvents = new List<string>();
-                    
+
                     while (!sr.EndOfStream)
                     {
                         string line = sr.ReadLine();
@@ -634,14 +652,14 @@ namespace EliteInfoPanel.Core
                             carrierEvents.Add(line);
                         }
                     }
-                    
+
                     Log.Information("Found {Count} recent carrier-related events:", carrierEvents.Count);
                     foreach (var evt in carrierEvents.TakeLast(5))
                     {
                         Log.Information("  {Event}", evt);
                     }
                 }
-                
+
                 Log.Information("=== END CARRIER JUMP STATE DEBUG ===");
             }
             catch (Exception ex)
@@ -660,63 +678,63 @@ namespace EliteInfoPanel.Core
                 Log.Information("CarrierCargoTracker cargo count: {TrackerCount}", _carrierCargoTracker.Cargo.Count);
                 Log.Information("Latest journal path: {Path}", latestJournalPath);
                 Log.Information("Journal position: {Position}", lastJournalPosition);
-                
+
                 // Show current cargo state
                 Log.Information("Current carrier cargo contents:");
                 foreach (var item in _carrierCargo)
                 {
                     Log.Information("  GameState: {Name}: {Quantity}", item.Key, item.Value);
                 }
-                
+
                 Log.Information("CarrierCargoTracker contents:");
                 foreach (var item in _carrierCargoTracker.Cargo)
                 {
                     Log.Information("  Tracker: {Name}: {Quantity}", item.Key, item.Value);
                 }
-                
+
                 // Check for differences
                 var differences = new List<string>();
                 var allKeys = _carrierCargo.Keys.Union(_carrierCargoTracker.Cargo.Keys).ToList();
                 foreach (var key in allKeys)
                 {
-                int gameStateQty = _carrierCargo.TryGetValue(key, out int gsQty) ? gsQty : 0;
-                int trackerQty = _carrierCargoTracker.Cargo.TryGetValue(key, out int tQty) ? tQty : 0;
-                
-                if (gameStateQty != trackerQty)
-                {
-                differences.Add($"{key}: GameState={gameStateQty}, Tracker={trackerQty}");
+                    int gameStateQty = _carrierCargo.TryGetValue(key, out int gsQty) ? gsQty : 0;
+                    int trackerQty = _carrierCargoTracker.Cargo.TryGetValue(key, out int tQty) ? tQty : 0;
+
+                    if (gameStateQty != trackerQty)
+                    {
+                        differences.Add($"{key}: GameState={gameStateQty}, Tracker={trackerQty}");
+                    }
                 }
-                }
-                
+
                 if (differences.Any())
                 {
-                Log.Warning("FOUND CARGO DISCREPANCIES:");
-                foreach (var diff in differences)
-                {
-                Log.Warning("  {Difference}", diff);
-                }
-                    
+                    Log.Warning("FOUND CARGO DISCREPANCIES:");
+                    foreach (var diff in differences)
+                    {
+                        Log.Warning("  {Difference}", diff);
+                    }
+
                     Log.Information("Attempting to fix discrepancies...");
                     SynchronizeCarrierCargoState();
                 }
                 else
-                    {
-                        Log.Information("✅ GameState and CarrierCargoTracker are in sync");
-                    }
-                
+                {
+                    Log.Information("✅ GameState and CarrierCargoTracker are in sync");
+                }
+
                 // Check recent journal entries for CargoTransfer
                 if (!string.IsNullOrEmpty(latestJournalPath) && File.Exists(latestJournalPath))
                 {
                     var fileInfo = new FileInfo(latestJournalPath);
                     using var fs = new FileStream(latestJournalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                    
+
                     // Read the last 5KB to look for recent CargoTransfer events
                     long startPos = Math.Max(0, fileInfo.Length - 5120);
                     fs.Seek(startPos, SeekOrigin.Begin);
-                    
+
                     using var sr = new StreamReader(fs);
                     var cargoTransferEvents = new List<string>();
-                    
+
                     while (!sr.EndOfStream)
                     {
                         string line = sr.ReadLine();
@@ -725,14 +743,14 @@ namespace EliteInfoPanel.Core
                             cargoTransferEvents.Add(line);
                         }
                     }
-                    
+
                     Log.Information("Found {Count} recent CargoTransfer events:", cargoTransferEvents.Count);
                     foreach (var evt in cargoTransferEvents.TakeLast(3))
                     {
                         Log.Information("  {Event}", evt);
                     }
                 }
-                
+
                 Log.Information("=== END CARGO TRANSFER DEBUG ===");
             }
             catch (Exception ex)
@@ -809,44 +827,44 @@ namespace EliteInfoPanel.Core
             try
             {
                 Log.Information("🔄 Force processing recent cargo events");
-                
+
                 if (string.IsNullOrEmpty(latestJournalPath) || !File.Exists(latestJournalPath))
                 {
                     Log.Warning("No journal file available for processing");
                     return;
                 }
-                
+
                 // Ensure cargo tracking is initialized
                 if (!_cargoTrackingInitialized)
                 {
                     Log.Information("Initializing cargo tracking before processing events");
                     _cargoTrackingInitialized = true;
                 }
-                
+
                 var fileInfo = new FileInfo(latestJournalPath);
                 using var fs = new FileStream(latestJournalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                
+
                 // Read the last 10KB to look for recent cargo events
                 long startPos = Math.Max(0, fileInfo.Length - 10240);
                 fs.Seek(startPos, SeekOrigin.Begin);
-                
+
                 using var sr = new StreamReader(fs);
                 var cargoEvents = new List<string>();
-                
+
                 while (!sr.EndOfStream)
                 {
                     string line = sr.ReadLine();
-                    if (!string.IsNullOrWhiteSpace(line) && 
-                        (line.Contains("CargoTransfer") || line.Contains("CargoDepot") || 
-                         line.Contains("MarketBuy") || line.Contains("MarketSell") || 
+                    if (!string.IsNullOrWhiteSpace(line) &&
+                        (line.Contains("CargoTransfer") || line.Contains("CargoDepot") ||
+                         line.Contains("MarketBuy") || line.Contains("MarketSell") ||
                          line.Contains("CarrierTradeOrder")))
                     {
                         cargoEvents.Add(line);
                     }
                 }
-                
+
                 Log.Information("Found {Count} recent cargo events to process", cargoEvents.Count);
-                
+
                 // Process each event
                 int processedCount = 0;
                 foreach (var eventLine in cargoEvents)
@@ -855,12 +873,12 @@ namespace EliteInfoPanel.Core
                     {
                         using var doc = JsonDocument.Parse(eventLine);
                         var root = doc.RootElement;
-                        
+
                         if (root.TryGetProperty("event", out var eventProp))
                         {
                             string eventType = eventProp.GetString();
                             bool shouldProcess = false;
-                            
+
                             switch (eventType)
                             {
                                 case "CargoTransfer":
@@ -868,20 +886,20 @@ namespace EliteInfoPanel.Core
                                 case "CarrierTradeOrder":
                                     shouldProcess = true;
                                     break;
-                                    
+
                                 case "MarketBuy":
                                     // Only process if buying FROM carrier
-                                    shouldProcess = root.TryGetProperty("BuyFromFleetCarrier", out var boughtFromCarrierProp) && 
+                                    shouldProcess = root.TryGetProperty("BuyFromFleetCarrier", out var boughtFromCarrierProp) &&
                                                   boughtFromCarrierProp.GetBoolean();
                                     break;
-                                    
+
                                 case "MarketSell":
                                     // Only process if selling TO carrier
-                                    shouldProcess = root.TryGetProperty("SellToFleetCarrier", out var soldToCarrierProp) && 
+                                    shouldProcess = root.TryGetProperty("SellToFleetCarrier", out var soldToCarrierProp) &&
                                                   soldToCarrierProp.GetBoolean();
                                     break;
                             }
-                            
+
                             if (shouldProcess)
                             {
                                 Log.Information("Force processing: {Event}", eventType);
@@ -899,7 +917,7 @@ namespace EliteInfoPanel.Core
                         Log.Warning(ex, "Error processing cargo event: {Event}", eventLine);
                     }
                 }
-                
+
                 if (processedCount > 0)
                 {
                     // Update our cargo state
@@ -909,10 +927,10 @@ namespace EliteInfoPanel.Core
                         UpdateCurrentCarrierCargoFromDictionary();
                         SaveCarrierCargoToDisk();
                     }
-                    
+
                     Log.Information("Force processed {Count} cargo events, carrier now has {Items} items",
                         processedCount, _carrierCargo.Count);
-                    
+
                     // Log updated quantities
                     foreach (var item in _carrierCargo.Take(10))
                     {
@@ -935,35 +953,35 @@ namespace EliteInfoPanel.Core
             try
             {
                 Log.Information("🔄 Force processing recent journal events to catch missed carrier events");
-                
+
                 if (string.IsNullOrEmpty(latestJournalPath) || !File.Exists(latestJournalPath))
                 {
                     Log.Warning("No journal file available for processing");
                     return;
                 }
-                
+
                 var fileInfo = new FileInfo(latestJournalPath);
                 using var fs = new FileStream(latestJournalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                
+
                 // Read the last 50KB to look for recent events we might have missed
                 long startPos = Math.Max(0, fileInfo.Length - 51200);
                 fs.Seek(startPos, SeekOrigin.Begin);
-                
+
                 using var sr = new StreamReader(fs);
                 var eventsToProcess = new List<string>();
-                
+
                 while (!sr.EndOfStream)
                 {
                     string line = sr.ReadLine();
-                    if (!string.IsNullOrWhiteSpace(line) && 
+                    if (!string.IsNullOrWhiteSpace(line) &&
                         (line.Contains("CarrierJumpRequest") || line.Contains("CarrierJump") || line.Contains("CarrierLocation")))
                     {
                         eventsToProcess.Add(line);
                     }
                 }
-                
+
                 Log.Information("Found {Count} recent carrier events to reprocess", eventsToProcess.Count);
-                
+
                 // Process each event
                 int processedCount = 0;
                 foreach (var eventLine in eventsToProcess)
@@ -972,12 +990,12 @@ namespace EliteInfoPanel.Core
                     {
                         using var doc = JsonDocument.Parse(eventLine);
                         var root = doc.RootElement;
-                        
+
                         if (root.TryGetProperty("event", out var eventProp))
                         {
                             string eventType = eventProp.GetString();
                             Log.Information("Reprocessing: {Event}", eventType);
-                            
+
                             // Process the event inline (simplified version of the main switch)
                             switch (eventType)
                             {
@@ -988,28 +1006,28 @@ namespace EliteInfoPanel.Core
                                     {
                                         FleetCarrierJumpTime = departureTime;
                                         CarrierJumpScheduledTime = departureTime;
-                                        
+
                                         if (root.TryGetProperty("SystemName", out var sysName))
                                             CarrierJumpDestinationSystem = sysName.GetString();
-                                        
+
                                         if (root.TryGetProperty("Body", out var bodyName))
                                             CarrierJumpDestinationBody = bodyName.GetString();
-                                        
+
                                         JumpArrived = false;
                                         FleetCarrierJumpInProgress = true;
-                                        
-                                        Log.Information("✅ Recovered CarrierJumpRequest: {System} at {Time}", 
+
+                                        Log.Information("✅ Recovered CarrierJumpRequest: {System} at {Time}",
                                             CarrierJumpDestinationSystem, departureTime);
                                     }
                                     break;
-                                    
+
                                 case "CarrierJump":
                                     JumpArrived = true;
                                     FleetCarrierJumpInProgress = false;
                                     Log.Information("✅ Processed CarrierJump completion");
                                     break;
                             }
-                            
+
                             processedCount++;
                         }
                     }
@@ -1018,7 +1036,7 @@ namespace EliteInfoPanel.Core
                         Log.Warning(ex, "Error reprocessing event: {Event}", eventLine);
                     }
                 }
-                
+
                 if (processedCount > 0)
                 {
                     Log.Information("✅ Reprocessed {Count} carrier events", processedCount);
@@ -1076,10 +1094,10 @@ namespace EliteInfoPanel.Core
 
                 // Initialize the tracker with our saved state
                 _carrierCargoTracker.Initialize(savedCargo);
-                
+
                 // Normalize cargo keys to ensure consistency
                 _carrierCargoTracker.NormalizeCargoKeys();
-                
+
                 // Update our cargo from the normalized tracker state
                 _carrierCargo = new Dictionary<string, int>(_carrierCargoTracker.Cargo);
 
@@ -1109,11 +1127,11 @@ namespace EliteInfoPanel.Core
 
                 using var sr = new StreamReader(fs);
                 bool isInitialScan = !_firstLoadCompleted; // true if this is the first pass
-                
+
                 // Track where we are for position management
                 long initialPosition = lastJournalPosition;
-                
-                Log.Information("📖 ProcessJournalAsync: isInitialScan={InitialScan}, position={Position}", 
+
+                Log.Information("📖 ProcessJournalAsync: isInitialScan={InitialScan}, position={Position}",
                     isInitialScan, lastJournalPosition);
 
                 // Use the batch update system to reduce property change notifications
@@ -1135,14 +1153,14 @@ namespace EliteInfoPanel.Core
                                 continue;
 
                             string eventType = eventProp.GetString();
-                            
+
                             // During initial scan, skip carrier jump events to avoid interfering with detected state
                             if (isInitialScan && (eventType == "CarrierJumpRequest" || eventType == "CarrierJump" || eventType == "CarrierJumpCancelled"))
                             {
                                 Log.Debug("Skipping historical carrier event during initialization: {Event}", eventType);
                                 continue;
                             }
-                            
+
                             Log.Debug("Processing journal event: {Event} (InitialScan: {InitialScan})", eventType, isInitialScan);
 
                             // All the existing switch cases and handling logic remains the same
@@ -1299,7 +1317,7 @@ namespace EliteInfoPanel.Core
                                     IsDocking = false;
                                     CurrentStationName = null;
                                     IsOnFleetCarrier = false;
-                                    
+
                                     // Clean up carrier jump state when undocking
                                     ResetFleetCarrierJumpState();
                                     break;
@@ -1475,7 +1493,7 @@ namespace EliteInfoPanel.Core
                                         CurrentSystem = currentSystem;
                                         PruneCompletedRouteSystems();
                                     }
-                                    
+
                                     // Clean up carrier jump state when we get location updates
                                     ResetFleetCarrierJumpState();
                                     break;
@@ -1503,12 +1521,12 @@ namespace EliteInfoPanel.Core
                                         Log.Debug("Skipping historical cargo event {EventType} during initialization", eventType);
                                         continue;
                                     }
-                                    
+
                                     Log.Information("Processing {EventType} cargo event using CarrierCargoTracker", eventType);
-                                    
+
                                     // Use the CarrierCargoTracker for consistent processing
                                     _carrierCargoTracker.Process(root);
-                                    
+
                                     // Update our local cargo state from the tracker
                                     using (BeginUpdate())
                                     {
@@ -1516,7 +1534,7 @@ namespace EliteInfoPanel.Core
                                         UpdateCurrentCarrierCargoFromDictionary();
                                         SaveCarrierCargoToDisk();
                                     }
-                                    
+
                                     Log.Information("{EventType} processed: {Count} items in carrier cargo",
                                         eventType, _carrierCargo.Count);
                                     break;
@@ -1527,15 +1545,12 @@ namespace EliteInfoPanel.Core
                                         Log.Debug("Skipping historical cargo event {EventType} during initialization", eventType);
                                         continue;
                                     }
-                                    
                                     // Only process if buying FROM carrier
                                     if (root.TryGetProperty("BuyFromFleetCarrier", out var boughtFromCarrierProp) && boughtFromCarrierProp.GetBoolean())
                                     {
                                         Log.Information("Processing MarketBuy FROM carrier using CarrierCargoTracker");
-                                        
                                         // Use the CarrierCargoTracker for consistent processing
                                         _carrierCargoTracker.Process(root);
-                                        
                                         // Update our local cargo state from the tracker
                                         using (BeginUpdate())
                                         {
@@ -1543,7 +1558,6 @@ namespace EliteInfoPanel.Core
                                             UpdateCurrentCarrierCargoFromDictionary();
                                             SaveCarrierCargoToDisk();
                                         }
-                                        
                                         Log.Information("MarketBuy FROM carrier processed: {Count} items in carrier cargo", _carrierCargo.Count);
                                     }
                                     else
@@ -1558,15 +1572,12 @@ namespace EliteInfoPanel.Core
                                         Log.Debug("Skipping historical cargo event {EventType} during initialization", eventType);
                                         continue;
                                     }
-                                    
                                     // Only process if selling TO carrier
                                     if (root.TryGetProperty("SellToFleetCarrier", out var soldToCarrierProp) && soldToCarrierProp.GetBoolean())
                                     {
                                         Log.Information("Processing MarketSell TO carrier using CarrierCargoTracker");
-                                        
                                         // Use the CarrierCargoTracker for consistent processing
                                         _carrierCargoTracker.Process(root);
-                                        
                                         // Update our local cargo state from the tracker
                                         using (BeginUpdate())
                                         {
@@ -1574,7 +1585,6 @@ namespace EliteInfoPanel.Core
                                             UpdateCurrentCarrierCargoFromDictionary();
                                             SaveCarrierCargoToDisk();
                                         }
-                                        
                                         Log.Information("MarketSell TO carrier processed: {Count} items in carrier cargo", _carrierCargo.Count);
                                     }
                                     else
@@ -1589,15 +1599,15 @@ namespace EliteInfoPanel.Core
                                         Log.Debug("Skipping historical cargo event {EventType} during initialization", eventType);
                                         continue;
                                     }
-                                    
+
                                     Log.Information("Processing CargoTransfer event using CarrierCargoTracker");
-                                    
+
                                     // CRITICAL: Update ship cargo FIRST to maintain consistency
                                     UpdateShipCargoFromTransfers(root);
-                                    
+
                                     // Use the CarrierCargoTracker for consistent processing
                                     _carrierCargoTracker.Process(root);
-                                    
+
                                     // Update our local cargo state from the tracker
                                     using (BeginUpdate())
                                     {
@@ -1605,23 +1615,23 @@ namespace EliteInfoPanel.Core
                                         UpdateCurrentCarrierCargoFromDictionary();
                                         SaveCarrierCargoToDisk();
                                     }
-                                    
+
                                     Log.Information("CargoTransfer processed: {Count} items in carrier cargo",
                                         _carrierCargo.Count);
-                                    
+
                                     // Log the updated quantities for debugging
                                     foreach (var item in _carrierCargo.Take(10))
                                     {
                                         Log.Information("  Carrier: {Name}: {Quantity}", item.Key, item.Value);
                                     }
-                                    
+
                                     // Log current ship cargo for debugging
                                     if (CurrentCargo?.Inventory != null)
                                     {
                                         Log.Information("Ship cargo now contains {Count} different items", CurrentCargo.Inventory.Count);
                                         foreach (var item in CurrentCargo.Inventory.Take(10))
                                         {
-                                            Log.Information("  Ship: {Name}: {Quantity}", 
+                                            Log.Information("  Ship: {Name}: {Quantity}",
                                                 CommodityMapper.GetDisplayName(item.Name), item.Count);
                                         }
                                     }
@@ -1630,17 +1640,17 @@ namespace EliteInfoPanel.Core
                                 case "CarrierJumpRequest":
                                     Log.Information("🚀 📜 PROCESSING CarrierJumpRequest event");
                                     Log.Information("   - Full event: {Event}", line);
-                                    
+
                                     if (root.TryGetProperty("DepartureTime", out var departureTimeProp) &&
                                         DateTime.TryParse(departureTimeProp.GetString(), out var departureTime))
                                     {
-                                        Log.Information("🚀 DepartureTime parsed: {DepartureTime} (UTC: {UtcTime})", 
+                                        Log.Information("🚀 DepartureTime parsed: {DepartureTime} (UTC: {UtcTime})",
                                             departureTime, departureTime.ToUniversalTime());
-                                        
+
                                         if (departureTime > DateTime.UtcNow)
                                         {
                                             Log.Information("✅ Departure time is in the future - processing jump request");
-                                            
+
                                             // CRITICAL: Process carrier jump outside of batch update to ensure immediate UI response
                                             bool wasBatchMode2 = _isUpdating;
                                             if (wasBatchMode2)
@@ -1694,7 +1704,7 @@ namespace EliteInfoPanel.Core
                                         }
                                         else
                                         {
-                                            Log.Warning("❌ CarrierJumpRequest ignored — departure time {DepartureTime} is in the past (current UTC: {CurrentTime})", 
+                                            Log.Warning("❌ CarrierJumpRequest ignored — departure time {DepartureTime} is in the past (current UTC: {CurrentTime})",
                                                 departureTime, DateTime.UtcNow);
                                         }
                                     }
@@ -1785,7 +1795,7 @@ namespace EliteInfoPanel.Core
                                         CurrentSystem = carrierSystem;
                                         Log.Debug("✅ Updated CurrentSystem from CarrierLocation: {System}", carrierSystem);
                                     }
-                                    
+
                                     // Clean up carrier jump state after location changes
                                     ResetFleetCarrierJumpState();
                                     break;
@@ -1950,13 +1960,13 @@ namespace EliteInfoPanel.Core
                             if (!_firstLoadCompleted)
                             {
                                 _firstLoadCompleted = true;
-                                
+
                                 // CRITICAL: After initialization scan, move to end of file for ongoing monitoring
                                 // This prevents reprocessing old events that could interfere with carrier jump state
                                 var fileInfo = new FileInfo(latestJournalPath);
                                 lastJournalPosition = fileInfo.Length;
-                                
-                                Log.Information("✅ First journal scan completed - now monitoring from end (position {Position})", 
+
+                                Log.Information("✅ First journal scan completed - now monitoring from end (position {Position})",
                                     lastJournalPosition);
                             }
                         }
@@ -2030,23 +2040,20 @@ namespace EliteInfoPanel.Core
 
         public void ResetFleetCarrierJumpState()
         {
-            // Only log and process if there's actually some jump state to check
             bool hasJumpState = FleetCarrierJumpInProgress || JumpArrived || CarrierJumpScheduledTime.HasValue || !string.IsNullOrEmpty(CarrierJumpDestinationSystem);
-            
+
             if (!hasJumpState)
-            {
-                // No jump state exists, nothing to reset
                 return;
-            }
-            
+
             Log.Information("🔄 🚀 RESET CHECK - ResetFleetCarrierJumpState called");
             Log.Information("   - FleetCarrierJumpInProgress: {InProgress}", FleetCarrierJumpInProgress);
             Log.Information("   - IsOnFleetCarrier: {OnCarrier}", IsOnFleetCarrier);
             Log.Information("   - JumpArrived: {JumpArrived}", JumpArrived);
             Log.Information("   - CarrierJumpScheduledTime: {ScheduledTime}", CarrierJumpScheduledTime);
             Log.Information("   - CarrierJumpDestinationSystem: {Destination}", CarrierJumpDestinationSystem);
-            
-            // If jump has completed and we're still on carrier, clear ALL jump state
+
+            // Only clear jump state if the jump is truly stale:
+            // - Jump has completed and we're still on carrier
             if (JumpArrived && !FleetCarrierJumpInProgress && IsOnFleetCarrier)
             {
                 Log.Information("✅ 🚀 Carrier jump completed - clearing ALL jump state");
@@ -2058,10 +2065,10 @@ namespace EliteInfoPanel.Core
                 Log.Information("✅ 🚀 All carrier jump state cleared - no more jump processing until next request");
                 return;
             }
-            
-            // Check if we should reset stale jump-in-progress state
+
+            // - Jump is in progress, but scheduled time is in the past (missed event), and not on carrier
             if (FleetCarrierJumpInProgress &&
-                (!IsOnFleetCarrier || JumpArrived || CarrierJumpScheduledTime?.ToLocalTime() < DateTime.Now.AddMinutes(-5)))
+                (!IsOnFleetCarrier && CarrierJumpScheduledTime.HasValue && CarrierJumpScheduledTime.Value.ToLocalTime() < DateTime.Now.AddMinutes(-5)))
             {
                 Log.Warning("⚠️ 🚀 RESETTING stale carrier jump state - JumpInProgress={InProgress}, OnCarrier={OnCarrier}, JumpArrived={JumpArrived}",
                     FleetCarrierJumpInProgress, IsOnFleetCarrier, JumpArrived);
@@ -2072,7 +2079,7 @@ namespace EliteInfoPanel.Core
                 CarrierJumpDestinationBody = null;
                 _lastCarrierJumpCountdown = -1;
                 JumpArrived = false;
-                
+
                 Log.Warning("❌ 🚀 RESET COMPLETE - all carrier jump properties cleared");
             }
             else
@@ -2156,7 +2163,7 @@ namespace EliteInfoPanel.Core
                             {
                                 Log.Information("Preserving manual change for {Item}: keeping {Manual} instead of game value {Game}",
                                     itemName, manualChange.ManualQuantity, quantity);
-                                
+
                                 // Update the original game quantity but keep the manual override
                                 manualChange.OriginalGameQuantity = quantity;
                                 _carrierCargo[itemName] = manualChange.ManualQuantity;
@@ -2203,14 +2210,14 @@ namespace EliteInfoPanel.Core
             try
             {
                 Log.Information("🔄 Synchronizing carrier cargo state between GameState and CarrierCargoTracker");
-                
+
                 using (BeginUpdate())
                 {
                     _carrierCargo = new Dictionary<string, int>(_carrierCargoTracker.Cargo);
                     UpdateCurrentCarrierCargoFromDictionary();
                     SaveCarrierCargoToDisk();
                 }
-                
+
                 Log.Information("✅ Carrier cargo state synchronized: {Count} items", _carrierCargo.Count);
             }
             catch (Exception ex)
@@ -2218,7 +2225,7 @@ namespace EliteInfoPanel.Core
                 Log.Error(ex, "Error synchronizing carrier cargo state");
             }
         }
-        
+
         /// <summary>
         /// Cleans up duplicate cargo entries caused by case sensitivity issues
         /// </summary>
@@ -2227,29 +2234,29 @@ namespace EliteInfoPanel.Core
             try
             {
                 Log.Information("🧽 Cleaning up duplicate carrier cargo entries");
-                
+
                 var duplicateGroups = _carrierCargo.Keys
                     .GroupBy(k => k.ToLowerInvariant())
                     .Where(g => g.Count() > 1)
                     .ToList();
-                
+
                 if (!duplicateGroups.Any())
                 {
                     Log.Information("✅ No duplicate entries found");
                     return;
                 }
-                
+
                 using (BeginUpdate())
                 {
                     foreach (var group in duplicateGroups)
                     {
                         var items = group.ToList();
                         Log.Information("🔄 Found duplicates: {Items}", string.Join(", ", items));
-                        
+
                         // Find the best key to keep (prefer proper case)
                         string bestKey = items.FirstOrDefault(k => char.IsUpper(k[0])) ?? items.First();
                         int totalQuantity = 0;
-                        
+
                         // Sum up all quantities
                         foreach (var key in items)
                         {
@@ -2260,16 +2267,16 @@ namespace EliteInfoPanel.Core
                                 Log.Information("❌ Removed duplicate: {Key}", key);
                             }
                         }
-                        
+
                         // Update the best key with the total quantity
                         _carrierCargo[bestKey] = totalQuantity;
                         Log.Information("✅ Consolidated to: {Key} = {Quantity}", bestKey, totalQuantity);
                     }
-                    
+
                     UpdateCurrentCarrierCargoFromDictionary();
                     SaveCarrierCargoToDisk();
                 }
-                
+
                 Log.Information("✅ Duplicate cleanup completed");
             }
             catch (Exception ex)
@@ -2277,7 +2284,7 @@ namespace EliteInfoPanel.Core
                 Log.Error(ex, "Error cleaning up duplicate cargo entries");
             }
         }
-        
+
         /// <summary>
         /// Manual fix for specific cargo discrepancies - useful for debugging
         /// </summary>
@@ -2286,15 +2293,15 @@ namespace EliteInfoPanel.Core
             try
             {
                 Log.Information("🔧 Manual fix for carrier cargo item: {Item}", itemName);
-                
+
                 // Find the correct item name (case-insensitive)
-                var actualKey = _carrierCargo.Keys.FirstOrDefault(k => 
+                var actualKey = _carrierCargo.Keys.FirstOrDefault(k =>
                     string.Equals(k, itemName, StringComparison.OrdinalIgnoreCase));
-                
+
                 if (actualKey != null)
                 {
                     int oldQty = _carrierCargo[actualKey];
-                    
+
                     using (BeginUpdate())
                     {
                         if (correctQuantity > 0)
@@ -2305,11 +2312,11 @@ namespace EliteInfoPanel.Core
                         {
                             _carrierCargo.Remove(actualKey);
                         }
-                        
+
                         UpdateCurrentCarrierCargoFromDictionary();
                         SaveCarrierCargoToDisk();
                     }
-                    
+
                     Log.Information("✅ Fixed {Item}: {OldQty} → {NewQty}", actualKey, oldQty, correctQuantity);
                 }
                 else
@@ -2323,7 +2330,7 @@ namespace EliteInfoPanel.Core
                 Log.Error(ex, "Error fixing carrier cargo item {Item}", itemName);
             }
         }
-        
+
         /// <summary>
         /// Forces a refresh of both ship and carrier cargo states
         /// </summary>
@@ -2332,17 +2339,17 @@ namespace EliteInfoPanel.Core
             try
             {
                 Log.Information("🔄 Force refreshing cargo states");
-                
+
                 // Reload ship cargo from file
                 LoadCargoData();
-                
+
                 // Force process recent cargo events
                 ForceProcessRecentCargoEvents();
-                
+
                 // Clean up any inconsistencies
                 _carrierCargoTracker.NormalizeCargoKeys();
                 SynchronizeCarrierCargoState();
-                
+
                 Log.Information("✅ Cargo states refreshed successfully");
             }
             catch (Exception ex)
@@ -2350,7 +2357,7 @@ namespace EliteInfoPanel.Core
                 Log.Error(ex, "Error refreshing cargo states");
             }
         }
-        
+
         /// <summary>
         /// Analyzes recent cargo transfer events to understand discrepancies
         /// </summary>
@@ -2359,23 +2366,23 @@ namespace EliteInfoPanel.Core
             try
             {
                 Log.Information("🔍 Analyzing recent cargo transfers for: {Commodity}", commodityName ?? "ALL");
-                
+
                 if (string.IsNullOrEmpty(latestJournalPath) || !File.Exists(latestJournalPath))
                 {
                     Log.Warning("No journal file available for analysis");
                     return;
                 }
-                
+
                 var fileInfo = new FileInfo(latestJournalPath);
                 using var fs = new FileStream(latestJournalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                
+
                 // Read the last 50KB to get more transfer events
                 long startPos = Math.Max(0, fileInfo.Length - 51200);
                 fs.Seek(startPos, SeekOrigin.Begin);
-                
+
                 using var sr = new StreamReader(fs);
                 var transferEvents = new List<(DateTime timestamp, string eventLine)>();
-                
+
                 while (!sr.EndOfStream)
                 {
                     string line = sr.ReadLine();
@@ -2385,7 +2392,7 @@ namespace EliteInfoPanel.Core
                         {
                             using var doc = JsonDocument.Parse(line);
                             var root = doc.RootElement;
-                            
+
                             if (root.TryGetProperty("timestamp", out var timestampProp) &&
                                 DateTime.TryParse(timestampProp.GetString(), out var timestamp))
                             {
@@ -2398,9 +2405,9 @@ namespace EliteInfoPanel.Core
                         }
                     }
                 }
-                
+
                 Log.Information("Found {Count} CargoTransfer events", transferEvents.Count);
-                
+
                 // Analyze each transfer event
                 int totalAdded = 0, totalRemoved = 0;
                 foreach (var (timestamp, eventLine) in transferEvents.OrderBy(e => e.timestamp).TakeLast(10))
@@ -2409,12 +2416,12 @@ namespace EliteInfoPanel.Core
                     {
                         using var doc = JsonDocument.Parse(eventLine);
                         var root = doc.RootElement;
-                        
+
                         if (root.TryGetProperty("Transfers", out var transfersProp) &&
                             transfersProp.ValueKind == JsonValueKind.Array)
                         {
                             Log.Information("📅 Transfer at {Timestamp}:", timestamp.ToString("HH:mm:ss"));
-                            
+
                             foreach (var transfer in transfersProp.EnumerateArray())
                             {
                                 if (transfer.TryGetProperty("Type", out var typeProp) &&
@@ -2425,18 +2432,18 @@ namespace EliteInfoPanel.Core
                                     int count = countProp.GetInt32();
                                     string direction = directionProp.GetString();
                                     string displayName = CommodityMapper.GetDisplayName(internalName);
-                                    
+
                                     // Filter by commodity if specified
-                                    if (!string.IsNullOrEmpty(commodityName) && 
+                                    if (!string.IsNullOrEmpty(commodityName) &&
                                         !displayName.Contains(commodityName, StringComparison.OrdinalIgnoreCase) &&
                                         !internalName.Contains(commodityName, StringComparison.OrdinalIgnoreCase))
                                     {
                                         continue;
                                     }
-                                    
+
                                     Log.Information("  🔄 {InternalName} → {DisplayName}: {Direction} {Count}",
                                         internalName, displayName, direction, count);
-                                    
+
                                     if (string.Equals(direction, "tocarrier", StringComparison.OrdinalIgnoreCase))
                                     {
                                         totalAdded += count;
@@ -2455,9 +2462,9 @@ namespace EliteInfoPanel.Core
                         Log.Warning(ex, "Error analyzing transfer event");
                     }
                 }
-                
+
                 Log.Information("📊 Transfer summary: +{Added} to carrier, -{Removed} from carrier", totalAdded, totalRemoved);
-                
+
                 if (!string.IsNullOrEmpty(commodityName))
                 {
                     var currentQty = _carrierCargo.TryGetValue(commodityName, out int qty) ? qty : 0;
@@ -2469,7 +2476,7 @@ namespace EliteInfoPanel.Core
                 Log.Error(ex, "Error analyzing recent cargo transfers");
             }
         }
-        
+
         /// <summary>
         /// Processes game file updates while preserving manual changes
         /// </summary>
@@ -2893,7 +2900,7 @@ namespace EliteInfoPanel.Core
                 };
 
                 CurrentCargo = updatedCargo;
-                Log.Information("✅ Ship cargo synchronized after transfer - Total items: {Count}", 
+                Log.Information("✅ Ship cargo synchronized after transfer - Total items: {Count}",
                     updatedInventory.Sum(i => i.Count));
             }
         }
@@ -3138,7 +3145,7 @@ namespace EliteInfoPanel.Core
                     Log.Information("No carrier cargo file found - starting with empty cargo");
                     _carrierCargo = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 }
-                
+
                 // Always try to load manual changes
                 LoadManualCarrierCargoChanges();
             }
@@ -3429,6 +3436,12 @@ namespace EliteInfoPanel.Core
                     IsDocking = false;
                     Log.Debug("{EventType} - IsDocking set to false", eventType);
                     break;
+
+                case "Undocked":
+                    _currentDockingState = DockingState.NotDocking;
+                    IsDocking = false;
+                    Log.Debug("Undocked - IsDocking set to false");
+                    break;
             }
 
             // Force an immediate MQTT update with explicit docking state
@@ -3677,10 +3690,12 @@ namespace EliteInfoPanel.Core
                 var journalFiles = Directory.GetFiles(gamePath, "Journal.*.log")
                     .OrderByDescending(File.GetLastWriteTime);
 
-                DateTime? latestDeparture = null;
+                DateTime? latestRequestTime = null;
+                DateTime? latestCancelOrJumpTime = null;
                 string system = null;
                 string body = null;
-                bool jumpCompleted = false;
+                DateTime? departureTime = null;
+                bool jumpCancelledOrCompleted = false;
 
                 foreach (var path in journalFiles)
                 {
@@ -3697,62 +3712,65 @@ namespace EliteInfoPanel.Core
                         if (!root.TryGetProperty("event", out var eventProp)) continue;
                         string eventType = eventProp.GetString();
 
-                        // Check for carrier jumps
                         if (eventType == "CarrierJumpRequest")
                         {
-                            if (root.TryGetProperty("DepartureTime", out var dtProp) &&
-                                DateTime.TryParse(dtProp.GetString(), out var dt) &&
-                                dt > DateTime.UtcNow) // only care about future jumps
+                            if (root.TryGetProperty("timestamp", out var tsProp) &&
+                                DateTime.TryParse(tsProp.GetString(), out var ts))
                             {
-                                // Always pick the latest valid one
-                                if (latestDeparture == null || dt > latestDeparture)
+                                latestRequestTime = ts;
+                                if (root.TryGetProperty("DepartureTime", out var dtProp) &&
+                                    DateTime.TryParse(dtProp.GetString(), out var dt))
                                 {
-                                    latestDeparture = dt;
-
-                                    if (root.TryGetProperty("SystemName", out var sysName))
-                                        system = sysName.GetString();
-
-                                    if (root.TryGetProperty("Body", out var bodyName))
-                                        body = bodyName.GetString();
+                                    departureTime = dt;
+                                }
+                                if (root.TryGetProperty("SystemName", out var sysName))
+                                    system = sysName.GetString();
+                                if (root.TryGetProperty("Body", out var bodyName))
+                                    body = bodyName.GetString();
+                            }
+                        }
+                        else if (eventType == "CarrierJumpCancelled" || eventType == "CarrierJump")
+                        {
+                            if (root.TryGetProperty("timestamp", out var tsProp) &&
+                                DateTime.TryParse(tsProp.GetString(), out var ts))
+                            {
+                                if (!latestCancelOrJumpTime.HasValue || ts > latestCancelOrJumpTime)
+                                    latestCancelOrJumpTime = ts;
+                                // If this cancel/jump is after the latest request, mark as cancelled/completed
+                                if (latestRequestTime.HasValue && ts >= latestRequestTime)
+                                {
+                                    jumpCancelledOrCompleted = true;
                                 }
                             }
                         }
-                        else if (eventType == "CarrierJump" || eventType == "CarrierJumpCancelled")
-                        {
-                            // If we find a completed jump after our potential jump request
-                            if (latestDeparture != null &&
-                                root.TryGetProperty("timestamp", out var timestamp) &&
-                                DateTime.TryParse(timestamp.GetString(), out var eventTime) &&
-                                eventTime > latestDeparture)
-                            {
-                                jumpCompleted = true;
-                                break;
-                            }
-                        }
                     }
-
-                    if (jumpCompleted || latestDeparture != null) break; // found conclusive evidence
+                    // If we found a more recent cancel/jump than request, break early
+                    if (jumpCancelledOrCompleted) break;
                 }
 
-                if (latestDeparture != null && !jumpCompleted)
+                if (latestRequestTime.HasValue && !jumpCancelledOrCompleted && departureTime.HasValue && departureTime > DateTime.UtcNow)
                 {
-                    // Only set jump in progress if we found a request without a completion
-                    FleetCarrierJumpTime = latestDeparture;
-                    CarrierJumpScheduledTime = latestDeparture;
+                    FleetCarrierJumpTime = departureTime;
+                    CarrierJumpScheduledTime = departureTime;
                     CarrierJumpDestinationSystem = system;
                     CarrierJumpDestinationBody = body;
                     FleetCarrierJumpInProgress = true;
                     JumpArrived = false;
-
-                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // Force re-eval
-                    Log.Information("Recovered scheduled CarrierJump to {System}, {Body} at {Time}",
-                        system, body, latestDeparture);
+                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
+                    Log.Information("Recovered scheduled CarrierJump to {System}, {Body} at {Time}", system, body, departureTime);
                 }
-                else if (jumpCompleted)
+                else if (jumpCancelledOrCompleted)
                 {
-                    Log.Information("Found evidence of a completed jump in journal - not setting jump state");
+                    Log.Information("Found CarrierJumpCancelled or CarrierJump after last request — not setting jump state");
                     FleetCarrierJumpInProgress = false;
                     JumpArrived = true;
+                    CarrierJumpScheduledTime = null;
+                    CarrierJumpDestinationSystem = null;
+                    CarrierJumpDestinationBody = null;
+                }
+                else if (latestRequestTime.HasValue)
+                {
+                    Log.Information("CarrierJumpRequest found but jump is in the past or cancelled — not setting jump state");
                 }
             }
             catch (Exception ex)
@@ -3856,9 +3874,9 @@ namespace EliteInfoPanel.Core
 
                 // CRITICAL FIX: Do a full initialization scan first, then start monitoring from end
                 var fileInfo = new FileInfo(latestJournalPath);
-                Log.Information("📖 Monitoring journal: {Journal} (will scan for initialization, then monitor from end)", 
+                Log.Information("📖 Monitoring journal: {Journal} (will scan for initialization, then monitor from end)",
                     Path.GetFileName(latestJournalPath));
-                
+
                 // Start from beginning for initial scan to get all important data
                 lastJournalPosition = 0;
                 // After initialization scan, we'll set position to end
@@ -3918,7 +3936,7 @@ namespace EliteInfoPanel.Core
                         var newFileInfo = new FileInfo(latestJournalPath);
                         lastJournalPosition = newFileInfo.Length;
                         pendingUpdate = true;
-                        Log.Information("📖 Switched to new journal: {Journal} (starting from end at position {Position})", 
+                        Log.Information("📖 Switched to new journal: {Journal} (starting from end at position {Position})",
                             Path.GetFileName(latestJournalPath), lastJournalPosition);
                     }
                 };
@@ -4068,3 +4086,4 @@ namespace EliteInfoPanel.Core
         #endregion Private Classes
     }
 }
+
