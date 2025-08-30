@@ -94,8 +94,7 @@ namespace EliteInfoPanel.ViewModels
             // Subscribe to property changes on the game state
             _gameState.PropertyChanged += GameState_PropertyChanged;
 
-            // Removing LoadoutUpdated subscription for now
-            // _gameState.LoadoutUpdated += OnLoadoutUpdated;
+        
 
             // Force immediate initialization
             InitializeAllItems();

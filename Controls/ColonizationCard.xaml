@@ -8,12 +8,14 @@
              xmlns:local="clr-namespace:EliteInfoPanel.Controls"
              xmlns:util="clr-namespace:EliteInfoPanel.Util"
              xmlns:viewModels="clr-namespace:EliteInfoPanel.ViewModels"
+             xmlns:converters="clr-namespace:EliteInfoPanel.Converters"
              mc:Ignorable="d" 
              d:DesignHeight="450" d:DesignWidth="600">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
         <util:ProgressToWidthMultiConverter x:Key="ProgressToWidthMultiConverter" />
+        <converters:MultiplyConverter x:Key="MultiplyConverter" />
 
         <!-- Progress Bar Style without animations -->
         <Style x:Key="NonAnimatedProgressBarStyle" TargetType="ProgressBar">
@@ -156,20 +158,26 @@
                                     <TextBlock Grid.Column="0"
                    Text="{Binding Name}" 
                    FontWeight="SemiBold"
-                   FontSize="{Binding FontSize}"
                    Foreground="White"
                    VerticalAlignment="Center"
                    TextWrapping="Wrap"
-                   TextTrimming="None"/>
+                   TextTrimming="None">
+                                        <TextBlock.FontSize>
+                                            <Binding Path="FontSize" Converter="{StaticResource MultiplyConverter}" ConverterParameter="1.2" />
+                                        </TextBlock.FontSize>
+                                    </TextBlock>
 
                                     <!-- Remaining amount (only if not complete) -->
                                     <TextBlock Grid.Column="1"
                        Visibility="{Binding IsComplete, Converter={StaticResource InverseBoolConverter}}"
                        VerticalAlignment="Center"
                        Margin="4,0,0,0"
-                       Style="{StaticResource CardTitleStyle}">
+                       Foreground="#CCFFFFFF">
+                                        <TextBlock.FontSize>
+                                            <Binding Path="FontSize" Converter="{StaticResource MultiplyConverter}" ConverterParameter="0.9" />
+                                        </TextBlock.FontSize>
                    <Run Text="(" />
-                   <Run Text="{Binding RemainingToAcquire, Mode=OneWay}" FontWeight="Bold" />
+                   <Run Text="{Binding RemainingToDeliver, Mode=OneWay}" FontWeight="Bold" />
                    <Run Text=" needed)" />
                                     </TextBlock>
 
@@ -294,7 +302,7 @@
                           Foreground="#AAFFFFFF"
                           Visibility="{Binding IsComplete, Converter={StaticResource InverseBoolConverter}}">
                     <Run Text="Value of remaining work: " />
-                    <Run Text="{Binding RemainingToAcquire, Mode=OneWay}" />
+                    <Run Text="{Binding RemainingToDeliver, Mode=OneWay}" />
                     <Run Text=" × " />
                     <Run Text="{Binding Payment, Mode=OneWay}" />
                     <Run Text=" = " />
