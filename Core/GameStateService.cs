@@ -36,7 +36,7 @@ namespace EliteInfoPanel.Core
             "ColonizationData.json");
 
         private bool _cargoTrackingInitialized = false;
-        private Dictionary<string, int> _carrierCargo = new();
+        private Dictionary<string, int> _carrierCargo = new(StringComparer.OrdinalIgnoreCase);
         private string _carrierJumpDestinationBody;
         private string _carrierJumpDestinationSystem;
         private DateTime? _carrierJumpScheduledTime;
@@ -628,27 +628,30 @@ namespace EliteInfoPanel.Core
                 var allKeys = _carrierCargo.Keys.Union(_carrierCargoTracker.Cargo.Keys).ToList();
                 foreach (var key in allKeys)
                 {
-                    int gameStateQty = _carrierCargo.TryGetValue(key, out int gsQty) ? gsQty : 0;
-                    int trackerQty = _carrierCargoTracker.Cargo.TryGetValue(key, out int tQty) ? tQty : 0;
-                    
-                    if (gameStateQty != trackerQty)
-                    {
-                        differences.Add($"{key}: GameState={gameStateQty}, Tracker={trackerQty}");
-                    }
+                int gameStateQty = _carrierCargo.TryGetValue(key, out int gsQty) ? gsQty : 0;
+                int trackerQty = _carrierCargoTracker.Cargo.TryGetValue(key, out int tQty) ? tQty : 0;
+                
+                if (gameStateQty != trackerQty)
+                {
+                differences.Add($"{key}: GameState={gameStateQty}, Tracker={trackerQty}");
+                }
                 }
                 
                 if (differences.Any())
                 {
-                    Log.Warning("FOUND CARGO DISCREPANCIES:");
-                    foreach (var diff in differences)
-                    {
-                        Log.Warning("  {Difference}", diff);
-                    }
+                Log.Warning("FOUND CARGO DISCREPANCIES:");
+                foreach (var diff in differences)
+                {
+                Log.Warning("  {Difference}", diff);
+                }
+                    
+                    Log.Information("Attempting to fix discrepancies...");
+                    SynchronizeCarrierCargoState();
                 }
                 else
-                {
-                    Log.Information("✅ GameState and CarrierCargoTracker are in sync");
-                }
+                    {
+                        Log.Information("✅ GameState and CarrierCargoTracker are in sync");
+                    }
                 
                 // Check recent journal entries for CargoTransfer
                 if (!string.IsNullOrEmpty(latestJournalPath) && File.Exists(latestJournalPath))
@@ -917,6 +920,12 @@ namespace EliteInfoPanel.Core
 
                 // Initialize the tracker with our saved state
                 _carrierCargoTracker.Initialize(savedCargo);
+                
+                // Normalize cargo keys to ensure consistency
+                _carrierCargoTracker.NormalizeCargoKeys();
+                
+                // Update our cargo from the normalized tracker state
+                _carrierCargo = new Dictionary<string, int>(_carrierCargoTracker.Cargo);
 
                 // Update the UI-friendly list
                 UpdateCurrentCarrierCargoFromDictionary();
@@ -928,7 +937,7 @@ namespace EliteInfoPanel.Core
                 OnPropertyChanged(nameof(CarrierCargo));
                 OnPropertyChanged(nameof(CurrentCarrierCargo));
 
-                Log.Information("Carrier cargo initialized from saved data with {Count} items", savedCargo.Count);
+                Log.Information("Carrier cargo initialized from saved data with {Count} items", _carrierCargo.Count);
             }
         }
 
@@ -1413,6 +1422,9 @@ namespace EliteInfoPanel.Core
                                     
                                     Log.Information("Processing CargoTransfer event using CarrierCargoTracker");
                                     
+                                    // CRITICAL: Update ship cargo FIRST to maintain consistency
+                                    UpdateShipCargoFromTransfers(root);
+                                    
                                     // Use the CarrierCargoTracker for consistent processing
                                     _carrierCargoTracker.Process(root);
                                     
@@ -1430,7 +1442,18 @@ namespace EliteInfoPanel.Core
                                     // Log the updated quantities for debugging
                                     foreach (var item in _carrierCargo.Take(10))
                                     {
-                                        Log.Information("  {Name}: {Quantity}", item.Key, item.Value);
+                                        Log.Information("  Carrier: {Name}: {Quantity}", item.Key, item.Value);
+                                    }
+                                    
+                                    // Log current ship cargo for debugging
+                                    if (CurrentCargo?.Inventory != null)
+                                    {
+                                        Log.Information("Ship cargo now contains {Count} different items", CurrentCargo.Inventory.Count);
+                                        foreach (var item in CurrentCargo.Inventory.Take(10))
+                                        {
+                                            Log.Information("  Ship: {Name}: {Quantity}", 
+                                                CommodityMapper.GetDisplayName(item.Name), item.Count);
+                                        }
                                     }
                                     break;
 
@@ -2125,6 +2148,33 @@ namespace EliteInfoPanel.Core
         }
         
         /// <summary>
+        /// Forces a refresh of both ship and carrier cargo states
+        /// </summary>
+        public void RefreshCargoStates()
+        {
+            try
+            {
+                Log.Information("🔄 Force refreshing cargo states");
+                
+                // Reload ship cargo from file
+                LoadCargoData();
+                
+                // Force process recent cargo events
+                ForceProcessRecentCargoEvents();
+                
+                // Clean up any inconsistencies
+                _carrierCargoTracker.NormalizeCargoKeys();
+                SynchronizeCarrierCargoState();
+                
+                Log.Information("✅ Cargo states refreshed successfully");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error refreshing cargo states");
+            }
+        }
+        
+        /// <summary>
         /// Analyzes recent cargo transfer events to understand discrepancies
         /// </summary>
         public void AnalyzeRecentCargoTransfers(string commodityName = null)
@@ -2585,41 +2635,90 @@ namespace EliteInfoPanel.Core
             return true;
         }
 
-        private void HandleCarrierCargoTransfer(JsonElement root)
+        /// <summary>
+        /// Updates ship cargo to reflect transfers to/from carrier.
+        /// Elite: Dangerous doesn't immediately update Cargo.json during transfers,
+        /// so we need to simulate the changes for accurate UI display.
+        /// </summary>
+        private void UpdateShipCargoFromTransfers(JsonElement root)
         {
-            if (!_cargoTrackingInitialized) return;
+            if (!_cargoTrackingInitialized || CurrentCargo?.Inventory == null) return;
             if (!root.TryGetProperty("Transfers", out var transfers)) return;
+
+            var updatedInventory = new List<CargoJson.CargoItem>(CurrentCargo.Inventory);
+            bool cargoChanged = false;
 
             foreach (var transfer in transfers.EnumerateArray())
             {
-                var type = transfer.GetProperty("Type").GetString();
-                var count = transfer.GetProperty("Count").GetInt32();
-                var direction = transfer.GetProperty("Direction").GetString(); // "toCarrier" or "fromCarrier"
+                if (!transfer.TryGetProperty("Type", out var typeProp) ||
+                    !transfer.TryGetProperty("Count", out var countProp) ||
+                    !transfer.TryGetProperty("Direction", out var directionProp))
+                    continue;
 
-                if (string.IsNullOrWhiteSpace(type)) continue;
+                string internalName = typeProp.GetString();
+                int count = countProp.GetInt32();
+                string direction = directionProp.GetString();
 
-                if (direction == "toCarrier")
+                if (string.IsNullOrWhiteSpace(internalName)) continue;
+
+                // Find existing inventory item
+                var existingItem = updatedInventory.FirstOrDefault(i =>
+                    string.Equals(i.Name, internalName, StringComparison.OrdinalIgnoreCase));
+
+                if (string.Equals(direction, "tocarrier", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (!_carrierCargo.ContainsKey(type))
-                        _carrierCargo[type] = 0;
-
-                    _carrierCargo[type] += count;
-                }
-                else if (direction == "fromCarrier")
-                {
-                    if (_carrierCargo.ContainsKey(type))
+                    // Remove from ship cargo (transferred TO carrier)
+                    if (existingItem != null)
                     {
-                        _carrierCargo[type] -= count;
-                        if (_carrierCargo[type] <= 0)
-                            _carrierCargo.Remove(type);
+                        int newCount = Math.Max(0, existingItem.Count - count);
+                        if (newCount > 0)
+                        {
+                            existingItem.Count = newCount;
+                        }
+                        else
+                        {
+                            updatedInventory.Remove(existingItem);
+                        }
+                        cargoChanged = true;
+                        Log.Information("📦 Ship cargo updated: {Item} reduced by {Count} (transferred to carrier)",
+                            CommodityMapper.GetDisplayName(internalName), count);
                     }
                 }
-
-                Log.Information("➡️ Transfer {Direction}: {Type} = {_carrierCargoValue}",
-                    direction, type, _carrierCargo.GetValueOrDefault(type));
+                else if (string.Equals(direction, "toship", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(direction, "fromcarrier", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Add to ship cargo (transferred FROM carrier)
+                    if (existingItem != null)
+                    {
+                        existingItem.Count += count;
+                    }
+                    else
+                    {
+                        updatedInventory.Add(new CargoJson.CargoItem
+                        {
+                            Name = internalName,
+                            Count = count,
+                            Value = 0 // Default value, will be updated by the game later
+                        });
+                    }
+                    cargoChanged = true;
+                    Log.Information("📦 Ship cargo updated: {Item} increased by {Count} (transferred from carrier)",
+                        CommodityMapper.GetDisplayName(internalName), count);
+                }
             }
 
-            OnPropertyChanged(nameof(CarrierCargo));
+            // Update CurrentCargo if changes were made
+            if (cargoChanged)
+            {
+                var updatedCargo = new CargoJson
+                {
+                    Inventory = updatedInventory
+                };
+
+                CurrentCargo = updatedCargo;
+                Log.Information("✅ Ship cargo synchronized after transfer - Total items: {Count}", 
+                    updatedInventory.Sum(i => i.Count));
+            }
         }
 
         private void InferClassAndRatingFromItem(LoadoutModule module)
@@ -2854,13 +2953,13 @@ namespace EliteInfoPanel.Core
                     else
                     {
                         Log.Warning("Carrier cargo file exists but is empty or invalid");
-                        _carrierCargo = new Dictionary<string, int>();
+                        _carrierCargo = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                     }
                 }
                 else
                 {
                     Log.Information("No carrier cargo file found - starting with empty cargo");
-                    _carrierCargo = new Dictionary<string, int>();
+                    _carrierCargo = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 }
                 
                 // Always try to load manual changes
@@ -2869,7 +2968,7 @@ namespace EliteInfoPanel.Core
             catch (Exception ex)
             {
                 Log.Error(ex, "Failed to load carrier cargo from disk");
-                _carrierCargo = new Dictionary<string, int>();
+                _carrierCargo = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             }
         }
 
