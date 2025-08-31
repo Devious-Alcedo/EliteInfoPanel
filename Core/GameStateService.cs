@@ -2703,6 +2703,28 @@ namespace EliteInfoPanel.Core
             return new UpdateScope(this);
         }
 
+        // Add this private class to support batch property change notifications
+        private class UpdateScope : IDisposable
+        {
+            private readonly GameStateService _service;
+            private bool _disposed;
+
+            public UpdateScope(GameStateService service)
+            {
+                _service = service;
+            }
+
+            public void Dispose()
+            {
+                if (!_disposed)
+                {
+                    _service._isUpdating = false;
+                    _service.SendPendingNotifications();
+                    _disposed = true;
+                }
+            }
+        }
+
         private T DeserializeJsonFile<T>(string filePath) where T : class
         {
             for (int attempt = 0; attempt < 5; attempt++)
@@ -3763,9 +3785,6 @@ namespace EliteInfoPanel.Core
                     OnPropertyChanged(nameof(CarrierJumpCountdownSeconds));
                     OnPropertyChanged(nameof(ShowCarrierJumpCountdown));
                     OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
-                    OnPropertyChanged(nameof(FleetCarrierJumpInProgress));
-                    OnPropertyChanged(nameof(CarrierJumpScheduledTime));
-                    OnPropertyChanged(nameof(CarrierJumpDestinationSystem));
                     Log.Information("Recovered scheduled CarrierJump to {System}, {Body} at {Time}", latestSystem, latestBody, latestDepartureTime);
                 }
                 else if (jumpCancelledOrCompleted)
@@ -3992,38 +4011,17 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                // First, standardize the dictionary to use internal names only
+                // Standardize the dictionary to use internal names only
                 var standardizedCargo = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
                 foreach (var pair in CarrierCargo)
                 {
-                    // Check if this key is already an internal name or a display name
+                    // Always treat the key as an internal name
                     string internalName = pair.Key;
-
-                    // If this looks like a display name, try to find the internal name
-                    var possibleInternal = CarrierCargo.Keys.FirstOrDefault(k =>
-                        !string.Equals(k, pair.Key, StringComparison.OrdinalIgnoreCase) &&
-                        string.Equals(CommodityMapper.GetDisplayName(k), pair.Key, StringComparison.OrdinalIgnoreCase));
-
-                    if (possibleInternal != null)
-                    {
-                        // Found the internal name, use it instead
-                        internalName = possibleInternal;
-                    }
-
-                    // Add or update with the standardized internal name
-                    if (standardizedCargo.TryGetValue(internalName, out int existingQty))
-                    {
-                        standardizedCargo[internalName] = existingQty + pair.Value;
-                        Log.Warning("Merged duplicate entries for {Internal}: {Total}", internalName, existingQty + pair.Value);
-                    }
-                    else
-                    {
-                        standardizedCargo[internalName] = pair.Value;
-                    }
+                    standardizedCargo[internalName] = pair.Value;
                 }
 
-                // Update our dictionary to the standardized version
+                // Update our dictionary to the standardized version (internal names only)
                 CarrierCargo = standardizedCargo;
 
                 // Now create the UI list with display names
@@ -4033,7 +4031,7 @@ namespace EliteInfoPanel.Core
                 {
                     items.Add(new CarrierCargoItem
                     {
-                        Name = CommodityMapper.GetDisplayName(pair.Key),
+                        Name = CommodityMapper.GetDisplayName(pair.Key), // display name for UI
                         Quantity = pair.Value
                     });
                 }
@@ -4041,7 +4039,7 @@ namespace EliteInfoPanel.Core
                 var sortedItems = items.OrderByDescending(i => i.Quantity).ToList();
                 CurrentCarrierCargo = sortedItems;
 
-                Log.Information("UpdateCurrentCarrierCargoFromDictionary: Updated with {Count} items",
+                Log.Information("UpdateCurrentCarrierCargoFromDictionary: Updated with {Count} items (internal names only)",
                     sortedItems.Count);
             }
             catch (Exception ex)
@@ -4050,49 +4048,23 @@ namespace EliteInfoPanel.Core
             }
         }
 
-        #endregion Private Methods
-        public class ManualCargoChange
-        {
-            public string ItemName { get; set; }
-            public int ManualQuantity { get; set; }
-            public int OriginalGameQuantity { get; set; }
-            public DateTime LastModified { get; set; }
-            public bool IsActive { get; set; } = true;
-        }
-        #region Private Classes
-
         /// <summary>
-        /// Helper class to manage batch update scope
+        /// Called by SummaryViewModel when the carrier jump countdown reaches zero, to trigger overlay display.
         /// </summary>
-        private class UpdateScope : IDisposable
+        public void NotifyCarrierJumpCountdownReachedZero()
         {
-            #region Private Fields
-
-            private readonly GameStateService _service;
-
-            #endregion Private Fields
-
-            #region Public Constructors
-
-            public UpdateScope(GameStateService service)
+            // Set the scheduled time to now so CarrierJumpCountdownSeconds is 0
+            if (CarrierJumpScheduledTime.HasValue && CarrierJumpScheduledTime.Value > DateTime.UtcNow)
             {
-                _service = service;
+                CarrierJumpScheduledTime = DateTime.UtcNow;
             }
-
-            #endregion Public Constructors
-
-            #region Public Methods
-
-            public void Dispose()
-            {
-                _service._isUpdating = false;
-                _service.SendPendingNotifications();
-            }
-
-            #endregion Public Methods
+            // Force property change notifications
+            OnPropertyChanged(nameof(CarrierJumpCountdownSeconds));
+            OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
+            OnPropertyChanged(nameof(ShowCarrierJumpCountdown));
+            Log.Information("Carrier jump countdown reached zero, overlay should now be visible until CarrierJump event.");
         }
-
-        #endregion Private Classes
+        #endregion
     }
 }
 

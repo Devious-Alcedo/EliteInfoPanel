@@ -730,31 +730,8 @@ namespace EliteInfoPanel.ViewModels
                             StopCarrierCountdown();
                             Log.Information("Carrier jump countdown reached zero — notifying GameStateService");
 
-                            // Force a property change notification on CarrierJumpCountdownSeconds
-                            OnPropertyChanged(nameof(_gameState.CarrierJumpCountdownSeconds));
-                            OnPropertyChanged(nameof(_gameState.ShowCarrierJumpOverlay));
-
-                            var status = _gameState.CurrentStatus;
-                            var station = _gameState.CurrentStationName;
-                            var carrierDest = _gameState.CarrierJumpDestinationSystem;
-
-                            if (status?.Flags.HasFlag(Flag.Docked) == true &&
-                                !string.IsNullOrEmpty(station) &&
-                                !string.IsNullOrEmpty(carrierDest) &&
-                                _gameState.IsOnFleetCarrier)
-                            {
-                                Log.Information("✅ Conditions met for carrier jump overlay");
-
-                                // Explicitly set properties to ensure overlay shows
-                                _gameState.GetType()
-                                    .GetProperty("CarrierJumpCountdownSeconds", BindingFlags.NonPublic | BindingFlags.Instance)
-                                    ?.SetValue(_gameState, 0);
-
-                                // Notify that ShowCarrierJumpOverlay may have changed
-                                _gameState.GetType()
-                                    .GetMethod("OnPropertyChanged", BindingFlags.NonPublic | BindingFlags.Instance)
-                                    ?.Invoke(_gameState, new object[] { nameof(_gameState.ShowCarrierJumpOverlay) });
-                            }
+                            // Notify GameStateService to update overlay state
+                            _gameState.NotifyCarrierJumpCountdownReachedZero();
                         });
                     }
                     else
