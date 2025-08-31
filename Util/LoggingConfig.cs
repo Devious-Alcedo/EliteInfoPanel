@@ -42,7 +42,9 @@ namespace EliteInfoPanel.Util
                               rollOnFileSizeLimit: true)
                 .CreateLogger();
 
+#if dev
             Log.Information("Logger Created (Debug={DebugEnabled})", enableDebugLogging);
+#endif
             logFileFullPath = filePathHook.Path;
         }
 

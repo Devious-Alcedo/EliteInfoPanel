@@ -16,7 +16,9 @@ namespace EliteInfoPanel.Core
             if (!root.TryGetProperty("event", out var eventTypeProp)) return;
             string eventType = eventTypeProp.GetString();
             
+#if dev
             Log.Information("🎯 CarrierCargoTracker.Process: {EventType}", eventType);
+#endif
 
             switch (eventType)
             {
@@ -79,12 +81,16 @@ namespace EliteInfoPanel.Core
                     var existingKey = FindExistingCargoKey(displayName);
                     if (existingKey != null && existingKey != displayName)
                     {
+#if dev
                         Log.Information("🔄 Normalizing cargo key: {OldKey} → {NewKey}", existingKey, displayName);
+#endif
                         _cargo.Remove(existingKey);
                     }
                     
                     _cargo[displayName] = count;
+#if dev
                     Log.Debug("Set commodity count: {DisplayName} = {Count}", displayName, count);
+#endif
                 }
             }
         }
@@ -110,13 +116,17 @@ namespace EliteInfoPanel.Core
                         currentQty = _cargo[existingKey];
                         if (existingKey != displayName)
                         {
+#if dev
                             Log.Information("🔄 Normalizing cargo key during add: {OldKey} → {NewKey}", existingKey, displayName);
+#endif
                             _cargo.Remove(existingKey);
                         }
                     }
 
                     _cargo[displayName] = currentQty + count;
+#if dev
                     Log.Debug("Added to carrier via market: {DisplayName} + {Count} = {Total}", displayName, count, _cargo[displayName]);
+#endif
                 }
             }
         }
@@ -149,12 +159,16 @@ namespace EliteInfoPanel.Core
                             _cargo[displayName] = newAmount; // Add with normalized key
                         }
                         
+#if dev
                         Log.Debug("Removed from carrier via market: {DisplayName} - {Count} = {Remaining} (key: {OldKey} → {NewKey})", 
                             displayName, count, newAmount, existingKey, displayName);
+#endif
                     }
                     else
                     {
+#if dev
                         Log.Warning("Could not find '{DisplayName}' in carrier cargo to remove via market", displayName);
+#endif
                     }
                 }
             }
@@ -166,6 +180,7 @@ namespace EliteInfoPanel.Core
             if (!root.TryGetProperty("Transfers", out var transfersProp) || transfersProp.ValueKind != JsonValueKind.Array)
                 return;
 
+#if dev
             Log.Information("🔄 ProcessTransfer: Processing {Count} transfers", transfersProp.GetArrayLength());
             
             // Log the complete cargo state before processing
@@ -174,6 +189,7 @@ namespace EliteInfoPanel.Core
             {
                 Log.Information("  📦 {Name}: {Quantity}", item.Key, item.Value);
             }
+#endif
 
             foreach (var transfer in transfersProp.EnumerateArray())
             {
@@ -189,8 +205,10 @@ namespace EliteInfoPanel.Core
 
                     string displayName = CommodityMapper.GetDisplayName(internalName);
 
+#if dev
                     Log.Information("🔄 Processing transfer: {InternalName} → {DisplayName} | {Direction} {Count}",
                         internalName, displayName, direction, count);
+#endif
 
                     if (string.Equals(direction, "tocarrier", StringComparison.OrdinalIgnoreCase))
                     {
@@ -206,8 +224,10 @@ namespace EliteInfoPanel.Core
                         
                         _cargo[displayName] = previousQty + count;
 
+#if dev
                         Log.Information("➕ Added to carrier: {Item} | {PrevQty} + {Count} = {NewQty} (key: {ExistingKey} → {NewKey})",
                             displayName, previousQty, count, _cargo[displayName], existingKey ?? "none", displayName);
+#endif
                     }
                     else if (string.Equals(direction, "toship", StringComparison.OrdinalIgnoreCase) ||
                              string.Equals(direction, "fromcarrier", StringComparison.OrdinalIgnoreCase))
@@ -220,24 +240,32 @@ namespace EliteInfoPanel.Core
                             int currentQuantity = _cargo[existingKey];
                             int newAmount = Math.Max(0, currentQuantity - count);
                             
+#if dev
                             Log.Information("➖ Removing from carrier: {Item} (key: {ExistingKey}) | {CurrentQty} - {Count} = {NewQty}",
                                 displayName, existingKey, currentQuantity, count, newAmount);
+#endif
                             
                             _cargo.Remove(existingKey); // Remove old key
                             
                             if (newAmount > 0)
                             {
                                 _cargo[displayName] = newAmount; // Add with correct display name
+#if dev
                                 Log.Information("✅ Updated carrier: {Item} now at {NewQty}", displayName, newAmount);
+#endif
                             }
                             else
                             {
+#if dev
                                 Log.Information("🗑️ Removed completely: {Item} (quantity would be 0)", displayName);
+#endif
                             }
                         }
                         else
                         {
+#if dev
                             Log.Warning("⚠️ Could not find '{DisplayName}' in carrier cargo to remove", displayName);
+#endif
                             
                             // Check for similar names (case variations, etc.)
                             var similarNames = _cargo.Keys.Where(k => 
@@ -247,27 +275,35 @@ namespace EliteInfoPanel.Core
                             
                             if (similarNames.Any())
                             {
+#if dev
                                 Log.Warning("🔍 Found similar names: {SimilarNames}", string.Join(", ", similarNames));
+#endif
                             }
 
                             // Log current cargo for debugging
+#if dev
                             Log.Debug("📦 Current carrier cargo contains: {Items}",
                                 string.Join(", ", _cargo.Select(kvp => $"{kvp.Key}={kvp.Value}")));
+#endif
                         }
                     }
                     else
                     {
+#if dev
                         Log.Warning("❓ Unknown transfer direction: {Direction}", direction);
+#endif
                     }
                 }
             }
             
+#if dev
             // Log the complete cargo state after processing
             Log.Information("📦 AFTER TRANSFER - Carrier cargo state:");
             foreach (var item in _cargo)
             {
                 Log.Information("  📦 {Name}: {Quantity}", item.Key, item.Value);
             }
+#endif
         }
         
         /// <summary>
@@ -310,13 +346,17 @@ namespace EliteInfoPanel.Core
                 if (_cargo.TryGetValue(newKey, out int existingQty))
                 {
                     _cargo[newKey] = existingQty + quantity;
+#if dev
                     Log.Information("🔄 Consolidated cargo: {OldKey} + {NewKey} = {TotalQty}",
                         oldKey, newKey, _cargo[newKey]);
+#endif
                 }
                 else
                 {
                     _cargo[newKey] = quantity;
+#if dev
                     Log.Information("🔄 Normalized cargo key: {OldKey} → {NewKey}", oldKey, newKey);
+#endif
                 }
             }
         }

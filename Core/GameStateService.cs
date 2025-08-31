@@ -3482,10 +3482,31 @@ namespace EliteInfoPanel.Core
             {
                 Log.Debug("Docking state changed from {Previous} to {Current} - forcing MQTT update",
                     previousDockingState, IsDocking);
-                Task.Run(async () =>
+                // Ensure CurrentStatus is up-to-date before publishing
+                var status = CurrentStatus;
+                if (status != null)
                 {
-                    await MqttService.Instance.PublishFlagStatesAsync(CurrentStatus, IsDocking, forcePublish: true);
-                });
+                    Task.Run(async () =>
+                    {
+                        await MqttService.Instance.PublishFlagStatesAsync(status, IsDocking, forcePublish: true);
+                    });
+                }
+                else
+                {
+                    Log.Warning("CurrentStatus is null when trying to publish MQTT docking state");
+                }
+            }
+            else
+            {
+                // Always publish the current state to MQTT for all docking events (retain message)
+                var status = CurrentStatus;
+                if (status != null)
+                {
+                    Task.Run(async () =>
+                    {
+                        await MqttService.Instance.PublishFlagStatesAsync(status, IsDocking, forcePublish: true);
+                    });
+                }
             }
         }
 
@@ -4039,12 +4060,16 @@ namespace EliteInfoPanel.Core
                 var sortedItems = items.OrderByDescending(i => i.Quantity).ToList();
                 CurrentCarrierCargo = sortedItems;
 
-                Log.Information("UpdateCurrentCarrierCargoFromDictionary: Updated with {Count} items (internal names only)",
+#if dev
+                Log.Debug("UpdateCurrentCarrierCargoFromDictionary: Updated with {Count} items (internal names only)",
                     sortedItems.Count);
+#endif
             }
             catch (Exception ex)
             {
+#if dev
                 Log.Error(ex, "Error updating CurrentCarrierCargo from dictionary");
+#endif
             }
         }
 

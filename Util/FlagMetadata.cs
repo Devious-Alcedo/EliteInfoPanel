@@ -62,7 +62,9 @@ namespace EliteInfoPanel.Util
             if (status == null) return;
 
             uint rawFlags = (uint)status.Flags;
+#if dev
             Log.Information("🚩 Raw flag status: 0x{RawFlags:X8}", rawFlags);
+#endif
 
             var activeFlags = new List<string>();
 
@@ -74,31 +76,41 @@ namespace EliteInfoPanel.Util
 
                     // Check if this flag has metadata
                     bool hasMetadata = FlagVisuals.ContainsKey(flag);
+#if dev
                     Log.Debug("🚩 Active flag: {Flag}, Has Metadata: {HasMetadata}",
-                        flag, hasMetadata);
+    flag, hasMetadata);
+#endif
                 }
             }
 
+#if dev
             Log.Information("🚩 Active flags ({Count}): {Flags}",
-                activeFlags.Count, string.Join(", ", activeFlags));
+    activeFlags.Count, string.Join(", ", activeFlags));
+#endif
         }
         public static void LogAllMetadata()
         {
+#if dev
             Log.Information("🚩 Flag metadata check:");
+#endif
 
             foreach (var flag in Enum.GetValues(typeof(Flag)).Cast<Flag>().Where(f => f != Flag.None))
             {
                 bool hasMetadata = TryGetMetadata(flag, out var meta);
+#if dev
                 Log.Information("🚩 Flag: {Flag}, Has Metadata: {HasMetadata}, Icon: {Icon}, Color: {Color}",
-                    flag, hasMetadata, hasMetadata ? meta.Icon : "None", hasMetadata ? meta.Color : "None");
+    flag, hasMetadata, hasMetadata ? meta.Icon : "None", hasMetadata ? meta.Color : "None");
+#endif
             }
 
             // Also check synthetic flags
             foreach (var flag in SyntheticFlags.All)
             {
                 bool hasMetadata = TryGetMetadata(flag, out var meta);
+#if dev
                 Log.Information("🚩 Synthetic Flag: {Flag}, Has Metadata: {HasMetadata}, Icon: {Icon}, Color: {Color}",
-                    flag, hasMetadata, hasMetadata ? meta.Icon : "None", hasMetadata ? meta.Color : "None");
+    flag, hasMetadata, hasMetadata ? meta.Icon : "None", hasMetadata ? meta.Color : "None");
+#endif
             }
         }
 
