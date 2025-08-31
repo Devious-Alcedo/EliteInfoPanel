@@ -2526,7 +2526,6 @@ namespace EliteInfoPanel.Core
                                 {
                                     // Manual change has expired
                                     _manualCarrierCargoChanges.Remove(existingItem);
-                                    UpdateCarrierCargoItem(existingItem, 0, isManualChange: false);
                                     SaveManualCarrierCargoChanges();
                                     Log.Information("Expired manual change removed for non-existent item: {Item}", existingItem);
                                 }
@@ -3059,6 +3058,12 @@ namespace EliteInfoPanel.Core
                 OnPropertyChanged(nameof(FleetCarrierJumpInProgress));
                 OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
                 OnPropertyChanged(nameof(JumpArrived));
+                // --- ADD THESE LINES TO FIX COUNTDOWN NOT UPDATING ON RESTART ---
+                OnPropertyChanged(nameof(CarrierJumpScheduledTime));
+                OnPropertyChanged(nameof(FleetCarrierJumpTime));
+                OnPropertyChanged(nameof(CarrierJumpCountdownSeconds));
+                OnPropertyChanged(nameof(ShowCarrierJumpCountdown));
+                // --- END FIX ---
                 LoadCarrierCargoFromDisk();
                 LoadPersistedColonizationData();
                 // Set cargo tracking as initialized after loading saved data
@@ -3762,7 +3767,15 @@ namespace EliteInfoPanel.Core
                     CarrierJumpDestinationBody = body;
                     FleetCarrierJumpInProgress = true;
                     JumpArrived = false;
+                    // --- Ensure all relevant property change notifications are raised ---
+                    OnPropertyChanged(nameof(JumpCountdown));
+                    OnPropertyChanged(nameof(CarrierJumpCountdownSeconds));
+                    OnPropertyChanged(nameof(ShowCarrierJumpCountdown));
                     OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
+                    OnPropertyChanged(nameof(FleetCarrierJumpInProgress));
+                    OnPropertyChanged(nameof(CarrierJumpScheduledTime));
+                    OnPropertyChanged(nameof(CarrierJumpDestinationSystem));
+                    // -------------------------------------------------------------------
                     Log.Information("Recovered scheduled CarrierJump to {System}, {Body} at {Time}", system, body, departureTime);
                 }
                 else if (jumpCancelledOrCompleted)

@@ -21,6 +21,7 @@ namespace EliteInfoPanel.ViewModels
         #region Private Fields
         private readonly GameStateService _gameState;
         private System.Timers.Timer _carrierCountdownTimer;
+        private DispatcherTimer _jumpCountdownPollTimer;
         private SummaryItemViewModel _carrierCountdownItem;
         private string _fuelPanelTitle;
         private bool _showFuelBar;
@@ -94,18 +95,22 @@ namespace EliteInfoPanel.ViewModels
             // Subscribe to property changes on the game state
             _gameState.PropertyChanged += GameState_PropertyChanged;
 
-        
-
             // Force immediate initialization
             InitializeAllItems();
 
+            // Ensure carrier countdown is checked on startup
+            UpdateCarrierCountdown();
+
             // Schedule a delayed second initialization attempt
             System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() => {
-                // Just call InitializeAllItems directly
                 InitializeAllItems();
-               
+                UpdateCarrierCountdown();
             }), System.Windows.Threading.DispatcherPriority.Background);
 
+            // Start polling for JumpCountdown changes in case property change is missed
+            _jumpCountdownPollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _jumpCountdownPollTimer.Tick += (s, e) => UpdateCarrierCountdown();
+            _jumpCountdownPollTimer.Start();
         }
 
         #endregion
@@ -287,18 +292,9 @@ namespace EliteInfoPanel.ViewModels
                     UpdateBalanceItem();
                     UpdateSystemItem();
                     UpdateFuelInfo();
-                   
 
-                    // Special case for carrier countdown - preserve state
-                    if (wasJumpInProgress)
-                    {
-                        // Use existing state without modifying it
-                        UpdateCarrierCountdown(preserveState: true);
-                    }
-                    else
-                    {
-                        UpdateCarrierCountdown();
-                    }
+                    // Always call UpdateCarrierCountdown to ensure timer appears if needed
+                    UpdateCarrierCountdown();
                 });
             }
             catch (Exception ex)
