@@ -3699,75 +3699,66 @@ namespace EliteInfoPanel.Core
             try
             {
                 var journalFiles = Directory.GetFiles(gamePath, "Journal.*.log")
-                    .OrderByDescending(File.GetLastWriteTime);
+                    .OrderBy(f => File.GetLastWriteTime(f)); // chronological order
 
-                DateTime? latestRequestTime = null;
-                DateTime? latestCancelOrJumpTime = null;
-                string system = null;
-                string body = null;
-                DateTime? departureTime = null;
+                DateTime? latestRequestTimestamp = null;
+                DateTime? latestDepartureTime = null;
+                string latestSystem = null;
+                string latestBody = null;
                 bool jumpCancelledOrCompleted = false;
 
                 foreach (var path in journalFiles)
                 {
                     using var sr = new StreamReader(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite));
-
                     while (!sr.EndOfStream)
                     {
                         string line = sr.ReadLine();
                         if (string.IsNullOrWhiteSpace(line)) continue;
-
                         using var doc = JsonDocument.Parse(line);
                         var root = doc.RootElement;
-
                         if (!root.TryGetProperty("event", out var eventProp)) continue;
                         string eventType = eventProp.GetString();
-
                         if (eventType == "CarrierJumpRequest")
                         {
                             if (root.TryGetProperty("timestamp", out var tsProp) &&
                                 DateTime.TryParse(tsProp.GetString(), out var ts))
                             {
-                                latestRequestTime = ts;
+                                // Always use the latest request, and reset cancel/completed flag
+                                latestRequestTimestamp = ts;
                                 if (root.TryGetProperty("DepartureTime", out var dtProp) &&
                                     DateTime.TryParse(dtProp.GetString(), out var dt))
                                 {
-                                    departureTime = dt;
+                                    latestDepartureTime = dt;
                                 }
                                 if (root.TryGetProperty("SystemName", out var sysName))
-                                    system = sysName.GetString();
+                                    latestSystem = sysName.GetString();
                                 if (root.TryGetProperty("Body", out var bodyName))
-                                    body = bodyName.GetString();
+                                    latestBody = bodyName.GetString();
+                                jumpCancelledOrCompleted = false; // reset if new request
                             }
                         }
-                        else if (eventType == "CarrierJumpCancelled" || eventType == "CarrierJump")
+                        else if ((eventType == "CarrierJumpCancelled" || eventType == "CarrierJump") && latestRequestTimestamp.HasValue)
                         {
                             if (root.TryGetProperty("timestamp", out var tsProp) &&
                                 DateTime.TryParse(tsProp.GetString(), out var ts))
                             {
-                                if (!latestCancelOrJumpTime.HasValue || ts > latestCancelOrJumpTime)
-                                    latestCancelOrJumpTime = ts;
-                                // If this cancel/jump is after the latest request, mark as cancelled/completed
-                                if (latestRequestTime.HasValue && ts >= latestRequestTime)
+                                // Only cancel if after the last request
+                                if (latestRequestTimestamp.HasValue && ts > latestRequestTimestamp)
                                 {
                                     jumpCancelledOrCompleted = true;
                                 }
                             }
                         }
                     }
-                    // If we found a more recent cancel/jump than request, break early
-                    if (jumpCancelledOrCompleted) break;
                 }
-
-                if (latestRequestTime.HasValue && !jumpCancelledOrCompleted && departureTime.HasValue && departureTime > DateTime.UtcNow)
+                if (latestRequestTimestamp.HasValue && !jumpCancelledOrCompleted && latestDepartureTime.HasValue && latestDepartureTime > DateTime.UtcNow)
                 {
-                    FleetCarrierJumpTime = departureTime;
-                    CarrierJumpScheduledTime = departureTime;
-                    CarrierJumpDestinationSystem = system;
-                    CarrierJumpDestinationBody = body;
+                    FleetCarrierJumpTime = latestDepartureTime;
+                    CarrierJumpScheduledTime = latestDepartureTime;
+                    CarrierJumpDestinationSystem = latestSystem;
+                    CarrierJumpDestinationBody = latestBody;
                     FleetCarrierJumpInProgress = true;
                     JumpArrived = false;
-                    // --- Ensure all relevant property change notifications are raised ---
                     OnPropertyChanged(nameof(JumpCountdown));
                     OnPropertyChanged(nameof(CarrierJumpCountdownSeconds));
                     OnPropertyChanged(nameof(ShowCarrierJumpCountdown));
@@ -3775,8 +3766,7 @@ namespace EliteInfoPanel.Core
                     OnPropertyChanged(nameof(FleetCarrierJumpInProgress));
                     OnPropertyChanged(nameof(CarrierJumpScheduledTime));
                     OnPropertyChanged(nameof(CarrierJumpDestinationSystem));
-                    // -------------------------------------------------------------------
-                    Log.Information("Recovered scheduled CarrierJump to {System}, {Body} at {Time}", system, body, departureTime);
+                    Log.Information("Recovered scheduled CarrierJump to {System}, {Body} at {Time}", latestSystem, latestBody, latestDepartureTime);
                 }
                 else if (jumpCancelledOrCompleted)
                 {
@@ -3787,7 +3777,7 @@ namespace EliteInfoPanel.Core
                     CarrierJumpDestinationSystem = null;
                     CarrierJumpDestinationBody = null;
                 }
-                else if (latestRequestTime.HasValue)
+                else if (latestRequestTimestamp.HasValue)
                 {
                     Log.Information("CarrierJumpRequest found but jump is in the past or cancelled — not setting jump state");
                 }
