@@ -1563,7 +1563,7 @@ namespace EliteInfoPanel.Core
                                     else
                                     {
                                         Log.Debug("MarketBuy event ignored - not from carrier (goes to ship cargo)");
-                                    }
+                                   }
                                     break;
 
                                 case "MarketSell":
@@ -1888,7 +1888,7 @@ namespace EliteInfoPanel.Core
                                             }
                                         }
 
-                                        // CRITICAL FIX: Update colonization data OUTSIDE of batch system to ensure immediate UI update
+                                        // Always disable batch mode for colonization update to ensure UI updates
                                         bool wasBatchMode2 = _isUpdating;
                                         if (wasBatchMode2)
                                         {
@@ -1899,15 +1899,15 @@ namespace EliteInfoPanel.Core
                                         // Add or update depot in dictionary
                                         _colonizationDepots[colonizationData.MarketID] = colonizationData;
 
-                                        // Set as selected if none selected or this is the only one
-                                        if (!_selectedDepotMarketId.HasValue || _colonizationDepots.Count == 1)
+                                        // Always update selected depot if none or if this is the selected one
+                                        if (!_selectedDepotMarketId.HasValue || _selectedDepotMarketId.Value == colonizationData.MarketID)
                                         {
                                             _selectedDepotMarketId = colonizationData.MarketID;
+                                            OnPropertyChanged(nameof(SelectedColonizationDepot));
                                         }
 
-                                        // Notify changes
+                                        // Always notify changes
                                         OnPropertyChanged(nameof(ColonizationDepots));
-                                        OnPropertyChanged(nameof(SelectedColonizationDepot));
 
                                         if (wasBatchMode2)
                                         {
@@ -2124,10 +2124,8 @@ namespace EliteInfoPanel.Core
                             _carrierCargo.Remove(itemName);
                             Log.Debug("Removed {Item} from carrier cargo tracking dictionary", itemName);
                         }
-
                         var itemToRemove = _currentCarrierCargo.FirstOrDefault(i =>
                             string.Equals(i.Name, itemName, StringComparison.OrdinalIgnoreCase));
-
                         if (itemToRemove != null)
                         {
                             _currentCarrierCargo.Remove(itemToRemove);
@@ -2139,7 +2137,6 @@ namespace EliteInfoPanel.Core
                     if (isManualChange)
                     {
                         var originalGameValue = GetOriginalGameValueForItem(itemName);
-
                         _manualCarrierCargoChanges[itemName] = new ManualCargoChange
                         {
                             ItemName = itemName,
@@ -2148,7 +2145,6 @@ namespace EliteInfoPanel.Core
                             LastModified = DateTime.UtcNow,
                             IsActive = true
                         };
-
                         SaveManualCarrierCargoChanges();
                         Log.Information("Saved manual change: {Item} {Original} → {Manual}",
                             itemName, originalGameValue, quantity);
@@ -2163,7 +2159,6 @@ namespace EliteInfoPanel.Core
                             {
                                 Log.Information("Preserving manual change for {Item}: keeping {Manual} instead of game value {Game}",
                                     itemName, manualChange.ManualQuantity, quantity);
-
                                 // Update the original game quantity but keep the manual override
                                 manualChange.OriginalGameQuantity = quantity;
                                 _carrierCargo[itemName] = manualChange.ManualQuantity;
@@ -2180,6 +2175,9 @@ namespace EliteInfoPanel.Core
                         }
                     }
 
+                    // After any change, re-initialize the tracker from the updated _carrierCargo
+                    _carrierCargoTracker.Initialize(_carrierCargo);
+
                     UpdateCurrentCarrierCargoFromDictionary();
                     SaveCarrierCargoToDisk();
                 }
@@ -2188,6 +2186,37 @@ namespace EliteInfoPanel.Core
                     itemName, oldValue, quantity, isManualChange);
             }
         }
+
+        // Only one SynchronizeCarrierCargoState method should exist
+        public void SynchronizeCarrierCargoState()
+        {
+            try
+            {
+                Log.Information("🔄 Synchronizing carrier cargo state between GameState and CarrierCargoTracker");
+                using (BeginUpdate())
+                {
+                    // Merge manual changes into a new dictionary
+                    var merged = new Dictionary<string, int>(_carrierCargoTracker.Cargo, StringComparer.OrdinalIgnoreCase);
+                    foreach (var kvp in _manualCarrierCargoChanges)
+                    {
+                        if (kvp.Value.IsActive && DateTime.UtcNow - kvp.Value.LastModified < TimeSpan.FromMinutes(30))
+                        {
+                            merged[kvp.Key] = kvp.Value.ManualQuantity;
+                        }
+                    }
+                    _carrierCargo = merged;
+                    _carrierCargoTracker.Initialize(_carrierCargo);
+                    UpdateCurrentCarrierCargoFromDictionary();
+                    SaveCarrierCargoToDisk();
+                }
+                Log.Information("✅ Carrier cargo state synchronized: {Count} items", _carrierCargo.Count);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error synchronizing carrier cargo state");
+            }
+        }
+
         /// <summary>
         /// Gets the original game quantity for an item before manual changes
         /// </summary>
@@ -2202,30 +2231,6 @@ namespace EliteInfoPanel.Core
             // Otherwise, the current value IS the original game value
             return _carrierCargo.TryGetValue(itemName, out int currentValue) ? currentValue : 0;
         }
-        /// <summary>
-        /// Synchronizes GameState cargo with CarrierCargoTracker to ensure consistency
-        /// </summary>
-        public void SynchronizeCarrierCargoState()
-        {
-            try
-            {
-                Log.Information("🔄 Synchronizing carrier cargo state between GameState and CarrierCargoTracker");
-
-                using (BeginUpdate())
-                {
-                    _carrierCargo = new Dictionary<string, int>(_carrierCargoTracker.Cargo);
-                    UpdateCurrentCarrierCargoFromDictionary();
-                    SaveCarrierCargoToDisk();
-                }
-
-                Log.Information("✅ Carrier cargo state synchronized: {Count} items", _carrierCargo.Count);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error synchronizing carrier cargo state");
-            }
-        }
-
         /// <summary>
         /// Cleans up duplicate cargo entries caused by case sensitivity issues
         /// </summary>
@@ -2748,6 +2753,7 @@ namespace EliteInfoPanel.Core
                 string filePath = Path.Combine(devPath, file);
                 if (!File.Exists(filePath))
                 {
+
                     // Create an empty file with minimal valid JSON structure
                     File.WriteAllText(filePath, "{}");
                     Log.Information("Created empty development file: {File}", filePath);
