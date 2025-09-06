@@ -12,7 +12,12 @@ using WpfScreenHelper;
 
 namespace EliteInfoPanel.ViewModels
 {
-  
+    public class LogLevelOption
+    {
+        public LogLevel Value { get; set; }
+        public string Description { get; set; }
+    }
+
     public class QosLevelOption
     {
         #region Public Properties
@@ -62,6 +67,14 @@ namespace EliteInfoPanel.ViewModels
             TestMqttConnectionCommand = new RelayCommand(async _ => await TestMqttConnection());
             // Add more dynamically if needed
 
+            // Initialize log level options
+            LogLevelOptions = new List<LogLevelOption>
+            {
+                new LogLevelOption { Value = LogLevel.Information, Description = "Information" },
+                new LogLevelOption { Value = LogLevel.Debug, Description = "Debug" },
+                new LogLevelOption { Value = LogLevel.Error, Description = "Error" },
+                new LogLevelOption { Value = LogLevel.Fatal, Description = "Fatal" }
+            };
         }
 
         #endregion Public Constructors
@@ -511,6 +524,21 @@ namespace EliteInfoPanel.ViewModels
             }
         }
 
+        public List<LogLevelOption> LogLevelOptions { get; set; }
+
+        public LogLevel LogLevel
+        {
+            get => _appSettings.LogLevel;
+            set
+            {
+                if (_appSettings.LogLevel != value)
+                {
+                    _appSettings.LogLevel = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         #endregion Public Properties
 
         #region Public Methods
@@ -689,4 +717,4 @@ namespace EliteInfoPanel.ViewModels
         #endregion Private Methods
 
     }
-} 
+}

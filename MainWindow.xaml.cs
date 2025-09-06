@@ -11,7 +11,7 @@ using System.Formats.Asn1;
 using System.Linq;
 using System.Reflection;
 using System.Windows;
-using System.Windows;
+
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -42,8 +42,10 @@ namespace EliteInfoPanel
         public MainWindow()
         {
             InitializeComponent();
+            // Load settings FIRST
+            _appSettings = SettingsManager.Load();
             // Configure logging
-            LoggingConfig.Configure(enableDebugLogging: true);
+            LoggingConfig.Configure(_appSettings.LogLevel);
             Log.Information("MainWindow: Getting EliteThemeManager instance...");
             var eliteTheme = EliteThemeManager.Instance;
             eliteTheme.ColorsChanged += (colors) =>
@@ -63,9 +65,6 @@ namespace EliteInfoPanel
             //============================================================
 
             
-
-            // Load settings
-            _appSettings = SettingsManager.Load();
 
             // Initialize default font scales if needed
             if (_appSettings.FullscreenFontScale <= 0)

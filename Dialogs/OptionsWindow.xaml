@@ -226,6 +226,19 @@
                                 </StackPanel>
                             </GroupBox>
 
+                            <!-- Logging Settings -->
+                            <GroupBox Header="Logging" Margin="0,0,0,12" Style="{StaticResource EliteGroupBox}">
+                                <StackPanel>
+                                    <TextBlock Text="Log Level:" Margin="0,0,0,5"/>
+                                    <ComboBox x:Name="LogLevelComboBox"
+                                              SelectedValue="{Binding LogLevel, Mode=TwoWay}"
+                                              SelectedValuePath="Value"
+                                              DisplayMemberPath="Description"
+                                              ItemsSource="{Binding LogLevelOptions}"
+                                              Width="180"/>
+                                </StackPanel>
+                            </GroupBox>
+
                             <!-- Change Display Button -->
                             <StackPanel Orientation="Horizontal"
                            HorizontalAlignment="Right"

@@ -361,8 +361,7 @@ namespace EliteInfoPanel.Core
             get => _fleetCarrierJumpInProgress;
             private set
             {
-                Log.Information("📡 FleetCarrierJumpInProgress changed to {0} - Stack trace: {1}",
-                    value, Environment.StackTrace);
+                Log.Information("📡 FleetCarrierJumpInProgress changed to {0}", value);
                 if (SetProperty(ref _fleetCarrierJumpInProgress, value))
                 {
                     OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // notify
@@ -1254,13 +1253,13 @@ namespace EliteInfoPanel.Core
                                     if (root.TryGetProperty("ShipName", out var shipNameProperty))
                                     {
                                         UserShipName = shipNameProperty.GetString();
-                                        Log.Debug("Loaded ShipName during LoadGame: {ShipName}", UserShipName);
+                                        Log.Debug("Load ed ShipName during LoadGame: {ShipName}", UserShipName);
                                     }
 
                                     if (root.TryGetProperty("ShipIdent", out var shipIdentProperty))
                                     {
                                         UserShipId = shipIdentProperty.GetString();
-                                        Log.Debug("Loaded ShipIdent during LoadGame: {ShipIdent}", UserShipId);
+                                        Log.Debug("Load ed ShipIdent during LoadGame: {ShipIdent}", UserShipId);
                                     }
                                     break;
 
@@ -2673,7 +2672,35 @@ namespace EliteInfoPanel.Core
                 return false;
 
             storage = value;
-            Log.Debug("🚨 SetProperty fired for: {Property}", propertyName); // 👈 TEMP LOG
+
+            if (propertyName == nameof(CurrentStatus) && value is StatusJson status)
+            {
+                var activeFlags = Enum.GetValues(typeof(Flag))
+                    .Cast<Flag>()
+                    .Where(f => f != Flag.None && status.Flags.HasFlag(f))
+                    .Select(f => f.ToString())
+                    .ToList();
+                Log.Information("Status changed: Flags={Flags}, Raw=0x{Raw:X8}", string.Join(", ", activeFlags), (uint)status.Flags);
+            }
+            else if (propertyName == nameof(CarrierCargo) && value is Dictionary<string, int> cargo)
+            {
+                foreach (var item in cargo)
+                    Log.Information("Carrier cargo changed: {Item} = {Quantity}", item.Key, item.Value);
+            }
+            else if (propertyName == nameof(StatusJson.Flags) || propertyName == "Flags")
+            {
+                var flagsValue = value is Flag flag ? flag : default;
+                var activeFlags = Enum.GetValues(typeof(Flag))
+                    .Cast<Flag>()
+                    .Where(f => f != Flag.None && flagsValue.HasFlag(f))
+                    .Select(f => f.ToString())
+                    .ToList();
+                Log.Information("Flags changed: {Flags}, Raw=0x{Raw:X8}", string.Join(", ", activeFlags), (uint)flagsValue);
+            }
+            else
+            {
+                Log.Debug("🚨 SetProperty fired for: {Property}", propertyName);
+            }
 
             OnPropertyChanged(propertyName);
             return true;
