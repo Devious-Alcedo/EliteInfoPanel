@@ -21,6 +21,7 @@ namespace EliteInfoPanel.ViewModels
         #region Private Fields
         private readonly GameStateService _gameState;
         private System.Timers.Timer _carrierCountdownTimer;
+        private DispatcherTimer _jumpCountdownPollTimer;
         private SummaryItemViewModel _carrierCountdownItem;
         private string _fuelPanelTitle;
         private bool _showFuelBar;
@@ -94,19 +95,22 @@ namespace EliteInfoPanel.ViewModels
             // Subscribe to property changes on the game state
             _gameState.PropertyChanged += GameState_PropertyChanged;
 
-            // Removing LoadoutUpdated subscription for now
-            // _gameState.LoadoutUpdated += OnLoadoutUpdated;
-
             // Force immediate initialization
             InitializeAllItems();
 
+            // Ensure carrier countdown is checked on startup
+            UpdateCarrierCountdown();
+
             // Schedule a delayed second initialization attempt
             System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() => {
-                // Just call InitializeAllItems directly
                 InitializeAllItems();
-               
+                UpdateCarrierCountdown();
             }), System.Windows.Threading.DispatcherPriority.Background);
 
+            // Start polling for JumpCountdown changes in case property change is missed
+            _jumpCountdownPollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _jumpCountdownPollTimer.Tick += (s, e) => UpdateCarrierCountdown();
+            _jumpCountdownPollTimer.Start();
         }
 
         #endregion
@@ -261,6 +265,7 @@ namespace EliteInfoPanel.ViewModels
                     break;
                 case nameof(GameStateService.FleetCarrierJumpTime):
                 case nameof(GameStateService.CarrierJumpDestinationSystem):
+                case nameof(GameStateService.JumpCountdown):
                     UpdateCarrierCountdown();
                     break;
             }
@@ -287,18 +292,9 @@ namespace EliteInfoPanel.ViewModels
                     UpdateBalanceItem();
                     UpdateSystemItem();
                     UpdateFuelInfo();
-                   
 
-                    // Special case for carrier countdown - preserve state
-                    if (wasJumpInProgress)
-                    {
-                        // Use existing state without modifying it
-                        UpdateCarrierCountdown(preserveState: true);
-                    }
-                    else
-                    {
-                        UpdateCarrierCountdown();
-                    }
+                    // Always call UpdateCarrierCountdown to ensure timer appears if needed
+                    UpdateCarrierCountdown();
                 });
             }
             catch (Exception ex)
@@ -603,27 +599,37 @@ namespace EliteInfoPanel.ViewModels
         {
             try
             {
-                Log.Information("🔄 UpdateCarrierCountdown called, preserveState={PreserveState}", preserveState);
-                Log.Information("   - JumpCountdown: {JumpCountdown}", _gameState.JumpCountdown);
+#if dev
+                // Add comprehensive debug logging
+                Log.Information("🔍 UpdateCarrierCountdown called - PreserveState: {PreserveState}", preserveState);
+                Log.Information("   - JumpCountdown: {JumpCountdown} ({Seconds}s)", _gameState.JumpCountdown, _gameState.JumpCountdown?.TotalSeconds ?? 0);
                 Log.Information("   - Destination: {Destination}", _gameState.CarrierJumpDestinationSystem);
+                Log.Information("   - FleetCarrierJumpTime: {JumpTime}", _gameState.FleetCarrierJumpTime);
                 Log.Information("   - Timer exists: {TimerExists}", _carrierCountdownTimer != null);
                 Log.Information("   - Item exists: {ItemExists}", _carrierCountdownItem != null);
-                
+#endif
                 // Skip state changes if preserveState is true and a countdown is already active
                 if (preserveState && _carrierCountdownItem != null && Items.Contains(_carrierCountdownItem))
                 {
+#if dev
                     Log.Information("🛑 Preserving existing carrier countdown state");
+#endif
                     return;
                 }
 
                 if (_gameState.JumpCountdown is TimeSpan countdown && countdown.TotalSeconds > 0)
                 {
-                    Log.Information("✅ Starting countdown with {Seconds} seconds remaining", countdown.TotalSeconds);
+#if dev
+                    Log.Information("✅ Starting carrier countdown - {Seconds}s remaining to {Destination}", 
+                        countdown.TotalSeconds, _gameState.CarrierJumpDestinationSystem);
+#endif
                     StartCarrierCountdown(countdown, _gameState.CarrierJumpDestinationSystem);
                 }
                 else
                 {
-                    Log.Information("❌ Stopping countdown - no valid countdown time");
+#if dev
+                    Log.Information("❌ Stopping carrier countdown - JumpCountdown is null or <= 0");
+#endif
                     StopCarrierCountdown();
                 }
             }
@@ -635,7 +641,9 @@ namespace EliteInfoPanel.ViewModels
 
         private void StopCarrierCountdown()
         {
+#if dev
             Log.Debug("🛑 Stopping CarrierCountdown");
+#endif
             _carrierCountdownTimer?.Stop();
             _carrierCountdownTimer = null;
 
@@ -648,12 +656,15 @@ namespace EliteInfoPanel.ViewModels
 
         private void StartCarrierCountdown(TimeSpan initialCountdown, string destination)
         {
+#if dev
             Log.Information("🚀 StartCarrierCountdown called with {InitialTime} to {Destination}", initialCountdown, destination);
-            
+#endif
             // Stop any existing timer first
             if (_carrierCountdownTimer != null)
             {
+#if dev
                 Log.Debug("⏹️ Stopping existing timer before starting new one");
+#endif
                 _carrierCountdownTimer.Stop();
                 _carrierCountdownTimer.Dispose();
                 _carrierCountdownTimer = null;
@@ -673,7 +684,9 @@ namespace EliteInfoPanel.ViewModels
                 };
 
                 Items.Add(_carrierCountdownItem);
+#if dev
                 Log.Debug("➕ Added CarrierJumpCountdown to Items.");
+#endif
             }
             else
             {
@@ -686,8 +699,9 @@ namespace EliteInfoPanel.ViewModels
                     _carrierCountdownItem.Foreground = Brushes.Gold;
                     _carrierCountdownItem.Pulse = false;
                 }
-
+#if dev
                 Log.Debug("🔁 Reusing existing CarrierJumpCountdown item.");
+#endif
             }
 
             if (Items.IndexOf(_carrierCountdownItem) != Items.Count - 1)
@@ -696,16 +710,18 @@ namespace EliteInfoPanel.ViewModels
                 Items.Add(_carrierCountdownItem);
             }
 
+#if dev
             Log.Information("🚀 CarrierJumpCountdown item initialized");
             Log.Information("   - Content: {Content}", _carrierCountdownItem.Content);
             Log.Information("   - Foreground: {Foreground}", _carrierCountdownItem.Foreground.ToString());
             Log.Information("   - Pulse: {Pulse}", _carrierCountdownItem.Pulse);
             Log.Information("   - Items count: {Count}", Items.Count);
-
+#endif
             // Use UTC time for robust countdown calculation
             var targetTime = DateTime.UtcNow.Add(initialCountdown);
+#if dev
             Log.Information("🎯 Target time: {TargetTime}, Current time: {CurrentTime}", targetTime, DateTime.UtcNow);
-
+#endif
             _carrierCountdownTimer = new System.Timers.Timer(1000);
             _carrierCountdownTimer.AutoReset = true;
 
@@ -713,14 +729,18 @@ namespace EliteInfoPanel.ViewModels
             {
                 try
                 {
-                    var now = DateTime.Now;
+                    // Use UTC for both target and now
+                    var now = DateTime.UtcNow;
                     var remaining = targetTime - now;
+#if dev
                     Log.Debug("⏰ Timer tick: Target={TargetTime}, Now={Now}, Remaining={Remaining}", 
                         targetTime.ToString("HH:mm:ss.fff"), now.ToString("HH:mm:ss.fff"), remaining.ToString(@"mm\:ss"));
-
+#endif
                     if (remaining <= TimeSpan.Zero)
                     {
+#if dev
                         Log.Information("⏰ Countdown reached zero! Stopping timer.");
+#endif
                         _carrierCountdownTimer.Stop();
                         _carrierCountdownTimer.Dispose();
                         _carrierCountdownTimer = null;
@@ -728,33 +748,11 @@ namespace EliteInfoPanel.ViewModels
                         Application.Current.Dispatcher.Invoke(() =>
                         {
                             StopCarrierCountdown();
+#if dev
                             Log.Information("Carrier jump countdown reached zero — notifying GameStateService");
-
-                            // Force a property change notification on CarrierJumpCountdownSeconds
-                            OnPropertyChanged(nameof(_gameState.CarrierJumpCountdownSeconds));
-                            OnPropertyChanged(nameof(_gameState.ShowCarrierJumpOverlay));
-
-                            var status = _gameState.CurrentStatus;
-                            var station = _gameState.CurrentStationName;
-                            var carrierDest = _gameState.CarrierJumpDestinationSystem;
-
-                            if (status?.Flags.HasFlag(Flag.Docked) == true &&
-                                !string.IsNullOrEmpty(station) &&
-                                !string.IsNullOrEmpty(carrierDest) &&
-                                _gameState.IsOnFleetCarrier)
-                            {
-                                Log.Information("✅ Conditions met for carrier jump overlay");
-
-                                // Explicitly set properties to ensure overlay shows
-                                _gameState.GetType()
-                                    .GetProperty("CarrierJumpCountdownSeconds", BindingFlags.NonPublic | BindingFlags.Instance)
-                                    ?.SetValue(_gameState, 0);
-
-                                // Notify that ShowCarrierJumpOverlay may have changed
-                                _gameState.GetType()
-                                    .GetMethod("OnPropertyChanged", BindingFlags.NonPublic | BindingFlags.Instance)
-                                    ?.Invoke(_gameState, new object[] { nameof(_gameState.ShowCarrierJumpOverlay) });
-                            }
+#endif
+                            // Notify GameStateService to update overlay state
+                            _gameState.NotifyCarrierJumpCountdownReachedZero();
                         });
                     }
                     else
@@ -765,18 +763,24 @@ namespace EliteInfoPanel.ViewModels
                             // 🛑 Skip if destination is gone (likely jump has completed)
                             if (_gameState.CarrierJumpDestinationSystem == null)
                             {
+#if dev
                                 Log.Warning("🛑 Destination is null, skipping UI update");
+#endif
                                 return;
                             }
 
                             if (_carrierCountdownItem == null)
                             {
+#if dev
                                 Log.Warning("🛑 Countdown item is null, skipping UI update");
+#endif
                                 return;
                             }
 
                             var newContent = FormatCountdownText(remaining, _gameState.CarrierJumpDestinationSystem);
+#if dev
                             Log.Debug("🔄 Updating countdown display: {NewContent}", newContent);
+#endif
                             _carrierCountdownItem.Content = newContent;
 
                             if (remaining.TotalMinutes <= 3.0)
@@ -813,8 +817,10 @@ namespace EliteInfoPanel.ViewModels
             };
 
             _carrierCountdownTimer.Start();
+#if dev
             Log.Information("⏰ 🏁 Carrier countdown timer STARTED! Interval=1000ms, AutoReset=true");
             Log.Information("📅 Will count down from {InitialTime} until {TargetTime}", initialCountdown, targetTime);
+#endif
         }
 
         private bool UpdateFuelInfo()

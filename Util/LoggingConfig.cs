@@ -14,21 +14,29 @@ namespace EliteInfoPanel.Util
         #region Public Fields
 
         public static string? logFileFullPath;
+        private static LogLevel _currentLevel = LogLevel.Information;
 
         #endregion Public Fields
 
         #region Public Methods
 
-        public static void Configure(bool enableDebugLogging = false)
+        public static void Configure(LogLevel logLevel)
         {
+            _currentLevel = logLevel;
             var filePathHook = new CaptureFilePathHook();
             string appDataFolder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             string folderPath = Path.Combine(appDataFolder, "EliteInfoPanel");
             var logFilePath = Path.Combine(folderPath, "EliteInfoPanel_Log.log");
 
-            var level = enableDebugLogging
-                ? Serilog.Events.LogEventLevel.Debug
-                : Serilog.Events.LogEventLevel.Information;
+            var level = logLevel switch
+            {
+                LogLevel.Debug => Serilog.Events.LogEventLevel.Debug,
+                LogLevel.Information => Serilog.Events.LogEventLevel.Information,
+                LogLevel.Warning => Serilog.Events.LogEventLevel.Warning,
+                LogLevel.Error => Serilog.Events.LogEventLevel.Error,
+                LogLevel.Fatal => Serilog.Events.LogEventLevel.Fatal,
+                _ => Serilog.Events.LogEventLevel.Information
+            };
 
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Is(level)
@@ -42,10 +50,16 @@ namespace EliteInfoPanel.Util
                               rollOnFileSizeLimit: true)
                 .CreateLogger();
 
-            Log.Information("Logger Created (Debug={DebugEnabled})", enableDebugLogging);
             logFileFullPath = filePathHook.Path;
         }
 
+        public static void ReloadLogLevel(LogLevel logLevel)
+        {
+            if (logLevel != _currentLevel)
+            {
+                Configure(logLevel);
+            }
+        }
 
 
         #endregion Public Methods

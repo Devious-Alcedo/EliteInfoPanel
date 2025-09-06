@@ -116,7 +116,9 @@ public class EliteHudColorExtractor
             HudSuccess = ApplyMatrix(matrix, new Color { R = 0, G = 255, B = 0 })
         };
 
+#if dev
         LogCalculatedColors(colors);
+#endif
         return colors;
     }
 
@@ -157,12 +159,14 @@ public class EliteHudColorExtractor
     private void LogCalculatedColors(EliteHudColors colors)
     {
         Log.Information("EliteHudColorExtractor: Calculated colors:");
+#if dev
         Log.Information("  HudMain: {Color} (#{Hex})", colors.HudMain, ColorToHex(colors.HudMain));
         Log.Information("  HudSecondary: {Color} (#{Hex})", colors.HudSecondary, ColorToHex(colors.HudSecondary));
         Log.Information("  HudText: {Color} (#{Hex})", colors.HudText, ColorToHex(colors.HudText));
         Log.Information("  HudBackground: {Color} (#{Hex})", colors.HudBackground, ColorToHex(colors.HudBackground));
         Log.Information("  HudWarning: {Color} (#{Hex})", colors.HudWarning, ColorToHex(colors.HudWarning));
         Log.Information("  HudSuccess: {Color} (#{Hex})", colors.HudSuccess, ColorToHex(colors.HudSuccess));
+#endif
     }
 
     private string ColorToHex(Color color)

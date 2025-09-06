@@ -4,6 +4,15 @@ using System.Windows;
 
 namespace EliteInfoPanel.Util
 {
+    public enum LogLevel
+    {
+        Debug,
+        Information,
+        Warning,
+        Error,
+        Fatal
+    }
+
     public class AppSettings
     {
         // MQTT Configuration
@@ -67,5 +76,6 @@ namespace EliteInfoPanel.Util
         public const double DEFAULT_FLOATING_BASE = 11.0;
         public const double DEFAULT_FLOATING_HEADER = 13.0;
         public const double DEFAULT_FLOATING_SMALL = 9.0;
+        public LogLevel LogLevel { get; set; } = LogLevel.Information;
     }
 }

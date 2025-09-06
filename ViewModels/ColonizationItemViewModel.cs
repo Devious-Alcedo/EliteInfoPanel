@@ -143,6 +143,9 @@ namespace EliteInfoPanel.ViewModels
 
         public int RemainingToAcquire => Math.Max(0, Remaining - TotalAvailableCargo);
 
+        // This shows the actual remaining amount to be delivered (only goes to 0 when complete)
+        public int RemainingToDeliver => Remaining;
+
         public bool HasSufficientCargo => TotalAvailableCargo >= Remaining;
         public string CargoStatusText
         {
@@ -161,7 +164,7 @@ namespace EliteInfoPanel.ViewModels
             }
 
         }
-        public long RemainingValue => (long)RemainingToAcquire * Payment;
+        public long RemainingValue => (long)RemainingToDeliver * Payment;
         public void NotifyCargoChanged()
         {
             // Notify all cargo-related properties that they may have changed
@@ -169,6 +172,7 @@ namespace EliteInfoPanel.ViewModels
             OnPropertyChanged(nameof(CarrierCargoQuantity));
             OnPropertyChanged(nameof(TotalAvailableCargo));
             OnPropertyChanged(nameof(RemainingToAcquire));
+            OnPropertyChanged(nameof(RemainingToDeliver));
             OnPropertyChanged(nameof(HasSufficientCargo));
             OnPropertyChanged(nameof(CargoCompletionPercentage));
             OnPropertyChanged(nameof(EnhancedProgressColor));

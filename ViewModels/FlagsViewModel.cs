@@ -152,7 +152,9 @@ namespace EliteInfoPanel.ViewModels
                 e.PropertyName == nameof(GameStateService.IsHyperspaceJumping) ||
                 e.PropertyName == nameof(GameStateService.CurrentSystem))
             {
+#if dev
                 Log.Debug("FlagsViewModel: Detected change in {Property}", e.PropertyName);
+#endif
                 UpdateFlags();
             }
         }
@@ -169,11 +171,10 @@ namespace EliteInfoPanel.ViewModels
                     var settings = SettingsManager.Load();
                     var visibleFlags = settings.DisplayOptions.VisibleFlags;
 
-                    // Log the raw flags values for debugging
-                    uint currentStatusFlags = (uint)_gameState.CurrentStatus.Flags;
-                    int flags2Value = _gameState.CurrentStatus.Flags2;
+#if dev
                     Log.Debug("Updating flags - Raw Flags value: 0x{RawFlags:X8}, Flags2: {Flags2}",
                         currentStatusFlags, flags2Value);
+#endif
 
                     // Use default flags if none defined
                     if (visibleFlags == null || visibleFlags.Count == 0)
@@ -217,13 +218,14 @@ namespace EliteInfoPanel.ViewModels
                         }
                     }
 
-                    // Log active flags for debugging
+#if dev
                     Log.Debug("Current active flags: {ActiveFlags}",
                         string.Join(", ", activeFlags.Select(f => f.ToString())));
                     Log.Debug("Current active Flags2: {ActiveFlags2}",
                         string.Join(", ", activeFlags2.Select(f => f.ToString())));
                     Log.Debug("Visible flags set in settings: {VisibleFlags}",
                         string.Join(", ", visibleFlags.Select(f => f.ToString())));
+#endif
 
                     // Clear items and rebuild
                     Items.Clear();

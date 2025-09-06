@@ -70,6 +70,16 @@ namespace EliteInfoPanel.Dialogs
             _viewModel.IsFloatingWindowMode = settings.UseFloatingWindow;
             DataContext = _viewModel;
 
+            // Add log level options to viewmodel
+            _viewModel.LogLevelOptions = new List<LogLevelOption>
+            {
+                new LogLevelOption { Value = LogLevel.Debug, Description = "Debug" },
+                new LogLevelOption { Value = LogLevel.Information, Description = "Information" },
+                new LogLevelOption { Value = LogLevel.Warning, Description = "Warning" },
+                new LogLevelOption { Value = LogLevel.Error, Description = "Error" },
+                new LogLevelOption { Value = LogLevel.Fatal, Description = "Fatal" }
+            };
+
             // Connect commands
             _viewModel.SaveCommand = new RelayCommand(_ =>
             {
@@ -78,21 +88,18 @@ namespace EliteInfoPanel.Dialogs
                 bool fontScaleChanged = (settings.FloatingFontScale != _originalFloatingScale) ||
                                         (settings.FullscreenFontScale != _originalFullscreenScale);
 
-                // Update the actual setting before saving
                 settings.UseFloatingWindow = _viewModel.IsFloatingWindowMode;
 
-                // Update the flags from our orderable control
                 if (_flagsControl != null)
                 {
                     settings.DisplayOptions.VisibleFlags = _flagsControl.GetSelectedFlags();
                     Log.Debug("Saving ordered flags: {FlagCount} flags", settings.DisplayOptions.VisibleFlags.Count);
                 }
 
-                // Save the settings
                 _viewModel.SaveSettings();
 
                 // Refresh MQTT settings if they changed
-                Task.Run(async () =>
+                Application.Current.Dispatcher.InvokeAsync(async () =>
                 {
                     try
                     {
@@ -121,7 +128,6 @@ namespace EliteInfoPanel.Dialogs
                     FontSizeChanged?.Invoke();
                 }
 
-                // Always notify about card visibility changes
                 if (Application.Current.MainWindow?.DataContext is MainViewModel mainViewModel2)
                 {
                     Log.Information("Refreshing card visibility based on new settings");
