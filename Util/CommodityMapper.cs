@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Serilog;
 
 namespace EliteInfoPanel.Util
 {
@@ -19,10 +20,12 @@ namespace EliteInfoPanel.Util
             {
                 var json = File.ReadAllText(path);
                 map = JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new();
+                Log.Information("CommodityMapper loaded {Count} mappings from {Path}", map.Count, path);
             }
             else
             {
                 map = new();
+                Log.Warning("CommodityMapper: mapping file not found at {Path}", path);
             }
         }
 
@@ -35,7 +38,17 @@ namespace EliteInfoPanel.Util
             var match = map.FirstOrDefault(kvp =>
                 kvp.Key.Equals(internalName, StringComparison.OrdinalIgnoreCase));
 
-            return string.IsNullOrEmpty(match.Key) ? internalName : match.Value;
+            string result = string.IsNullOrEmpty(match.Key) ? internalName : match.Value;
+            
+            // Debug logging for specific commodities we're having trouble with
+            if (internalName.Contains("water", StringComparison.OrdinalIgnoreCase) ||
+                internalName.Contains("oxygen", StringComparison.OrdinalIgnoreCase))
+            {
+                Log.Debug("CommodityMapper: '{InternalName}' → '{DisplayName}' (found match: {HasMatch})",
+                    internalName, result, !string.IsNullOrEmpty(match.Key));
+            }
+            
+            return result;
         }
     }
 

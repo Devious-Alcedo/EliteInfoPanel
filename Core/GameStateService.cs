@@ -1601,9 +1601,9 @@ namespace EliteInfoPanel.Core
                                     }
 
                                     Log.Information("Processing CargoTransfer event using CarrierCargoTracker");
+                                    Log.Information("Raw CargoTransfer event: {Event}", line);
 
-                                    // CRITICAL: Update ship cargo FIRST to maintain consistency
-                                    UpdateShipCargoFromTransfers(root);
+                                    // Ship cargo will be updated by Cargo.json file watcher
 
                                     // Use the CarrierCargoTracker for consistent processing
                                     _carrierCargoTracker.Process(root);

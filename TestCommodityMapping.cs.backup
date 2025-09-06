@@ -1,0 +1,32 @@
+using EliteInfoPanel.Util;
+using Serilog;
+using System;
+
+namespace EliteInfoPanel
+{
+    public static class TestCommodityMapping
+    {
+        public static void TestMappings()
+        {
+            Console.WriteLine("Testing CommodityMapper mappings...");
+
+            // Test the specific commodities from the journal event
+            string waterResult = CommodityMapper.GetDisplayName("water");
+            string liquidOxygenResult = CommodityMapper.GetDisplayName("liquidoxygen");
+
+            Console.WriteLine($"'water' maps to: '{waterResult}'");
+            Console.WriteLine($"'liquidoxygen' maps to: '{liquidOxygenResult}'");
+
+            // Test with capital versions
+            string WaterResult = CommodityMapper.GetDisplayName("Water");
+            string LiquidOxygenResult = CommodityMapper.GetDisplayName("LiquidOxygen");
+
+            Console.WriteLine($"'Water' maps to: '{WaterResult}'");
+            Console.WriteLine($"'LiquidOxygen' maps to: '{LiquidOxygenResult}'");
+
+            // Test case insensitive behavior
+            string MixedCaseResult = CommodityMapper.GetDisplayName("WaTeR");
+            Console.WriteLine($"'WaTeR' maps to: '{MixedCaseResult}'");
+        }
+    }
+}
