@@ -653,6 +653,51 @@ namespace EliteInfoPanel.Core
             }
         }
 
+        public void SyncCarrierCargoState()
+        {
+            try
+            {
+                Log.Information("🔄 Synchronizing carrier cargo state between GameState and Tracker");
+                
+                // Normalize keys in the tracker
+                _carrierCargoTracker.NormalizeCargoKeys();
+                
+                // Update our cargo dictionary from the normalized tracker
+                var normalizedCargo = new Dictionary<string, int>(_carrierCargoTracker.Cargo, StringComparer.OrdinalIgnoreCase);
+                
+                // Merge with any existing cargo we have
+                foreach (var item in _carrierCargo)
+                {
+                    string displayName = CommodityMapper.GetDisplayName(item.Key);
+                    if (!normalizedCargo.ContainsKey(displayName))
+                    {
+                        normalizedCargo[displayName] = item.Value;
+                        Log.Information("  Added missing item from GameState: {Name}: {Qty}", displayName, item.Value);
+                    }
+                }
+                
+                _carrierCargo = normalizedCargo;
+                
+                // Reinitialize the tracker with the synchronized state
+                _carrierCargoTracker.Initialize(_carrierCargo);
+                
+                // Update UI
+                UpdateCurrentCarrierCargoFromDictionary();
+                
+                Log.Information("✅ Carrier cargo synchronized: {Count} items", _carrierCargo.Count);
+                
+                // Log current state for debugging
+                foreach (var item in _carrierCargo.Take(10))
+                {
+                    Log.Information("  Synced: {Name}: {Quantity}", item.Key, item.Value);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error synchronizing carrier cargo state");
+            }
+        }
+
         public void DebugCargoTransferState()
         {
             try
@@ -1501,10 +1546,30 @@ namespace EliteInfoPanel.Core
 
                                 case "CargoDepot":
                                 case "CarrierTradeOrder":
-                                    if (!_cargoTrackingInitialized)
+                                    // Only skip if truly during initial load AND the event is old
+                                    if (!_cargoTrackingInitialized && isInitialScan)
                                     {
-                                        Log.Debug("Skipping historical cargo event {EventType} during initialization", eventType);
-                                        continue;
+                                        // Check if this event has a timestamp and if it's from today
+                                        if (root.TryGetProperty("timestamp", out var timestampProp) &&
+                                            DateTime.TryParse(timestampProp.GetString(), out var eventTime))
+                                        {
+                                            // If the event is from today, process it even during initialization
+                                            if (eventTime.Date == DateTime.UtcNow.Date)
+                                            {
+                                                Log.Information("Processing today's {EventType} event during initialization", eventType);
+                                                // Fall through to process the event
+                                            }
+                                            else
+                                            {
+                                                Log.Debug("Skipping old {EventType} event from {Date} during initialization", eventType, eventTime.Date);
+                                                continue;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            Log.Debug("Skipping historical cargo event {EventType} during initialization (no timestamp)", eventType);
+                                            continue;
+                                        }
                                     }
 
                                     Log.Information("Processing {EventType} cargo event using CarrierCargoTracker", eventType);
@@ -1525,10 +1590,23 @@ namespace EliteInfoPanel.Core
                                     break;
 
                                 case "MarketBuy":
-                                    if (!_cargoTrackingInitialized)
+                                    // Check if we should skip this event
+                                    if (!_cargoTrackingInitialized && isInitialScan)
                                     {
-                                        Log.Debug("Skipping historical cargo event {EventType} during initialization", eventType);
-                                        continue;
+                                        if (root.TryGetProperty("timestamp", out var timestampProp) &&
+                                            DateTime.TryParse(timestampProp.GetString(), out var eventTime))
+                                        {
+                                            if (eventTime.Date != DateTime.UtcNow.Date)
+                                            {
+                                                Log.Debug("Skipping old MarketBuy event from {Date} during initialization", eventTime.Date);
+                                                continue;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            Log.Debug("Skipping historical MarketBuy event during initialization (no timestamp)");
+                                            continue;
+                                        }
                                     }
                                     // Only process if buying FROM carrier
                                     if (root.TryGetProperty("BuyFromFleetCarrier", out var boughtFromCarrierProp) && boughtFromCarrierProp.GetBoolean())
@@ -1552,10 +1630,23 @@ namespace EliteInfoPanel.Core
                                     break;
 
                                 case "MarketSell":
-                                    if (!_cargoTrackingInitialized)
+                                    // Check if we should skip this event
+                                    if (!_cargoTrackingInitialized && isInitialScan)
                                     {
-                                        Log.Debug("Skipping historical cargo event {EventType} during initialization", eventType);
-                                        continue;
+                                        if (root.TryGetProperty("timestamp", out var timestampProp) &&
+                                            DateTime.TryParse(timestampProp.GetString(), out var eventTime))
+                                        {
+                                            if (eventTime.Date != DateTime.UtcNow.Date)
+                                            {
+                                                Log.Debug("Skipping old MarketSell event from {Date} during initialization", eventTime.Date);
+                                                continue;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            Log.Debug("Skipping historical MarketSell event during initialization (no timestamp)");
+                                            continue;
+                                        }
                                     }
                                     // Only process if selling TO carrier
                                     if (root.TryGetProperty("SellToFleetCarrier", out var soldToCarrierProp) && soldToCarrierProp.GetBoolean())
@@ -1579,10 +1670,23 @@ namespace EliteInfoPanel.Core
                                     break;
 
                                 case "CargoTransfer":
-                                    if (!_cargoTrackingInitialized)
+                                    // Check if we should skip this event
+                                    if (!_cargoTrackingInitialized && isInitialScan)
                                     {
-                                        Log.Debug("Skipping historical cargo event {EventType} during initialization", eventType);
-                                        continue;
+                                        if (root.TryGetProperty("timestamp", out var timestampProp) &&
+                                            DateTime.TryParse(timestampProp.GetString(), out var eventTime))
+                                        {
+                                            if (eventTime.Date != DateTime.UtcNow.Date)
+                                            {
+                                                Log.Debug("Skipping old CargoTransfer event from {Date} during initialization", eventTime.Date);
+                                                continue;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            Log.Debug("Skipping historical CargoTransfer event during initialization (no timestamp)");
+                                            continue;
+                                        }
                                     }
 
                                     Log.Information("Processing CargoTransfer event using CarrierCargoTracker");
@@ -3062,6 +3166,11 @@ namespace EliteInfoPanel.Core
 
                 LoadRouteProgress();
                 LoadCarrierCargoFromDisk(); // ← Add this near LoadRouteProgress();
+                
+                // CRITICAL: Set cargo tracking as initialized BEFORE processing journal
+                // This allows current day's events to be processed during startup
+                _cargoTrackingInitialized = true;
+                Log.Information("✅ Cargo tracking initialized - ready to process journal events");
 
                 Task.Run(async () => await ProcessJournalAsync()).Wait();
                 if (CurrentColonization != null)
@@ -3087,6 +3196,11 @@ namespace EliteInfoPanel.Core
                 // Mark initialization as complete
                 _firstLoadCompleted = true;
                 Log.Information("✅ GameStateService: First load completed");
+                
+                // CRITICAL: Synchronize carrier cargo state after loading
+                // This ensures the tracker and gamestate cargo are aligned for the first transfers
+                SyncCarrierCargoState();
+                
                 // Check for stale carrier jump states
                 ResetFleetCarrierJumpState();
 
@@ -3102,8 +3216,7 @@ namespace EliteInfoPanel.Core
                 // --- END FIX ---
                 LoadCarrierCargoFromDisk();
                 LoadPersistedColonizationData();
-                // Set cargo tracking as initialized after loading saved data
-                _cargoTrackingInitialized = true;
+                // Note: cargo tracking was already initialized before journal processing
                 // Notify subscribers
                 FirstLoadCompletedEvent?.Invoke();
             }
