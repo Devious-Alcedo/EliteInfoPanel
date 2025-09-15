@@ -530,21 +530,7 @@ namespace EliteInfoPanel.Core
         {
             get
             {
-                bool onCarrier = IsOnFleetCarrier;
-                bool jumpInProgress = FleetCarrierJumpInProgress;
-                int countdown = CarrierJumpCountdownSeconds;
-                bool jumpArrived = JumpArrived;
-
-                bool shouldShow = onCarrier && jumpInProgress && countdown <= 0 && !jumpArrived;
-
-                // Only log when there's ACTUAL carrier jump activity (not just being on carrier)
-                if (jumpInProgress || (jumpArrived && CarrierJumpScheduledTime.HasValue))
-                {
-                    Log.Debug("🚀 ShowCarrierJumpOverlay: OnCarrier={OnCarrier}, JumpInProgress={InProgress}, Countdown={Countdown}, JumpArrived={Arrived} → {Result}",
-                        onCarrier, jumpInProgress, countdown, jumpArrived, shouldShow);
-                }
-
-                return shouldShow;
+                return IsOnFleetCarrier && FleetCarrierJumpInProgress && CarrierJumpCountdownSeconds <= 0 && !JumpArrived;
             }
         }
 
@@ -2324,7 +2310,7 @@ namespace EliteInfoPanel.Core
                     Log.Information("✅ Fixed {Item}: {OldQty} → {NewQty}", actualKey, oldQty, correctQuantity);
                 }
                 else
-                {
+ {
                     Log.Warning("❌ Could not find item '{Item}' in carrier cargo", itemName);
                     Log.Information("Available items: {Items}", string.Join(", ", _carrierCargo.Keys));
                 }
@@ -2896,6 +2882,7 @@ namespace EliteInfoPanel.Core
                 string internalName = typeProp.GetString();
                 int count = countProp.GetInt32();
                 string direction = directionProp.GetString();
+                string displayName = CommodityMapper.GetDisplayName(internalName);
 
                 if (string.IsNullOrWhiteSpace(internalName)) continue;
 
