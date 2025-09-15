@@ -40,9 +40,16 @@ namespace EliteInfoPanel.Util
 
             string result = string.IsNullOrEmpty(match.Key) ? internalName : match.Value;
             
+            // Log warning for unmapped commodities (excluding already known cases)
+            if (string.IsNullOrEmpty(match.Key) && !string.IsNullOrEmpty(internalName))
+            {
+                Log.Warning("CommodityMapper: No mapping found for '{InternalName}' - using as-is. Consider adding to commodity_mapping.json", internalName);
+            }
+            
             // Debug logging for specific commodities we're having trouble with
             if (internalName.Contains("water", StringComparison.OrdinalIgnoreCase) ||
-                internalName.Contains("oxygen", StringComparison.OrdinalIgnoreCase))
+                internalName.Contains("oxygen", StringComparison.OrdinalIgnoreCase) ||
+                internalName.Equals("steel", StringComparison.OrdinalIgnoreCase))
             {
                 Log.Debug("CommodityMapper: '{InternalName}' → '{DisplayName}' (found match: {HasMatch})",
                     internalName, result, !string.IsNullOrEmpty(match.Key));
