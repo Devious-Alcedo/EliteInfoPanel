@@ -1670,23 +1670,24 @@ namespace EliteInfoPanel.Core
                                     break;
 
                                 case "CargoTransfer":
-                                    // Check if we should skip this event
-                                    if (!_cargoTrackingInitialized && isInitialScan)
+                                    // Add debug logging for cargo transfer events
+                                    if (root.TryGetProperty("timestamp", out var cargoTimestamp))
                                     {
-                                        if (root.TryGetProperty("timestamp", out var timestampProp) &&
-                                            DateTime.TryParse(timestampProp.GetString(), out var eventTime))
-                                        {
-                                            if (eventTime.Date != DateTime.UtcNow.Date)
-                                            {
-                                                Log.Debug("Skipping old CargoTransfer event from {Date} during initialization", eventTime.Date);
-                                                continue;
-                                            }
-                                        }
-                                        else
-                                        {
-                                            Log.Debug("Skipping historical CargoTransfer event during initialization (no timestamp)");
-                                            continue;
-                                        }
+                                        Log.Information("📦 CargoTransfer event timestamp: {Timestamp}, _cargoTrackingInitialized: {Initialized}, isInitialScan: {IsInitial}", 
+                                            cargoTimestamp.GetString(), _cargoTrackingInitialized, isInitialScan);
+                                    }
+                                    
+                                    // Skip historical events during initial scan
+                                    if (isInitialScan)
+                                    {
+                                        Log.Debug("Skipping historical CargoTransfer event during initial journal scan");
+                                        continue;
+                                    }
+                                    
+                                    if (!_cargoTrackingInitialized)
+                                    {
+                                        Log.Debug("Skipping cargo event {EventType} - tracking not initialized", eventType);
+                                        continue;
                                     }
 
                                     Log.Information("Processing CargoTransfer event using CarrierCargoTracker");
@@ -3173,6 +3174,9 @@ namespace EliteInfoPanel.Core
                 Log.Information("✅ Cargo tracking initialized - ready to process journal events");
 
                 Task.Run(async () => await ProcessJournalAsync()).Wait();
+                
+                // Log cargo tracking state after journal processing
+                Log.Information("After journal processing: _cargoTrackingInitialized = {Initialized}", _cargoTrackingInitialized);
                 if (CurrentColonization != null)
                 {
                     Log.Information("Colonization data found during initial load: Progress={Progress:P2}, Resources={Count}",
@@ -3283,6 +3287,8 @@ namespace EliteInfoPanel.Core
         {
             try
             {
+                Log.Information("📦 LoadCarrierCargoFromDisk called, _cargoTrackingInitialized: {Initialized}", _cargoTrackingInitialized);
+                
                 if (File.Exists(CarrierCargoFilePath))
                 {
                     var json = File.ReadAllText(CarrierCargoFilePath);
