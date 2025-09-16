@@ -4221,7 +4221,7 @@ namespace EliteInfoPanel.Core
             OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
             OnPropertyChanged(nameof(ShowCarrierJumpCountdown));
             Log.Information("Carrier jump countdown reached zero, overlay should now be visible until CarrierJump event.");
-        }
+        }        
         #endregion
     }
 }
