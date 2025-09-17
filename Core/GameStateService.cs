@@ -1109,6 +1109,40 @@ namespace EliteInfoPanel.Core
                 .ToList();
         }
 
+        /// <summary>
+        /// Ensures carrier cargo tracking is initialized - fixes the first transfer bug
+        /// </summary>
+        private void EnsureCarrierCargoTrackingInitialized(string context = "unknown")
+        {
+            if (_cargoTrackingInitialized)
+                return; // Already initialized
+                
+            Log.Warning("🔧 FIRST TRANSFER BUG FIX: Initializing cargo tracking on-demand from {Context}", context);
+            
+            // Ensure we have loaded any saved cargo state
+            if (_carrierCargo.Count == 0)
+            {
+                try
+                {
+                    LoadCarrierCargoFromDisk();
+                    Log.Information("🔧 Loaded {Count} saved cargo items before processing first transfer", _carrierCargo.Count);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "🔧 Could not load saved cargo, starting fresh");
+                    _carrierCargo = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                }
+            }
+            
+            // Initialize the tracker with current state
+            _carrierCargoTracker.Initialize(_carrierCargo);
+            
+            // Enable tracking for this and future events
+            _cargoTrackingInitialized = true;
+            
+            Log.Information("✅ FIRST TRANSFER BUG FIX: Cargo tracking now enabled from {Context}", context);
+        }
+
         public void InitializeCargoFromSavedData(Dictionary<string, int> savedCargo)
         {
             using (BeginUpdate())
@@ -1574,6 +1608,9 @@ namespace EliteInfoPanel.Core
 
                                     Log.Information("Processing {EventType} cargo event using CarrierCargoTracker", eventType);
 
+                                    // FIRST TRANSFER BUG FIX: Ensure cargo tracking is initialized before processing
+                                    EnsureCarrierCargoTrackingInitialized($"{eventType} event");
+
                                     // Use the CarrierCargoTracker for consistent processing
                                     _carrierCargoTracker.Process(root);
 
@@ -1612,6 +1649,10 @@ namespace EliteInfoPanel.Core
                                     if (root.TryGetProperty("BuyFromFleetCarrier", out var boughtFromCarrierProp) && boughtFromCarrierProp.GetBoolean())
                                     {
                                         Log.Information("Processing MarketBuy FROM carrier using CarrierCargoTracker");
+                                        
+                                        // FIRST TRANSFER BUG FIX: Ensure cargo tracking is initialized before processing
+                                        EnsureCarrierCargoTrackingInitialized("MarketBuy FROM carrier event");
+                                        
                                         // Use the CarrierCargoTracker for consistent processing
                                         _carrierCargoTracker.Process(root);
                                         // Update our local cargo state from the tracker
@@ -1652,6 +1693,10 @@ namespace EliteInfoPanel.Core
                                     if (root.TryGetProperty("SellToFleetCarrier", out var soldToCarrierProp) && soldToCarrierProp.GetBoolean())
                                     {
                                         Log.Information("Processing MarketSell TO carrier using CarrierCargoTracker");
+                                        
+                                        // FIRST TRANSFER BUG FIX: Ensure cargo tracking is initialized before processing
+                                        EnsureCarrierCargoTrackingInitialized("MarketSell TO carrier event");
+                                        
                                         // Use the CarrierCargoTracker for consistent processing
                                         _carrierCargoTracker.Process(root);
                                         // Update our local cargo state from the tracker
@@ -1692,6 +1737,9 @@ namespace EliteInfoPanel.Core
 
                                     Log.Information("Processing CargoTransfer event using CarrierCargoTracker");
                                     Log.Information("Raw CargoTransfer event: {Event}", line);
+
+                                    // FIRST TRANSFER BUG FIX: Ensure cargo tracking is initialized before processing
+                                    EnsureCarrierCargoTrackingInitialized("CargoTransfer event");
 
                                     // Ship cargo will be updated by Cargo.json file watcher
 
