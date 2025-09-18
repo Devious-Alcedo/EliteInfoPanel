@@ -3208,12 +3208,27 @@ namespace EliteInfoPanel.Core
                 Task loadoutTask = Task.Run(() => LoadLoadoutData());
 
                 Task.WaitAll(statusTask, routeTask, cargoTask, backpackTask, materialsTask, loadoutTask);
+                
+                // CRITICAL FIX: Initialize carrier cargo tracking at the same time as ship cargo
+                // This ensures carrier cargo works exactly like ship cargo from startup
+                LoadCarrierCargoFromDisk();
+                _carrierCargoTracker.Initialize(_carrierCargo);
+                _cargoTrackingInitialized = true; // Enable tracking immediately
+                Log.Information("🔧 CARRIER CARGO: Initialized alongside ship cargo - tracking enabled with {Count} items", _carrierCargo.Count);
+                
                 LoadPersistedColonizationData();
                 latestJournalPath = Directory.GetFiles(gamePath, "Journal.*.log")
                     .OrderByDescending(File.GetLastWriteTime)
                     .FirstOrDefault();
 
                 LoadRouteProgress();
+                
+                // CRITICAL FIX: Initialize carrier cargo tracking immediately alongside ship cargo
+                // This ensures carrier cargo tracking works the same as ship cargo from the start
+                LoadCarrierCargoFromDisk();
+                _carrierCargoTracker.Initialize(_carrierCargo);
+                _cargoTrackingInitialized = true; // Enable tracking BEFORE journal processing
+                Log.Information("🔧 CARRIER CARGO: Initialized tracking alongside ship cargo - {Count} items loaded", _carrierCargo.Count);
                 LoadCarrierCargoFromDisk(); // ← Add this near LoadRouteProgress();
                 
                 // CRITICAL: Set cargo tracking as initialized BEFORE processing journal

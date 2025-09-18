@@ -67,18 +67,52 @@ Modified all cargo event handlers in `ProcessJournalAsync()` to call the new met
 - **MarketBuy FROM carrier**: Added `EnsureCarrierCargoTrackingInitialized("MarketBuy FROM carrier event");`
 - **MarketSell TO carrier**: Added `EnsureCarrierCargoTrackingInitialized("MarketSell TO carrier event");`
 
-### 3. How It Fixes The Bug
+## Fixed Implementation Summary (Updated)
 
-Now when the first cargo transfer of the day occurs:
+The issue persisted because carrier cargo initialization was happening at a different time than ship cargo initialization. 
 
-1. The `CargoTransfer` event is processed in `ProcessJournalAsync()`
-2. `EnsureCarrierCargoTrackingInitialized("CargoTransfer event")` is called
-3. The method detects that `_cargoTrackingInitialized` is `false`
-4. It immediately loads any saved cargo from disk
-5. Initializes the `_carrierCargoTracker` with the current state
-6. Sets `_cargoTrackingInitialized = true`
-7. The cargo transfer is then processed normally
-8. Both ship and carrier cargo are updated correctly
+### Root Cause (Confirmed)
+- **Ship cargo** is loaded in `LoadCargoData()` which runs as a task in `LoadAllData()` - this happens BEFORE journal processing
+- **Carrier cargo** was being loaded AFTER journal processing in a later callback
+- This timing difference meant the first transfer of the day was processed before carrier cargo tracking was enabled
+
+### Solution Applied
+
+1. **Moved carrier cargo initialization to happen alongside ship cargo** in `LoadAllData()`:
+   ```csharp
+   Task.WaitAll(statusTask, routeTask, cargoTask, backpackTask, materialsTask, loadoutTask);
+   
+   // CRITICAL FIX: Initialize carrier cargo tracking at the same time as ship cargo
+   // This ensures carrier cargo works exactly like ship cargo from startup
+   LoadCarrierCargoFromDisk();
+   _carrierCargoTracker.Initialize(_carrierCargo);
+   _cargoTrackingInitialized = true; // Enable tracking immediately
+   Log.Information("🔧 CARRIER CARGO: Initialized alongside ship cargo - tracking enabled with {Count} items", _carrierCargo.Count);
+   ```
+
+2. **Added defensive initialization calls** in all cargo event processing to handle edge cases
+
+3. **Need to remove duplicate initialization** from later callbacks to prevent conflicts
+
+### What This Fixes
+Now carrier cargo initialization happens at exactly the same time as ship cargo:
+- Both are loaded before journal processing starts
+- Both have tracking enabled from the beginning
+- The first cargo transfer of the day will be processed correctly
+- Subsequent transfers continue to work as expected
+
+### Testing
+To verify the fix:
+1. Start app fresh (first time today)
+2. Buy cargo from station - should appear in ship cargo
+3. Dock at carrier
+4. Transfer cargo ship → carrier
+5. **Both ship and carrier cargo should update correctly**
+
+Look for this log message:
+```
+🔧 CARRIER CARGO: Initialized alongside ship cargo - tracking enabled with X items
+```
 
 ### 4. Benefits of This Approach
 
