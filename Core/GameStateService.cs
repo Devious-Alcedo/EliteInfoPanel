@@ -101,6 +101,9 @@ namespace EliteInfoPanel.Core
         private long lastJournalPosition = 0;
         private string latestJournalPath;
 
+        // Add this field to track the app's UTC start time
+        private readonly DateTime _appStartTimeUtc = DateTime.UtcNow;
+
         #endregion Private Fields
 
         #region Public Constructors
@@ -530,6 +533,8 @@ namespace EliteInfoPanel.Core
         {
             get
             {
+                Log.Debug("[ShowCarrierJumpOverlay] IsOnFleetCarrier={IsOnFleetCarrier}, FleetCarrierJumpInProgress={FleetCarrierJumpInProgress}, CarrierJumpCountdownSeconds={CarrierJumpCountdownSeconds}, JumpArrived={JumpArrived}",
+                    IsOnFleetCarrier, FleetCarrierJumpInProgress, CarrierJumpCountdownSeconds, JumpArrived);
                 return IsOnFleetCarrier && FleetCarrierJumpInProgress && CarrierJumpCountdownSeconds <= 0 && !JumpArrived;
             }
         }
@@ -539,6 +544,8 @@ namespace EliteInfoPanel.Core
         {
             get
             {
+                Log.Debug("[ShowCarrierJumpCountdown] FleetCarrierJumpInProgress={FleetCarrierJumpInProgress}, CarrierJumpCountdownSeconds={CarrierJumpCountdownSeconds}",
+                    FleetCarrierJumpInProgress, CarrierJumpCountdownSeconds);
                 return FleetCarrierJumpInProgress && CarrierJumpCountdownSeconds > 0;
             }
         }
@@ -1110,37 +1117,46 @@ namespace EliteInfoPanel.Core
         }
 
         /// <summary>
-        /// Ensures carrier cargo tracking is initialized - fixes the first transfer bug
+        /// Ensures carrier cargo tracking is properly initialized.
+        /// This method is idempotent and safe to call multiple times.
         /// </summary>
         private void EnsureCarrierCargoTrackingInitialized(string context = "unknown")
         {
             if (_cargoTrackingInitialized)
-                return; // Already initialized
-                
-            Log.Warning("🔧 FIRST TRANSFER BUG FIX: Initializing cargo tracking on-demand from {Context}", context);
-            
-            // Ensure we have loaded any saved cargo state
-            if (_carrierCargo.Count == 0)
             {
-                try
+                return; // Already initialized
+            }
+
+            Log.Information("🔧 Initializing carrier cargo tracking from {Context}", context);
+
+            try
+            {
+                // Load any existing cargo state from disk if not already loaded
+                if (_carrierCargo.Count == 0)
                 {
                     LoadCarrierCargoFromDisk();
-                    Log.Information("🔧 Loaded {Count} saved cargo items before processing first transfer", _carrierCargo.Count);
                 }
-                catch (Exception ex)
-                {
-                    Log.Warning(ex, "🔧 Could not load saved cargo, starting fresh");
-                    _carrierCargo = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                }
+                
+                // Initialize the tracker with current state
+                _carrierCargoTracker.Initialize(_carrierCargo);
+                
+                // Enable tracking
+                _cargoTrackingInitialized = true;
+                
+                Log.Information("✅ Carrier cargo tracking initialized with {Count} items from {Context}", 
+                    _carrierCargo.Count, context);
             }
-            
-            // Initialize the tracker with current state
-            _carrierCargoTracker.Initialize(_carrierCargo);
-            
-            // Enable tracking for this and future events
-            _cargoTrackingInitialized = true;
-            
-            Log.Information("✅ FIRST TRANSFER BUG FIX: Cargo tracking now enabled from {Context}", context);
+            catch (Exception ex)
+            {
+                Log.Error(ex, "❌ Failed to initialize carrier cargo tracking from {Context}", context);
+                
+                // Initialize with empty state to prevent further failures
+                _carrierCargo = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                _carrierCargoTracker.Initialize(_carrierCargo);
+                _cargoTrackingInitialized = true;
+                
+                Log.Warning("⚠️ Initialized with empty carrier cargo state after failure");
+            }
         }
 
         public void InitializeCargoFromSavedData(Dictionary<string, int> savedCargo)
@@ -1212,6 +1228,20 @@ namespace EliteInfoPanel.Core
                         {
                             using var doc = JsonDocument.Parse(line);
                             var root = doc.RootElement;
+
+                            // --- GUARD: Only process events newer than app start time ---
+                            if (root.TryGetProperty("timestamp", out var tsProp))
+                            {
+                                if (DateTime.TryParse(tsProp.GetString(), out var eventTimeUtc))
+                                {
+                                    if (eventTimeUtc < _appStartTimeUtc)
+                                    {
+                                        Log.Debug("Skipping event predating app launch: {Timestamp}", eventTimeUtc);
+                                        continue;
+                                    }
+                                }
+                            }
+                            // --- END GUARD ---
 
                             if (!root.TryGetProperty("event", out var eventProp))
                                 continue;
@@ -1580,35 +1610,16 @@ namespace EliteInfoPanel.Core
 
                                 case "CargoDepot":
                                 case "CarrierTradeOrder":
-                                    // Only skip if truly during initial load AND the event is old
-                                    if (!_cargoTrackingInitialized && isInitialScan)
+                                    // Skip historical events during initial scan
+                                    if (isInitialScan)
                                     {
-                                        // Check if this event has a timestamp and if it's from today
-                                        if (root.TryGetProperty("timestamp", out var timestampProp) &&
-                                            DateTime.TryParse(timestampProp.GetString(), out var eventTime))
-                                        {
-                                            // If the event is from today, process it even during initialization
-                                            if (eventTime.Date == DateTime.UtcNow.Date)
-                                            {
-                                                Log.Information("Processing today's {EventType} event during initialization", eventType);
-                                                // Fall through to process the event
-                                            }
-                                            else
-                                            {
-                                                Log.Debug("Skipping old {EventType} event from {Date} during initialization", eventType, eventTime.Date);
-                                                continue;
-                                            }
-                                        }
-                                        else
-                                        {
-                                            Log.Debug("Skipping historical cargo event {EventType} during initialization (no timestamp)", eventType);
-                                            continue;
-                                        }
+                                        Log.Debug("Skipping historical {EventType} event during initial journal scan", eventType);
+                                        continue;
                                     }
 
-                                    Log.Information("Processing {EventType} cargo event using CarrierCargoTracker", eventType);
+                                    Log.Information("📦 Processing {EventType} cargo event", eventType);
 
-                                    // FIRST TRANSFER BUG FIX: Ensure cargo tracking is initialized before processing
+                                    // SIMPLIFIED FIX: Always ensure cargo tracking is ready when we need it
                                     EnsureCarrierCargoTrackingInitialized($"{eventType} event");
 
                                     // Use the CarrierCargoTracker for consistent processing
@@ -1622,39 +1633,29 @@ namespace EliteInfoPanel.Core
                                         SaveCarrierCargoToDisk();
                                     }
 
-                                    Log.Information("{EventType} processed: {Count} items in carrier cargo",
+                                    Log.Information("✅ {EventType} processed: {Count} items in carrier cargo",
                                         eventType, _carrierCargo.Count);
                                     break;
 
                                 case "MarketBuy":
-                                    // Check if we should skip this event
-                                    if (!_cargoTrackingInitialized && isInitialScan)
+                                    // Skip historical events during initial scan
+                                    if (isInitialScan)
                                     {
-                                        if (root.TryGetProperty("timestamp", out var timestampProp) &&
-                                            DateTime.TryParse(timestampProp.GetString(), out var eventTime))
-                                        {
-                                            if (eventTime.Date != DateTime.UtcNow.Date)
-                                            {
-                                                Log.Debug("Skipping old MarketBuy event from {Date} during initialization", eventTime.Date);
-                                                continue;
-                                            }
-                                        }
-                                        else
-                                        {
-                                            Log.Debug("Skipping historical MarketBuy event during initialization (no timestamp)");
-                                            continue;
-                                        }
+                                        Log.Debug("Skipping historical MarketBuy event during initial journal scan");
+                                        continue;
                                     }
+                                    
                                     // Only process if buying FROM carrier
                                     if (root.TryGetProperty("BuyFromFleetCarrier", out var boughtFromCarrierProp) && boughtFromCarrierProp.GetBoolean())
                                     {
-                                        Log.Information("Processing MarketBuy FROM carrier using CarrierCargoTracker");
+                                        Log.Information("📦 Processing MarketBuy FROM carrier");
                                         
-                                        // FIRST TRANSFER BUG FIX: Ensure cargo tracking is initialized before processing
+                                        // SIMPLIFIED FIX: Always ensure cargo tracking is ready when we need it
                                         EnsureCarrierCargoTrackingInitialized("MarketBuy FROM carrier event");
                                         
                                         // Use the CarrierCargoTracker for consistent processing
                                         _carrierCargoTracker.Process(root);
+                                        
                                         // Update our local cargo state from the tracker
                                         using (BeginUpdate())
                                         {
@@ -1662,43 +1663,34 @@ namespace EliteInfoPanel.Core
                                             UpdateCurrentCarrierCargoFromDictionary();
                                             SaveCarrierCargoToDisk();
                                         }
-                                        Log.Information("MarketBuy FROM carrier processed: {Count} items in carrier cargo", _carrierCargo.Count);
+                                        
+                                        Log.Information("✅ MarketBuy FROM carrier processed: {Count} items in carrier cargo", _carrierCargo.Count);
                                     }
                                     else
                                     {
                                         Log.Debug("MarketBuy event ignored - not from carrier (goes to ship cargo)");
-                                   }
+                                    }
                                     break;
 
                                 case "MarketSell":
-                                    // Check if we should skip this event
-                                    if (!_cargoTrackingInitialized && isInitialScan)
+                                    // Skip historical events during initial scan
+                                    if (isInitialScan)
                                     {
-                                        if (root.TryGetProperty("timestamp", out var timestampProp) &&
-                                            DateTime.TryParse(timestampProp.GetString(), out var eventTime))
-                                        {
-                                            if (eventTime.Date != DateTime.UtcNow.Date)
-                                            {
-                                                Log.Debug("Skipping old MarketSell event from {Date} during initialization", eventTime.Date);
-                                                continue;
-                                            }
-                                        }
-                                        else
-                                        {
-                                            Log.Debug("Skipping historical MarketSell event during initialization (no timestamp)");
-                                            continue;
-                                        }
+                                        Log.Debug("Skipping historical MarketSell event during initial journal scan");
+                                        continue;
                                     }
+                                    
                                     // Only process if selling TO carrier
                                     if (root.TryGetProperty("SellToFleetCarrier", out var soldToCarrierProp) && soldToCarrierProp.GetBoolean())
                                     {
-                                        Log.Information("Processing MarketSell TO carrier using CarrierCargoTracker");
+                                        Log.Information("📦 Processing MarketSell TO carrier");
                                         
-                                        // FIRST TRANSFER BUG FIX: Ensure cargo tracking is initialized before processing
+                                        // SIMPLIFIED FIX: Always ensure cargo tracking is ready when we need it
                                         EnsureCarrierCargoTrackingInitialized("MarketSell TO carrier event");
                                         
                                         // Use the CarrierCargoTracker for consistent processing
                                         _carrierCargoTracker.Process(root);
+                                        
                                         // Update our local cargo state from the tracker
                                         using (BeginUpdate())
                                         {
@@ -1706,7 +1698,8 @@ namespace EliteInfoPanel.Core
                                             UpdateCurrentCarrierCargoFromDictionary();
                                             SaveCarrierCargoToDisk();
                                         }
-                                        Log.Information("MarketSell TO carrier processed: {Count} items in carrier cargo", _carrierCargo.Count);
+                                        
+                                        Log.Information("✅ MarketSell TO carrier processed: {Count} items in carrier cargo", _carrierCargo.Count);
                                     }
                                     else
                                     {
@@ -1715,33 +1708,17 @@ namespace EliteInfoPanel.Core
                                     break;
 
                                 case "CargoTransfer":
-                                    // Add debug logging for cargo transfer events
-                                    if (root.TryGetProperty("timestamp", out var cargoTimestamp))
-                                    {
-                                        Log.Information("📦 CargoTransfer event timestamp: {Timestamp}, _cargoTrackingInitialized: {Initialized}, isInitialScan: {IsInitial}", 
-                                            cargoTimestamp.GetString(), _cargoTrackingInitialized, isInitialScan);
-                                    }
-                                    
                                     // Skip historical events during initial scan
                                     if (isInitialScan)
                                     {
                                         Log.Debug("Skipping historical CargoTransfer event during initial journal scan");
                                         continue;
                                     }
-                                    
-                                    if (!_cargoTrackingInitialized)
-                                    {
-                                        Log.Debug("Skipping cargo event {EventType} - tracking not initialized", eventType);
-                                        continue;
-                                    }
 
-                                    Log.Information("Processing CargoTransfer event using CarrierCargoTracker");
-                                    Log.Information("Raw CargoTransfer event: {Event}", line);
+                                    Log.Information("📦 Processing CargoTransfer event");
 
-                                    // FIRST TRANSFER BUG FIX: Ensure cargo tracking is initialized before processing
+                                    // SIMPLIFIED FIX: Always ensure cargo tracking is ready when we need it
                                     EnsureCarrierCargoTrackingInitialized("CargoTransfer event");
-
-                                    // Ship cargo will be updated by Cargo.json file watcher
 
                                     // Use the CarrierCargoTracker for consistent processing
                                     _carrierCargoTracker.Process(root);
@@ -1754,24 +1731,13 @@ namespace EliteInfoPanel.Core
                                         SaveCarrierCargoToDisk();
                                     }
 
-                                    Log.Information("CargoTransfer processed: {Count} items in carrier cargo",
+                                    Log.Information("✅ CargoTransfer processed: {Count} items in carrier cargo",
                                         _carrierCargo.Count);
 
                                     // Log the updated quantities for debugging
-                                    foreach (var item in _carrierCargo.Take(10))
+                                    foreach (var item in _carrierCargo.Take(5))
                                     {
-                                        Log.Information("  Carrier: {Name}: {Quantity}", item.Key, item.Value);
-                                    }
-
-                                    // Log current ship cargo for debugging
-                                    if (CurrentCargo?.Inventory != null)
-                                    {
-                                        Log.Information("Ship cargo now contains {Count} different items", CurrentCargo.Inventory.Count);
-                                        foreach (var item in CurrentCargo.Inventory.Take(10))
-                                        {
-                                            Log.Information("  Ship: {Name}: {Quantity}",
-                                                CommodityMapper.GetDisplayName(item.Name), item.Count);
-                                        }
+                                        Log.Information("  📦 {Name}: {Quantity}", item.Key, item.Value);
                                     }
                                     break;
 
@@ -2662,7 +2628,7 @@ namespace EliteInfoPanel.Core
                                 var manualChange = _manualCarrierCargoChanges[existingItem];
                                 if (DateTime.UtcNow - manualChange.LastModified > TimeSpan.FromMinutes(30))
                                 {
-                                    // Manual change has expired
+                                    // Manual change has expired, remove it
                                     _manualCarrierCargoChanges.Remove(existingItem);
                                     SaveManualCarrierCargoChanges();
                                     Log.Information("Expired manual change removed for non-existent item: {Item}", existingItem);
@@ -2800,7 +2766,8 @@ namespace EliteInfoPanel.Core
             }
             else
             {
-                // Send notification immediately
+                Log.Debug("[OnPropertyChanged] {PropertyName} fired. ShowCarrierJumpOverlay={ShowCarrierJumpOverlay}, ShowCarrierJumpCountdown={ShowCarrierJumpCountdown}",
+                    propertyName, ShowCarrierJumpOverlay, ShowCarrierJumpCountdown);
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
             }
         }
@@ -3020,68 +2987,68 @@ namespace EliteInfoPanel.Core
         private void UpdateShipCargoFromTransfers(JsonElement root)
         {
             if (!_cargoTrackingInitialized || CurrentCargo?.Inventory == null) return;
-            if (!root.TryGetProperty("Transfers", out var transfers)) return;
+            if (root.TryGetProperty("Transfers", out var transfers)) return;
 
             var updatedInventory = new List<CargoJson.CargoItem>(CurrentCargo.Inventory);
             bool cargoChanged = false;
 
             foreach (var transfer in transfers.EnumerateArray())
             {
-                if (!transfer.TryGetProperty("Type", out var typeProp) ||
-                    !transfer.TryGetProperty("Count", out var countProp) ||
-                    !transfer.TryGetProperty("Direction", out var directionProp))
-                    continue;
+                if (transfer.TryGetProperty("Type", out var typeProp) &&
+                    transfer.TryGetProperty("Count", out var countProp) &&
+                    transfer.TryGetProperty("Direction", out var directionProp))
+                {
+                    string internalName = typeProp.GetString();
+                    int count = countProp.GetInt32();
+                    string direction = directionProp.GetString();
+                    string displayName = CommodityMapper.GetDisplayName(internalName);
 
-                string internalName = typeProp.GetString();
-                int count = countProp.GetInt32();
-                string direction = directionProp.GetString();
-                string displayName = CommodityMapper.GetDisplayName(internalName);
+                    if (string.IsNullOrWhiteSpace(internalName)) continue;
 
-                if (string.IsNullOrWhiteSpace(internalName)) continue;
-
-                // Find existing inventory item
-                var existingItem = updatedInventory.FirstOrDefault(i =>
+                    // Find existing inventory item
+                    var existingItem = updatedInventory.FirstOrDefault(i =>
                     string.Equals(i.Name, internalName, StringComparison.OrdinalIgnoreCase));
 
-                if (string.Equals(direction, "tocarrier", StringComparison.OrdinalIgnoreCase))
-                {
-                    // Remove from ship cargo (transferred TO carrier)
-                    if (existingItem != null)
+                    if (string.Equals(direction, "tocarrier", StringComparison.OrdinalIgnoreCase))
                     {
-                        int newCount = Math.Max(0, existingItem.Count - count);
-                        if (newCount > 0)
+                        // Remove from ship cargo (transferred TO carrier)
+                        if (existingItem != null)
                         {
-                            existingItem.Count = newCount;
+                            int newCount = Math.Max(0, existingItem.Count - count);
+                            if (newCount > 0)
+                            {
+                                existingItem.Count = newCount;
+                            }
+                            else
+                            {
+                                updatedInventory.Remove(existingItem);
+                            }
+                            cargoChanged = true;
+                            Log.Information("📦 Ship cargo updated: {Item} reduced by {Count} (transferred to carrier)",
+                                CommodityMapper.GetDisplayName(internalName), count);
+                        }
+                    }
+                    else if (string.Equals(direction, "toship", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(direction, "fromcarrier", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Add to ship cargo (transferred FROM carrier)
+                        if (existingItem != null)
+                        {
+                            existingItem.Count += count;
                         }
                         else
                         {
-                            updatedInventory.Remove(existingItem);
+                            updatedInventory.Add(new CargoJson.CargoItem
+                            {
+                                Name = internalName,
+                                Count = count,
+                                Value = 0 // Default value, will be updated by the game later
+                            });
                         }
                         cargoChanged = true;
-                        Log.Information("📦 Ship cargo updated: {Item} reduced by {Count} (transferred to carrier)",
+                        Log.Information("📦 Ship cargo updated: {Item} increased by {Count} (transferred from carrier)",
                             CommodityMapper.GetDisplayName(internalName), count);
                     }
-                }
-                else if (string.Equals(direction, "toship", StringComparison.OrdinalIgnoreCase) ||
-                         string.Equals(direction, "fromcarrier", StringComparison.OrdinalIgnoreCase))
-                {
-                    // Add to ship cargo (transferred FROM carrier)
-                    if (existingItem != null)
-                    {
-                        existingItem.Count += count;
-                    }
-                    else
-                    {
-                        updatedInventory.Add(new CargoJson.CargoItem
-                        {
-                            Name = internalName,
-                            Count = count,
-                            Value = 0 // Default value, will be updated by the game later
-                        });
-                    }
-                    cargoChanged = true;
-                    Log.Information("📦 Ship cargo updated: {Item} increased by {Count} (transferred from carrier)",
-                        CommodityMapper.GetDisplayName(internalName), count);
                 }
             }
 
@@ -3186,7 +3153,7 @@ namespace EliteInfoPanel.Core
             if (obj1 == null || obj2 == null) return false;
 
             // Serialize and compare as strings - simple but effective
-            var options = new JsonSerializerOptions { WriteIndented = false };
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             string json1 = JsonSerializer.Serialize(obj1, options);
             string json2 = JsonSerializer.Serialize(obj2, options);
 
@@ -4284,8 +4251,8 @@ namespace EliteInfoPanel.Core
             OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
             OnPropertyChanged(nameof(ShowCarrierJumpCountdown));
             Log.Information("Carrier jump countdown reached zero, overlay should now be visible until CarrierJump event.");
-        }        
-        #endregion
+        }
+        #endregion Private Methods
     }
 }
 
