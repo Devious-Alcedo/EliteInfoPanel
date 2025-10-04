@@ -717,8 +717,9 @@ namespace EliteInfoPanel.ViewModels
             Log.Information("   - Pulse: {Pulse}", _carrierCountdownItem.Pulse);
             Log.Information("   - Items count: {Count}", Items.Count);
 #endif
-            // Use UTC time for robust countdown calculation
-            var targetTime = DateTime.UtcNow.Add(initialCountdown);
+            // CRITICAL FIX: Use the actual scheduled time directly, not recalculated from countdown
+            // The FleetCarrierJumpTime is already in UTC from the journal
+            var targetTime = _gameState.FleetCarrierJumpTime.Value;
 #if dev
             Log.Information("🎯 Target time: {TargetTime}, Current time: {CurrentTime}", targetTime, DateTime.UtcNow);
 #endif

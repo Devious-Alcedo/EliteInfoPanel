@@ -198,7 +198,8 @@ namespace EliteInfoPanel.Core
             {
                 if (CarrierJumpScheduledTime.HasValue)
                 {
-                    var timeLeft = CarrierJumpScheduledTime.Value.ToLocalTime() - DateTime.Now;
+                    // CRITICAL: Use UTC for both to avoid timezone issues
+                    var timeLeft = CarrierJumpScheduledTime.Value - DateTime.UtcNow;
                     int result = (int)Math.Max(0, timeLeft.TotalSeconds);
                     return result;
                 }
@@ -447,7 +448,7 @@ namespace EliteInfoPanel.Core
         }
 
         public TimeSpan? JumpCountdown => FleetCarrierJumpTime.HasValue ?
-                    FleetCarrierJumpTime.Value.ToLocalTime() - DateTime.Now : null;
+                    FleetCarrierJumpTime.Value - DateTime.UtcNow : null;
 
         public string LastFsdTargetSystem
         {
@@ -622,6 +623,23 @@ namespace EliteInfoPanel.Core
                 Log.Information("CarrierJumpDestinationBody: {Body}", CarrierJumpDestinationBody);
                 Log.Information("ShowCarrierJumpOverlay: {ShowOverlay}", ShowCarrierJumpOverlay);
                 Log.Information("CarrierJumpCountdownSeconds: {Countdown}", CarrierJumpCountdownSeconds);
+                
+                // CRITICAL DEBUGGING: Show the actual time calculations
+                if (CarrierJumpScheduledTime.HasValue)
+                {
+                    Log.Information("=== TIME CALCULATIONS ===");
+                    Log.Information("Current UTC Now: {UtcNow}", DateTime.UtcNow);
+                    Log.Information("Scheduled Time (UTC): {Scheduled}", CarrierJumpScheduledTime.Value);
+                    Log.Information("Scheduled Time Kind: {Kind}", CarrierJumpScheduledTime.Value.Kind);
+                    var diff = CarrierJumpScheduledTime.Value - DateTime.UtcNow;
+                    Log.Information("Time Difference: {Diff} ({Seconds} seconds)", diff, diff.TotalSeconds);
+                    
+                    if (FleetCarrierJumpTime.HasValue)
+                    {
+                        Log.Information("FleetCarrierJumpTime (UTC): {JumpTime}", FleetCarrierJumpTime.Value);
+                        Log.Information("FleetCarrierJumpTime Kind: {Kind}", FleetCarrierJumpTime.Value.Kind);
+                    }
+                }
 
                 // Check journal for recent carrier events
                 if (!string.IsNullOrEmpty(latestJournalPath) && File.Exists(latestJournalPath))
@@ -1038,23 +1056,36 @@ namespace EliteInfoPanel.Core
                             {
                                 case "CarrierJumpRequest":
                                     if (root.TryGetProperty("DepartureTime", out var departureTimeProp) &&
-                                        DateTime.TryParse(departureTimeProp.GetString(), out var departureTime) &&
-                                        departureTime > DateTime.UtcNow)
+                                        DateTime.TryParse(departureTimeProp.GetString(), null, System.Globalization.DateTimeStyles.RoundtripKind, out var departureTime))
                                     {
-                                        FleetCarrierJumpTime = departureTime;
-                                        CarrierJumpScheduledTime = departureTime;
+                                        // CRITICAL: Ensure the time is in UTC
+                                        if (departureTime.Kind == DateTimeKind.Local)
+                                        {
+                                            departureTime = departureTime.ToUniversalTime();
+                                        }
+                                        else if (departureTime.Kind == DateTimeKind.Unspecified)
+                                        {
+                                            // Journal times are UTC, so treat unspecified as UTC
+                                            departureTime = DateTime.SpecifyKind(departureTime, DateTimeKind.Utc);
+                                        }
+                                        
+                                        if (departureTime > DateTime.UtcNow)
+                                        {
+                                            FleetCarrierJumpTime = departureTime;
+                                            CarrierJumpScheduledTime = departureTime;
 
-                                        if (root.TryGetProperty("SystemName", out var sysName))
-                                            CarrierJumpDestinationSystem = sysName.GetString();
+                                            if (root.TryGetProperty("SystemName", out var sysName))
+                                                CarrierJumpDestinationSystem = sysName.GetString();
 
-                                        if (root.TryGetProperty("Body", out var bodyName))
-                                            CarrierJumpDestinationBody = bodyName.GetString();
+                                            if (root.TryGetProperty("Body", out var bodyName))
+                                                CarrierJumpDestinationBody = bodyName.GetString();
 
-                                        JumpArrived = false;
-                                        FleetCarrierJumpInProgress = true;
+                                            JumpArrived = false;
+                                            FleetCarrierJumpInProgress = true;
 
-                                        Log.Information("✅ Recovered CarrierJumpRequest: {System} at {Time}",
-                                            CarrierJumpDestinationSystem, departureTime);
+                                            Log.Information("✅ Recovered CarrierJumpRequest: {System} at {Time}",
+                                                CarrierJumpDestinationSystem, departureTime);
+                                        }
                                     }
                                     break;
 
@@ -1746,10 +1777,21 @@ namespace EliteInfoPanel.Core
                                     Log.Information("   - Full event: {Event}", line);
 
                                     if (root.TryGetProperty("DepartureTime", out var departureTimeProp) &&
-                                        DateTime.TryParse(departureTimeProp.GetString(), out var departureTime))
+                                        DateTime.TryParse(departureTimeProp.GetString(), null, System.Globalization.DateTimeStyles.RoundtripKind, out var departureTime))
                                     {
-                                        Log.Information("🚀 DepartureTime parsed: {DepartureTime} (UTC: {UtcTime})",
-                                            departureTime, departureTime.ToUniversalTime());
+                                        // CRITICAL: Ensure the time is in UTC
+                                        if (departureTime.Kind == DateTimeKind.Local)
+                                        {
+                                            departureTime = departureTime.ToUniversalTime();
+                                        }
+                                        else if (departureTime.Kind == DateTimeKind.Unspecified)
+                                        {
+                                            // Journal times are UTC, so treat unspecified as UTC
+                                            departureTime = DateTime.SpecifyKind(departureTime, DateTimeKind.Utc);
+                                        }
+                                        
+                                        Log.Information("🚀 DepartureTime parsed: {DepartureTime} (Kind: {Kind})",
+                                            departureTime, departureTime.Kind);
 
                                         if (departureTime > DateTime.UtcNow)
                                         {
@@ -3932,8 +3974,18 @@ namespace EliteInfoPanel.Core
                                 // Always use the latest request, and reset cancel/completed flag
                                 latestRequestTimestamp = ts;
                                 if (root.TryGetProperty("DepartureTime", out var dtProp) &&
-                                    DateTime.TryParse(dtProp.GetString(), out var dt))
+                                    DateTime.TryParse(dtProp.GetString(), null, System.Globalization.DateTimeStyles.RoundtripKind, out var dt))
                                 {
+                                    // CRITICAL: Ensure the time is in UTC
+                                    if (dt.Kind == DateTimeKind.Local)
+                                    {
+                                        dt = dt.ToUniversalTime();
+                                    }
+                                    else if (dt.Kind == DateTimeKind.Unspecified)
+                                    {
+                                        // Journal times are UTC, so treat unspecified as UTC
+                                        dt = DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+                                    }
                                     latestDepartureTime = dt;
                                 }
                                 if (root.TryGetProperty("SystemName", out var sysName))
