@@ -1475,6 +1475,23 @@ namespace EliteInfoPanel.Core
                                         if (isCarrier || dockStationTypeProp.ValueKind != JsonValueKind.Undefined)
                                         {
                                             IsOnFleetCarrier = isCarrier;
+                                            
+                                            // CRITICAL: If we're docking on a carrier and there's a stale jump state, clean it up
+                                            if (isCarrier && FleetCarrierJumpInProgress && CarrierJumpScheduledTime.HasValue)
+                                            {
+                                                // If the scheduled time was more than 2 minutes ago, the jump already happened
+                                                var timeSinceScheduled = DateTime.UtcNow - CarrierJumpScheduledTime.Value;
+                                                if (timeSinceScheduled.TotalMinutes > 2)
+                                                {
+                                                    Log.Warning("⚠️ Docking on carrier with stale jump state (scheduled {Minutes:F1} min ago) - cleaning up",
+                                                        timeSinceScheduled.TotalMinutes);
+                                                    JumpArrived = true;
+                                                    FleetCarrierJumpInProgress = false;
+                                                    CarrierJumpScheduledTime = null;
+                                                    CarrierJumpDestinationSystem = null;
+                                                    CarrierJumpDestinationBody = null;
+                                                }
+                                            }
                                         }
                                     }
                                     break;
@@ -4022,6 +4039,16 @@ namespace EliteInfoPanel.Core
                     OnPropertyChanged(nameof(ShowCarrierJumpCountdown));
                     OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
                     Log.Information("Recovered scheduled CarrierJump to {System}, {Body} at {Time}", latestSystem, latestBody, latestDepartureTime);
+                }
+                else if (latestRequestTimestamp.HasValue && !jumpCancelledOrCompleted && latestDepartureTime.HasValue && latestDepartureTime <= DateTime.UtcNow)
+                {
+                    // Jump time has passed - the jump already happened
+                    Log.Information("Found CarrierJumpRequest but departure time {Time} is in the past - jump already completed", latestDepartureTime);
+                    FleetCarrierJumpInProgress = false;
+                    JumpArrived = true;
+                    CarrierJumpScheduledTime = null;
+                    CarrierJumpDestinationSystem = null;
+                    CarrierJumpDestinationBody = null;
                 }
                 else if (jumpCancelledOrCompleted)
                 {
