@@ -74,7 +74,8 @@ namespace EliteInfoPanel
                 _appSettings.FloatingFontScale = 1.0;
 
             // Initialize the GameStateService
-            var gamePath = EliteDangerousPaths.GetSavedGamesPath();
+            // IMPORTANT: Pass the settings' DevelopmentMode to ensure path consistency
+            var gamePath = EliteDangerousPaths.GetSavedGamesPath(_appSettings.DevelopmentMode);
             _gameState = new GameStateService(gamePath);
             _cleanupTimer = new System.Threading.Timer(
                 callback: _ => _gameState.ClearExpiredManualCargoChanges(),

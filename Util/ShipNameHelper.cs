@@ -49,8 +49,14 @@ namespace EliteInfoPanel.Util
             ["krait_light"] = "Krait Phantom",
             ["mamba"] = "Mamba",
             ["python_nx"] = "Python MkII",
-            ["type8"] = "Type-8 Transporter"
-        
+            ["type8"] = "Type-8 Transporter",
+            ["LakonMiner"] = "Type-11 Prospector",
+            ["PantherMkII"] = "Panther Clipper MKII",
+            ["Corsair"] = "Corsair",
+            ["Type8"] = "Type-8 Transporter",
+            ["CobraMkV"] = "Cobra MkV",
+            ["Mandalay"] = "Mandalay"
+
         };
 
         public static string GetLocalisedName(string internalName)
