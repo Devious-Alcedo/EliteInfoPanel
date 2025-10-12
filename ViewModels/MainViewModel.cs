@@ -400,8 +400,8 @@ namespace EliteInfoPanel.ViewModels
                     UpdateModulesVisibility();
                     break;
 
-                case nameof(GameStateService.FleetCarrierJumpInProgress):
-                case nameof(GameStateService.CarrierJumpDestinationSystem):
+                case nameof(GameStateService.ShowCarrierJumpOverlay):
+                case nameof(GameStateService.CarrierJumpDestination):
                     UpdateCarrierJumpState();
                     if (SummaryCard != null)
                     {
