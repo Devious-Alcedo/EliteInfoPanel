@@ -164,9 +164,18 @@ namespace EliteInfoPanel.Core
             Log.Information("🚀 Carrier jump completed");
             
             _carrierJumpState.CompleteJump();
+            // Stop countdown timer; reconfigure overlay timeout to auto-hide shortly
             _carrierJumpTimer.Stop();
-            _overlayTimeoutTimer.Stop();
-            
+
+            // Ensure the overlay will be hidden shortly after completion
+            if (_overlayTimeoutTimer != null)
+            {
+                _overlayTimeoutTimer.Stop();
+                _overlayTimeoutTimer.Interval = TimeSpan.FromSeconds(6); // slightly longer than ShowOverlay grace
+                _overlayTimeoutTimer.Start();
+            }
+
+            // Notify UI now (overlay may still show briefly due to JumpCompleted grace window)
             OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
             OnPropertyChanged(nameof(CarrierJumpCountdownSeconds));
         }
@@ -201,8 +210,10 @@ namespace EliteInfoPanel.Core
                 }
                 else
                 {
-                    Log.Information("🚀 Player not on carrier - resetting jump state");
+                    Log.Information("🚀 Player not on carrier - resetting jump state and hiding overlay");
                     _carrierJumpState.Reset();
+                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
+                    OnPropertyChanged(nameof(CarrierJumpCountdownSeconds));
                 }
                 
                 // Stop countdown timer
@@ -233,6 +244,27 @@ namespace EliteInfoPanel.Core
             // The timer already handles this, but we can force a property refresh
             OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
             OnPropertyChanged(nameof(CarrierJumpCountdownSeconds));
+        }
+
+        /// <summary>
+        /// Force hide the carrier jump overlay and clear jump state.
+        /// Useful for emergency UI actions or recovery if an event was missed.
+        /// </summary>
+        public void ForceHideCarrierJumpOverlay()
+        {
+            try
+            {
+                Log.Information("🚀 ForceHideCarrierJumpOverlay called - resetting state and hiding overlay");
+                _carrierJumpTimer?.Stop();
+                _overlayTimeoutTimer?.Stop();
+                _carrierJumpState?.Reset();
+                OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
+                OnPropertyChanged(nameof(CarrierJumpCountdownSeconds));
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error in ForceHideCarrierJumpOverlay");
+            }
         }
 
         /// <summary>
