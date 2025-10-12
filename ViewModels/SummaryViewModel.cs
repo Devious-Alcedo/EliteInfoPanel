@@ -216,6 +216,15 @@ namespace EliteInfoPanel.ViewModels
                 case nameof(GameStateService.CommanderName):
                     _hasCommander = true;
                     break;
+                case nameof(GameStateService.CombatRank):
+                case nameof(GameStateService.TradeRank):
+                case nameof(GameStateService.ExplorationRank):
+                case nameof(GameStateService.CqcRank):
+                case nameof(GameStateService.ExobiologistRank):
+                case nameof(GameStateService.MercenaryRank):
+                    // Rank data available/changed
+                    _hasCommander = true; // commander section depends on ranks too
+                    break;
                 case nameof(GameStateService.ShipName):
                 case nameof(GameStateService.ShipLocalised):
                 case nameof(GameStateService.UserShipName):
@@ -242,6 +251,15 @@ namespace EliteInfoPanel.ViewModels
             switch (e.PropertyName)
             {
                 case nameof(GameStateService.CommanderName):
+                    UpdateCommanderItem();
+                    break;
+                case nameof(GameStateService.CombatRank):
+                case nameof(GameStateService.TradeRank):
+                case nameof(GameStateService.ExplorationRank):
+                case nameof(GameStateService.CqcRank):
+                case nameof(GameStateService.ExobiologistRank):
+                case nameof(GameStateService.MercenaryRank):
+                    // Update the commander item to reflect new elite rank icons
                     UpdateCommanderItem();
                     break;
                 case nameof(GameStateService.SquadronName):

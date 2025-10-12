@@ -98,12 +98,10 @@ namespace EliteInfoPanel.Controls
 
         public void UpdateVisibility()
         {
-            Log.Information("CarrierJumpOverlay.UpdateVisibility: ShowCarrierJumpOverlay={0}, JumpInProgress={1}, CountdownSeconds={2}, IsOnFleetCarrier={3}, JumpArrived={4}",
+            Log.Information("CarrierJumpOverlay.UpdateVisibility: ShowCarrierJumpOverlay={0}, CountdownSeconds={1}, IsOnFleetCarrier={2}",
                 _gameState.ShowCarrierJumpOverlay,
-                _gameState.FleetCarrierJumpInProgress,
                 _gameState.CarrierJumpCountdownSeconds,
-                _gameState.IsOnFleetCarrier,
-                _gameState.JumpArrived);
+                _gameState.IsOnFleetCarrier);
 
             if (_gameState?.ShowCarrierJumpOverlay == true)
             {
@@ -118,9 +116,9 @@ namespace EliteInfoPanel.Controls
                     _isRendering = true;
                 }
 
-                DestinationText.Text = string.IsNullOrEmpty(_gameState.CarrierJumpDestinationSystem)
+                DestinationText.Text = string.IsNullOrEmpty(_gameState.CarrierJumpDestination)
                     ? "???"
-                    : _gameState.CarrierJumpDestinationSystem;
+                    : _gameState.CarrierJumpDestination;
             }
             else
             {

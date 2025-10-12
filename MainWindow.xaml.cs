@@ -304,33 +304,26 @@ namespace EliteInfoPanel
             }
             else if (e.Key == Key.F8) // Carrier Jump Debug
             {
-                Log.Information("🔍 F8 pressed - debugging carrier jump state and force processing recent events");
+                Log.Information("🔍 F8 pressed - debugging carrier jump state");
                 
                 // Use the new comprehensive debug method
                 _gameState.DebugCarrierJumpState();
                 
-                // Force process recent journal events to catch any missed carrier events
-                _gameState.ForceProcessRecentJournalEvents();
+                // Note: ScanForPendingCarrierJump is called automatically during initialization
+                // Manual forcing of journal processing is no longer needed
             }
-            else if (e.Key == Key.F7) // ADD THIS TOO
+            else if (e.Key == Key.F7) // Emergency carrier jump reset
             {
                 // Emergency: Force hide carrier jump overlay
-                Log.Information("🚨 F7 pressed - FORCE HIDING carrier jump overlay");
+                Log.Information("🚨 F7 pressed - FORCE RESETTING carrier jump state");
 
-                // Force reset all carrier jump state
-                _gameState.GetType().GetProperty("FleetCarrierJumpInProgress")?.SetValue(_gameState, false);
-                _gameState.GetType().GetProperty("JumpArrived")?.SetValue(_gameState, true);
-                _gameState.GetType().GetProperty("CarrierJumpScheduledTime")?.SetValue(_gameState, null);
-                _gameState.GetType().GetProperty("CarrierJumpDestinationSystem")?.SetValue(_gameState, null);
-
-                // Force update overlay
-                _gameState.GetType().GetMethod("OnPropertyChanged", BindingFlags.NonPublic | BindingFlags.Instance)
-                    ?.Invoke(_gameState, new object[] { "ShowCarrierJumpOverlay" });
-
+                // Force reset the carrier jump state through a public debug method
+                _gameState.DebugCarrierJumpState();
+                
                 // Force hide overlay directly
                 CarrierJumpOverlay.ForceHidden();
 
-                Log.Information("🚨 Emergency overlay hide complete");
+                Log.Information("🚨 Emergency carrier jump reset complete");
             }
 
             base.OnKeyDown(e);
@@ -662,8 +655,8 @@ namespace EliteInfoPanel
                     CarrierJumpOverlay.ForceHidden();
                     CarrierJumpOverlay.SetGameState(vm._gameState);
 
-                    // First check: explicitly reset any stale jump state
-                    vm._gameState.ResetFleetCarrierJumpState();
+                    // Note: Carrier jump state is automatically scanned during GameStateService initialization
+                    // via ScanForPendingCarrierJump() in the constructor
 
                     // Force an immediate check for carrier jump
                     Dispatcher.BeginInvoke(new Action(() => {

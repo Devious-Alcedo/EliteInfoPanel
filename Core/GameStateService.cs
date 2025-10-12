@@ -18,7 +18,7 @@ using Serilog.Core;
 
 namespace EliteInfoPanel.Core
 {
-    public class GameStateService : INotifyPropertyChanged
+    public partial class GameStateService : INotifyPropertyChanged
     {
         #region Private Fields
 
@@ -37,9 +37,6 @@ namespace EliteInfoPanel.Core
 
         private bool _cargoTrackingInitialized = false;
         private Dictionary<string, int> _carrierCargo = new(StringComparer.OrdinalIgnoreCase);
-        private string _carrierJumpDestinationBody;
-        private string _carrierJumpDestinationSystem;
-        private DateTime? _carrierJumpScheduledTime;
         private Dictionary<long, ColonizationData> _colonizationDepots = new();
         private int _combatRank;
         private string _commanderName;
@@ -59,12 +56,9 @@ namespace EliteInfoPanel.Core
         private int _exobiologistRank;
         private int _explorationRank;
         private bool _firstLoadCompleted = false;
-        private bool _fleetCarrierJumpInProgress;
-        private DateTime? _fleetCarrierJumpTime;
         private string _hyperspaceDestination;
         private string _hyperspaceStarClass;
         private CancellationTokenSource _hyperspaceTimeoutCts;
-        private bool _isCarrierJumping = false;
         private bool _isDocking;
         private bool _isHyperspaceJumping;
         private bool _isInHyperspace = false;
@@ -72,9 +66,6 @@ namespace EliteInfoPanel.Core
         private bool _isOnFleetCarrier;
         private bool _isRouteLoaded = false;
         private bool _isUpdating = false;
-        private bool _jumpArrived;
-        // Add this field to track changes
-        private int _lastCarrierJumpCountdown = -1;
         private readonly Dictionary<string, ManualCargoChange> _manualCarrierCargoChanges = new(StringComparer.OrdinalIgnoreCase);
         private string ManualCarrierCargoFilePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EliteCompanion", "ManualCarrierCargo.json");
         private readonly object _cargoLock = new object();
@@ -141,8 +132,11 @@ namespace EliteInfoPanel.Core
             // Initial load of all data
             LoadAllData();
 
+            // Initialize carrier jump timers
+            InitializeCarrierJumpTimers();
+            
             // Scan journal for pending carrier jump
-            ScanJournalForPendingCarrierJump();
+            ScanForPendingCarrierJump();
             Task.Run(InitializeMqttAsync);
             if (CurrentStatus != null)
             {
@@ -191,39 +185,7 @@ namespace EliteInfoPanel.Core
             }
         }
 
-        // Add this field to track the special condition
-        public int CarrierJumpCountdownSeconds
-        {
-            get
-            {
-                if (CarrierJumpScheduledTime.HasValue)
-                {
-                    // CRITICAL: Use UTC for both to avoid timezone issues
-                    var timeLeft = CarrierJumpScheduledTime.Value - DateTime.UtcNow;
-                    int result = (int)Math.Max(0, timeLeft.TotalSeconds);
-                    return result;
-                }
-                return 0;
-            }
-        }
-
-        public string CarrierJumpDestinationBody
-        {
-            get => _carrierJumpDestinationBody;
-            private set => SetProperty(ref _carrierJumpDestinationBody, value);
-        }
-
-        public string CarrierJumpDestinationSystem
-        {
-            get => _carrierJumpDestinationSystem;
-            private set => SetProperty(ref _carrierJumpDestinationSystem, value);
-        }
-
-        public DateTime? CarrierJumpScheduledTime
-        {
-            get => _carrierJumpScheduledTime;
-            private set => SetProperty(ref _carrierJumpScheduledTime, value);
-        }
+        // Carrier jump properties moved to GameStateService_CarrierJump.cs partial class
 
         public IReadOnlyDictionary<long, ColonizationData> ColonizationDepots => _colonizationDepots;
         public int CombatRank
@@ -360,31 +322,6 @@ namespace EliteInfoPanel.Core
         }
 
         public bool FirstLoadCompleted => _firstLoadCompleted;
-        public bool FleetCarrierJumpInProgress
-        {
-            get => _fleetCarrierJumpInProgress;
-            private set
-            {
-                Log.Information("📡 FleetCarrierJumpInProgress changed to {0}", value);
-                if (SetProperty(ref _fleetCarrierJumpInProgress, value))
-                {
-                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay)); // notify
-                    OnPropertyChanged(nameof(ShowCarrierJumpCountdown)); // <-- add this
-                }
-            }
-        }
-
-        public DateTime? FleetCarrierJumpTime
-        {
-            get => _fleetCarrierJumpTime;
-            private set
-            {
-                if (SetProperty(ref _fleetCarrierJumpTime, value))
-                {
-                    OnPropertyChanged(nameof(JumpCountdown)); // Notify that countdown changed
-                }
-            }
-        }
 
         public double FuelMain => CurrentStatus?.Fuel?.FuelMain ?? 0;
         public double FuelReserve => CurrentStatus?.Fuel?.FuelReservoir ?? 0;
@@ -434,21 +371,7 @@ namespace EliteInfoPanel.Core
             }
         }
 
-        public bool JumpArrived
-        {
-            get => _jumpArrived;
-            set
-            {
-                if (SetProperty(ref _jumpArrived, value))
-                {
-                    Log.Debug("JumpArrived changed to {0}, notifying ShowCarrierJumpOverlay", value);
-                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
-                }
-            }
-        }
-
-        public TimeSpan? JumpCountdown => FleetCarrierJumpTime.HasValue ?
-                    FleetCarrierJumpTime.Value - DateTime.UtcNow : null;
+        // JumpArrived and JumpCountdown removed - handled by CarrierJumpState
 
         public string LastFsdTargetSystem
         {
@@ -528,28 +451,7 @@ namespace EliteInfoPanel.Core
             private set => SetProperty(ref _shipName, value);
         }
 
-        // Add this to GameStateService.cs
-        // In ShowCarrierJumpOverlay
-        public bool ShowCarrierJumpOverlay
-        {
-            get
-            {
-                Log.Debug("[ShowCarrierJumpOverlay] IsOnFleetCarrier={IsOnFleetCarrier}, FleetCarrierJumpInProgress={FleetCarrierJumpInProgress}, CarrierJumpCountdownSeconds={CarrierJumpCountdownSeconds}, JumpArrived={JumpArrived}",
-                    IsOnFleetCarrier, FleetCarrierJumpInProgress, CarrierJumpCountdownSeconds, JumpArrived);
-                return IsOnFleetCarrier && FleetCarrierJumpInProgress && CarrierJumpCountdownSeconds <= 0 && !JumpArrived;
-            }
-        }
-
-        // Add this property to GameStateService.cs
-        public bool ShowCarrierJumpCountdown
-        {
-            get
-            {
-                Log.Debug("[ShowCarrierJumpCountdown] FleetCarrierJumpInProgress={FleetCarrierJumpInProgress}, CarrierJumpCountdownSeconds={CarrierJumpCountdownSeconds}",
-                    FleetCarrierJumpInProgress, CarrierJumpCountdownSeconds);
-                return FleetCarrierJumpInProgress && CarrierJumpCountdownSeconds > 0;
-            }
-        }
+        // ShowCarrierJumpOverlay moved to GameStateService_CarrierJump.cs partial class
 
         public string SquadronName
         {
@@ -615,31 +517,13 @@ namespace EliteInfoPanel.Core
             try
             {
                 Log.Information("=== CARRIER JUMP STATE DEBUG INFO ===");
-                Log.Information("FleetCarrierJumpInProgress: {InProgress}", FleetCarrierJumpInProgress);
-                Log.Information("JumpArrived: {JumpArrived}", JumpArrived);
+                Log.Information("CarrierJumpState: {State}", _carrierJumpState);
                 Log.Information("IsOnFleetCarrier: {OnCarrier}", IsOnFleetCarrier);
-                Log.Information("CarrierJumpScheduledTime: {ScheduledTime}", CarrierJumpScheduledTime);
-                Log.Information("CarrierJumpDestinationSystem: {System}", CarrierJumpDestinationSystem);
-                Log.Information("CarrierJumpDestinationBody: {Body}", CarrierJumpDestinationBody);
                 Log.Information("ShowCarrierJumpOverlay: {ShowOverlay}", ShowCarrierJumpOverlay);
                 Log.Information("CarrierJumpCountdownSeconds: {Countdown}", CarrierJumpCountdownSeconds);
-                
-                // CRITICAL DEBUGGING: Show the actual time calculations
-                if (CarrierJumpScheduledTime.HasValue)
-                {
-                    Log.Information("=== TIME CALCULATIONS ===");
-                    Log.Information("Current UTC Now: {UtcNow}", DateTime.UtcNow);
-                    Log.Information("Scheduled Time (UTC): {Scheduled}", CarrierJumpScheduledTime.Value);
-                    Log.Information("Scheduled Time Kind: {Kind}", CarrierJumpScheduledTime.Value.Kind);
-                    var diff = CarrierJumpScheduledTime.Value - DateTime.UtcNow;
-                    Log.Information("Time Difference: {Diff} ({Seconds} seconds)", diff, diff.TotalSeconds);
-                    
-                    if (FleetCarrierJumpTime.HasValue)
-                    {
-                        Log.Information("FleetCarrierJumpTime (UTC): {JumpTime}", FleetCarrierJumpTime.Value);
-                        Log.Information("FleetCarrierJumpTime Kind: {Kind}", FleetCarrierJumpTime.Value.Kind);
-                    }
-                }
+                Log.Information("CarrierJumpDestination: {Destination}", CarrierJumpDestination);
+                Log.Information("Timer Running: {TimerRunning}", _carrierJumpTimer?.IsEnabled ?? false);
+                Log.Information("Overlay Timeout Running: {TimeoutRunning}", _overlayTimeoutTimer?.IsEnabled ?? false);
 
                 // Check journal for recent carrier events
                 if (!string.IsNullOrEmpty(latestJournalPath) && File.Exists(latestJournalPath))
@@ -1003,123 +887,7 @@ namespace EliteInfoPanel.Core
             }
         }
 
-        public void ForceProcessRecentJournalEvents()
-        {
-            try
-            {
-                Log.Information("🔄 Force processing recent journal events to catch missed carrier events");
-
-                if (string.IsNullOrEmpty(latestJournalPath) || !File.Exists(latestJournalPath))
-                {
-                    Log.Warning("No journal file available for processing");
-                    return;
-                }
-
-                var fileInfo = new FileInfo(latestJournalPath);
-                using var fs = new FileStream(latestJournalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-
-                // Read the last 50KB to look for recent events we might have missed
-                long startPos = Math.Max(0, fileInfo.Length - 51200);
-                fs.Seek(startPos, SeekOrigin.Begin);
-
-                using var sr = new StreamReader(fs);
-                var eventsToProcess = new List<string>();
-
-                while (!sr.EndOfStream)
-                {
-                    string line = sr.ReadLine();
-                    if (!string.IsNullOrWhiteSpace(line) &&
-                        (line.Contains("CarrierJumpRequest") || line.Contains("CarrierJump") || line.Contains("CarrierLocation")))
-                    {
-                        eventsToProcess.Add(line);
-                    }
-                }
-
-                Log.Information("Found {Count} recent carrier events to reprocess", eventsToProcess.Count);
-
-                // Process each event
-                int processedCount = 0;
-                foreach (var eventLine in eventsToProcess)
-                {
-                    try
-                    {
-                        using var doc = JsonDocument.Parse(eventLine);
-                        var root = doc.RootElement;
-
-                        if (root.TryGetProperty("event", out var eventProp))
-                        {
-                            string eventType = eventProp.GetString();
-                            Log.Information("Reprocessing: {Event}", eventType);
-
-                            // Process the event inline (simplified version of the main switch)
-                            switch (eventType)
-                            {
-                                case "CarrierJumpRequest":
-                                    if (root.TryGetProperty("DepartureTime", out var departureTimeProp) &&
-                                        DateTime.TryParse(departureTimeProp.GetString(), null, System.Globalization.DateTimeStyles.RoundtripKind, out var departureTime))
-                                    {
-                                        // CRITICAL: Ensure the time is in UTC
-                                        if (departureTime.Kind == DateTimeKind.Local)
-                                        {
-                                            departureTime = departureTime.ToUniversalTime();
-                                        }
-                                        else if (departureTime.Kind == DateTimeKind.Unspecified)
-                                        {
-                                            // Journal times are UTC, so treat unspecified as UTC
-                                            departureTime = DateTime.SpecifyKind(departureTime, DateTimeKind.Utc);
-                                        }
-                                        
-                                        if (departureTime > DateTime.UtcNow)
-                                        {
-                                            FleetCarrierJumpTime = departureTime;
-                                            CarrierJumpScheduledTime = departureTime;
-
-                                            if (root.TryGetProperty("SystemName", out var sysName))
-                                                CarrierJumpDestinationSystem = sysName.GetString();
-
-                                            if (root.TryGetProperty("Body", out var bodyName))
-                                                CarrierJumpDestinationBody = bodyName.GetString();
-
-                                            JumpArrived = false;
-                                            FleetCarrierJumpInProgress = true;
-
-                                            Log.Information("✅ Recovered CarrierJumpRequest: {System} at {Time}",
-                                                CarrierJumpDestinationSystem, departureTime);
-                                        }
-                                    }
-                                    break;
-
-                                case "CarrierJump":
-                                    JumpArrived = true;
-                                    FleetCarrierJumpInProgress = false;
-                                    Log.Information("✅ Processed CarrierJump completion");
-                                    break;
-                            }
-
-                            processedCount++;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Warning(ex, "Error reprocessing event: {Event}", eventLine);
-                    }
-                }
-
-                if (processedCount > 0)
-                {
-                    Log.Information("✅ Reprocessed {Count} carrier events", processedCount);
-                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
-                }
-                else
-                {
-                    Log.Information("No carrier events needed reprocessing");
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error force processing recent journal events");
-            }
-        }
+        // ForceProcessRecentJournalEvents removed - now handled by ScanForPendingCarrierJump in partial class
 
         public void ForceRefreshColonizationData()
         {
@@ -1260,19 +1028,23 @@ namespace EliteInfoPanel.Core
                             using var doc = JsonDocument.Parse(line);
                             var root = doc.RootElement;
 
-                            // --- GUARD: Only process events newer than app start time ---
+                            // Only skip heavy/side-effect events before app start; allow identity/status to seed UI
                             if (root.TryGetProperty("timestamp", out var tsProp))
                             {
-                                if (DateTime.TryParse(tsProp.GetString(), out var eventTimeUtc))
+                                if (DateTime.TryParse(tsProp.GetString(), out var eventTimeUtc) && eventTimeUtc < _appStartTimeUtc)
                                 {
-                                    if (eventTimeUtc < _appStartTimeUtc)
+                                    if (root.TryGetProperty("event", out var etProp))
                                     {
-                                        Log.Debug("Skipping event predating app launch: {Timestamp}", eventTimeUtc);
-                                        continue;
+                                        var et = etProp.GetString();
+                                        // Skip heavy or transactional events prior to startup
+                                        if (et is "CargoTransfer" or "CargoDepot" or "CarrierTradeOrder" or "MarketBuy" or "MarketSell")
+                                        {
+                                            Log.Debug("Skipping heavy event predating app launch: {Event} {Timestamp}", et, eventTimeUtc);
+                                            continue;
+                                        }
                                     }
                                 }
                             }
-                            // --- END GUARD ---
 
                             if (!root.TryGetProperty("event", out var eventProp))
                                 continue;
@@ -1442,9 +1214,6 @@ namespace EliteInfoPanel.Core
                                     IsDocking = false;
                                     CurrentStationName = null;
                                     IsOnFleetCarrier = false;
-
-                                    // Clean up carrier jump state when undocking
-                                    ResetFleetCarrierJumpState();
                                     break;
 
                                 case "Docked":
@@ -1475,23 +1244,6 @@ namespace EliteInfoPanel.Core
                                         if (isCarrier || dockStationTypeProp.ValueKind != JsonValueKind.Undefined)
                                         {
                                             IsOnFleetCarrier = isCarrier;
-                                            
-                                            // CRITICAL: If we're docking on a carrier and there's a stale jump state, clean it up
-                                            if (isCarrier && FleetCarrierJumpInProgress && CarrierJumpScheduledTime.HasValue)
-                                            {
-                                                // If the scheduled time was more than 2 minutes ago, the jump already happened
-                                                var timeSinceScheduled = DateTime.UtcNow - CarrierJumpScheduledTime.Value;
-                                                if (timeSinceScheduled.TotalMinutes > 2)
-                                                {
-                                                    Log.Warning("⚠️ Docking on carrier with stale jump state (scheduled {Minutes:F1} min ago) - cleaning up",
-                                                        timeSinceScheduled.TotalMinutes);
-                                                    JumpArrived = true;
-                                                    FleetCarrierJumpInProgress = false;
-                                                    CarrierJumpScheduledTime = null;
-                                                    CarrierJumpDestinationSystem = null;
-                                                    CarrierJumpDestinationBody = null;
-                                                }
-                                            }
                                         }
                                     }
                                     break;
@@ -1635,9 +1387,6 @@ namespace EliteInfoPanel.Core
                                         CurrentSystem = currentSystem;
                                         PruneCompletedRouteSystems();
                                     }
-
-                                    // Clean up carrier jump state when we get location updates
-                                    ResetFleetCarrierJumpState();
                                     break;
 
                                 case "SupercruiseExit":
@@ -1790,150 +1539,26 @@ namespace EliteInfoPanel.Core
                                     break;
 
                                 case "CarrierJumpRequest":
-                                    Log.Information("🚀 📜 PROCESSING CarrierJumpRequest event");
-                                    Log.Information("   - Full event: {Event}", line);
-
                                     if (root.TryGetProperty("DepartureTime", out var departureTimeProp) &&
                                         DateTime.TryParse(departureTimeProp.GetString(), null, System.Globalization.DateTimeStyles.RoundtripKind, out var departureTime))
                                     {
-                                        // CRITICAL: Ensure the time is in UTC
-                                        if (departureTime.Kind == DateTimeKind.Local)
-                                        {
-                                            departureTime = departureTime.ToUniversalTime();
-                                        }
-                                        else if (departureTime.Kind == DateTimeKind.Unspecified)
-                                        {
-                                            // Journal times are UTC, so treat unspecified as UTC
-                                            departureTime = DateTime.SpecifyKind(departureTime, DateTimeKind.Utc);
-                                        }
-                                        
-                                        Log.Information("🚀 DepartureTime parsed: {DepartureTime} (Kind: {Kind})",
-                                            departureTime, departureTime.Kind);
-
-                                        if (departureTime > DateTime.UtcNow)
-                                        {
-                                            Log.Information("✅ Departure time is in the future - processing jump request");
-
-                                            // CRITICAL: Process carrier jump outside of batch update to ensure immediate UI response
-                                            bool wasBatchMode2 = _isUpdating;
-                                            if (wasBatchMode2)
-                                            {
-                                                Log.Information("🚀 Temporarily disabling batch mode for carrier jump request");
-                                                _isUpdating = false;
-                                            }
-
-                                            FleetCarrierJumpTime = departureTime;
-                                            CarrierJumpScheduledTime = departureTime;
-                                            Log.Information("✅ Set FleetCarrierJumpTime = {Time}", departureTime);
-
-                                            if (root.TryGetProperty("SystemName", out var sysName))
-                                            {
-                                                string systemName = sysName.GetString();
-                                                CarrierJumpDestinationSystem = systemName;
-                                                Log.Information("✅ Set CarrierJumpDestinationSystem = {SystemName}", systemName);
-                                            }
-                                            else
-                                            {
-                                                Log.Warning("❌ No SystemName property found in CarrierJumpRequest!");
-                                            }
-
-                                            if (root.TryGetProperty("Body", out var bodyName))
-                                            {
-                                                string bodyNameStr = bodyName.GetString();
-                                                CarrierJumpDestinationBody = bodyNameStr;
-                                                Log.Information("✅ Set CarrierJumpDestinationBody = {Body}", bodyNameStr);
-                                            }
-
-                                            JumpArrived = false;
-                                            FleetCarrierJumpInProgress = true;
-                                            Log.Information("✅ Set JumpArrived = false, FleetCarrierJumpInProgress = true");
-
-                                            // Verify the properties were actually set
-                                            Log.Information("🔍 VERIFICATION after setting properties:");
-                                            Log.Information("   - FleetCarrierJumpInProgress: {InProgress}", FleetCarrierJumpInProgress);
-                                            Log.Information("   - CarrierJumpDestinationSystem: {Destination}", CarrierJumpDestinationSystem);
-                                            Log.Information("   - CarrierJumpScheduledTime: {ScheduledTime}", CarrierJumpScheduledTime);
-                                            Log.Information("   - JumpArrived: {JumpArrived}", JumpArrived);
-                                            Log.Information("   - ShowCarrierJumpOverlay: {ShowOverlay}", ShowCarrierJumpOverlay);
-
-                                            Log.Information("🚀 Carrier jump scheduled for {Time}", departureTime);
-
-                                            // Restore batch mode if it was active
-                                            if (wasBatchMode2)
-                                            {
-                                                _isUpdating = true;
-                                                Log.Information("🚀 Restored batch mode");
-                                            }
-                                        }
-                                        else
-                                        {
-                                            Log.Warning("❌ CarrierJumpRequest ignored — departure time {DepartureTime} is in the past (current UTC: {CurrentTime})",
-                                                departureTime, DateTime.UtcNow);
-                                        }
-                                    }
-                                    else
-                                    {
-                                        Log.Error("❌ CarrierJumpRequest: Could not parse DepartureTime property!");
-                                        if (root.TryGetProperty("DepartureTime", out var depTimeProp))
-                                        {
-                                            Log.Error("   - Raw DepartureTime value: {RawValue}", depTimeProp.GetRawText());
-                                        }
+                                        string systemName = root.TryGetProperty("SystemName", out var sysName) ? sysName.GetString() : null;
+                                        string bodyName = root.TryGetProperty("Body", out var bodyProp) ? bodyProp.GetString() : null;
+                                        HandleCarrierJumpRequest(departureTime, systemName, bodyName);
                                     }
                                     break;
 
                                 case "CarrierJump":
-                                    // CRITICAL: Break out of batch mode immediately for this event
-                                    bool originalBatchMode = _isUpdating;
-                                    _isUpdating = false;
-
-                                    Log.Information("🚀 CarrierJump event detected - hiding overlay");
-                                    Log.Information("🚀 Current state before: JumpArrived={JumpArrived}, FleetCarrierJumpInProgress={InProgress}, ShowOverlay={Show}",
-                                        JumpArrived, FleetCarrierJumpInProgress, ShowCarrierJumpOverlay);
-
-                                    // Force immediate property updates
-                                    JumpArrived = true;
-                                    FleetCarrierJumpInProgress = false;
-                                    CarrierJumpScheduledTime = null;
-                                    CarrierJumpDestinationSystem = null;
-                                    CarrierJumpDestinationBody = null;
-
-                                    // Force immediate notification of the overlay property
-                                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
-
-                                    Log.Information("🚀 Current state after: JumpArrived={JumpArrived}, FleetCarrierJumpInProgress={InProgress}, ShowOverlay={Show}",
-                                        JumpArrived, FleetCarrierJumpInProgress, ShowCarrierJumpOverlay);
-
-                                    // Restore batch mode
-                                    _isUpdating = originalBatchMode;
+                                    HandleCarrierJumpCompleted();
                                     break;
 
                                 case "CarrierJumpCancelled":
                                 case "CarrierCancelJump":
-                                    // CRITICAL: Process cancellation outside of batch update for immediate UI response
-                                    bool wasBatchMode4 = _isUpdating;
-                                    if (wasBatchMode4)
-                                    {
-                                        _isUpdating = false;
-                                    }
-
-                                    FleetCarrierJumpTime = null;
-                                    CarrierJumpScheduledTime = null;
-                                    CarrierJumpDestinationSystem = null;
-                                    CarrierJumpDestinationBody = null;
-                                    FleetCarrierJumpInProgress = false;
-
-                                    if (wasBatchMode4)
-                                    {
-                                        _isUpdating = true;
-                                    }
-
-                                    Log.Information("Carrier jump cancelled");
+                                    HandleCarrierJumpCancelled();
                                     break;
 
                                 case "CarrierLocation":
                                     Log.Debug("CarrierLocation seen — updating location");
-                                    //FleetCarrierJumpInProgress = false;
-                                    // JumpArrived = true;
 
                                     bool isOnCarrier = false;
 
@@ -1958,19 +1583,10 @@ namespace EliteInfoPanel.Core
                                         CurrentSystem = carrierSystem;
                                         Log.Debug("✅ Updated CurrentSystem from CarrierLocation: {System}", carrierSystem);
                                     }
-
-                                    // Clean up carrier jump state after location changes
-                                    ResetFleetCarrierJumpState();
                                     break;
 
                                 case "ShipLocker":
-                                    if (_isCarrierJumping)
-                                    {
-                                        Log.Information("Carrier jump completed - carrier has arrived");
-                                        CarrierJumpDestinationSystem = null;
-                                        _isCarrierJumping = false;
-                                        _jumpArrived = true;
-                                    }
+                                    // ShipLocker event - no carrier jump logic needed
                                     break;
 
                                 case "CommitCrime":
@@ -2201,55 +1817,7 @@ namespace EliteInfoPanel.Core
             }
         }
 
-        public void ResetFleetCarrierJumpState()
-        {
-            bool hasJumpState = FleetCarrierJumpInProgress || JumpArrived || CarrierJumpScheduledTime.HasValue || !string.IsNullOrEmpty(CarrierJumpDestinationSystem);
-
-            if (!hasJumpState)
-                return;
-
-            Log.Information("🔄 🚀 RESET CHECK - ResetFleetCarrierJumpState called");
-            Log.Information("   - FleetCarrierJumpInProgress: {InProgress}", FleetCarrierJumpInProgress);
-            Log.Information("   - IsOnFleetCarrier: {OnCarrier}", IsOnFleetCarrier);
-            Log.Information("   - JumpArrived: {JumpArrived}", JumpArrived);
-            Log.Information("   - CarrierJumpScheduledTime: {ScheduledTime}", CarrierJumpScheduledTime);
-            Log.Information("   - CarrierJumpDestinationSystem: {Destination}", CarrierJumpDestinationSystem);
-
-            // Only clear jump state if the jump is truly stale:
-            // - Jump has completed and we're still on carrier
-            if (JumpArrived && !FleetCarrierJumpInProgress && IsOnFleetCarrier)
-            {
-                Log.Information("✅ 🚀 Carrier jump completed - clearing ALL jump state");
-                JumpArrived = false;
-                CarrierJumpScheduledTime = null;
-                CarrierJumpDestinationSystem = null;
-                CarrierJumpDestinationBody = null;
-                _lastCarrierJumpCountdown = -1;
-                Log.Information("✅ 🚀 All carrier jump state cleared - no more jump processing until next request");
-                return;
-            }
-
-            // - Jump is in progress, but scheduled time is in the past (missed event), and not on carrier
-            if (FleetCarrierJumpInProgress &&
-                (!IsOnFleetCarrier && CarrierJumpScheduledTime.HasValue && CarrierJumpScheduledTime.Value.ToLocalTime() < DateTime.Now.AddMinutes(-5)))
-            {
-                Log.Warning("⚠️ 🚀 RESETTING stale carrier jump state - JumpInProgress={InProgress}, OnCarrier={OnCarrier}, JumpArrived={JumpArrived}",
-                    FleetCarrierJumpInProgress, IsOnFleetCarrier, JumpArrived);
-
-                FleetCarrierJumpInProgress = false;
-                CarrierJumpScheduledTime = null;
-                CarrierJumpDestinationSystem = null;
-                CarrierJumpDestinationBody = null;
-                _lastCarrierJumpCountdown = -1;
-                JumpArrived = false;
-
-                Log.Warning("❌ 🚀 RESET COMPLETE - all carrier jump properties cleared");
-            }
-            else
-            {
-                Log.Information("✅ 🚀 RESET SKIPPED - carrier jump state is valid, no reset needed");
-            }
-        }
+        // ResetFleetCarrierJumpState removed - now handled by CarrierJumpState class
 
         public void ResetRouteActivity()
         {
@@ -3295,7 +2863,7 @@ namespace EliteInfoPanel.Core
                 SyncCarrierCargoState();
                 
                 // Check for stale carrier jump states
-                ResetFleetCarrierJumpState();
+                _carrierJumpState?.Reset();
 
                 // Explicitly notify key jump-related properties
                 OnPropertyChanged(nameof(FleetCarrierJumpInProgress));
@@ -4028,36 +3596,23 @@ namespace EliteInfoPanel.Core
                 }
                 if (latestRequestTimestamp.HasValue && !jumpCancelledOrCompleted && latestDepartureTime.HasValue && latestDepartureTime > DateTime.UtcNow)
                 {
-                    FleetCarrierJumpTime = latestDepartureTime;
-                    CarrierJumpScheduledTime = latestDepartureTime;
-                    CarrierJumpDestinationSystem = latestSystem;
-                    CarrierJumpDestinationBody = latestBody;
-                    FleetCarrierJumpInProgress = true;
-                    JumpArrived = false;
-                    OnPropertyChanged(nameof(JumpCountdown));
-                    OnPropertyChanged(nameof(CarrierJumpCountdownSeconds));
-                    OnPropertyChanged(nameof(ShowCarrierJumpCountdown));
-                    OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
-                    Log.Information("Recovered scheduled CarrierJump to {System}, {Body} at {Time}", latestSystem, latestBody, latestDepartureTime);
+                _carrierJumpState.ScheduleJump(latestDepartureTime.Value, latestSystem, latestBody);
+                OnPropertyChanged(nameof(JumpCountdown));
+                OnPropertyChanged(nameof(CarrierJumpCountdownSeconds));
+                OnPropertyChanged(nameof(ShowCarrierJumpCountdown));
+                OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
+                Log.Information("Recovered scheduled CarrierJump to {System}, {Body} at {Time}", latestSystem, latestBody, latestDepartureTime);
                 }
                 else if (latestRequestTimestamp.HasValue && !jumpCancelledOrCompleted && latestDepartureTime.HasValue && latestDepartureTime <= DateTime.UtcNow)
                 {
-                    // Jump time has passed - the jump already happened
-                    Log.Information("Found CarrierJumpRequest but departure time {Time} is in the past - jump already completed", latestDepartureTime);
-                    FleetCarrierJumpInProgress = false;
-                    JumpArrived = true;
-                    CarrierJumpScheduledTime = null;
-                    CarrierJumpDestinationSystem = null;
-                    CarrierJumpDestinationBody = null;
+                // Jump time has passed - the jump already happened
+                Log.Information("Found CarrierJumpRequest but departure time {Time} is in the past - jump already completed", latestDepartureTime);
+                _carrierJumpState.Reset();
                 }
                 else if (jumpCancelledOrCompleted)
                 {
-                    Log.Information("Found CarrierJumpCancelled or CarrierJump after last request — not setting jump state");
-                    FleetCarrierJumpInProgress = false;
-                    JumpArrived = true;
-                    CarrierJumpScheduledTime = null;
-                    CarrierJumpDestinationSystem = null;
-                    CarrierJumpDestinationBody = null;
+                Log.Information("Found CarrierJumpCancelled or CarrierJump after last request — not setting jump state");
+                _carrierJumpState.Reset();
                 }
                 else if (latestRequestTimestamp.HasValue)
                 {
@@ -4318,19 +3873,7 @@ namespace EliteInfoPanel.Core
         /// <summary>
         /// Called by SummaryViewModel when the carrier jump countdown reaches zero, to trigger overlay display.
         /// </summary>
-        public void NotifyCarrierJumpCountdownReachedZero()
-        {
-            // Set the scheduled time to now so CarrierJumpCountdownSeconds is 0
-            if (CarrierJumpScheduledTime.HasValue && CarrierJumpScheduledTime.Value > DateTime.UtcNow)
-            {
-                CarrierJumpScheduledTime = DateTime.UtcNow;
-            }
-            // Force property change notifications
-            OnPropertyChanged(nameof(CarrierJumpCountdownSeconds));
-            OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
-            OnPropertyChanged(nameof(ShowCarrierJumpCountdown));
-            Log.Information("Carrier jump countdown reached zero, overlay should now be visible until CarrierJump event.");
-        }
+     
         #endregion Private Methods
     }
 }
