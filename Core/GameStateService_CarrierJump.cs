@@ -5,6 +5,7 @@ using System;
 using System.IO;
 using System.Text.Json;
 using System.Windows.Threading;
+using System.Linq;
 using EliteInfoPanel.Core.Models;
 using Serilog;
 
