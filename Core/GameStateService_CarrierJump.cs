@@ -102,7 +102,7 @@ namespace EliteInfoPanel.Core
             };
             _carrierJumpTimer.Tick += CarrierJumpTimer_Tick;
 
-            // Timeout timer for overlay (3 minutes max)
+            // Timeout timer for overlay (safety auto-hide)
             _overlayTimeoutTimer = new DispatcherTimer(DispatcherPriority.Normal, System.Windows.Application.Current.Dispatcher)
             {
                 Interval = TimeSpan.FromMinutes(3)
@@ -134,10 +134,11 @@ namespace EliteInfoPanel.Core
             
             // Start countdown timer
             _carrierJumpTimer.Start();
-            
-            // Notify UI of state change
+
+            // Notify UI of countdown state change only (overlay remains off until T0 and player is on carrier)
             OnPropertyChanged(nameof(CarrierJumpCountdownSeconds));
             OnPropertyChanged(nameof(CarrierJumpDestination));
+            OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
         }
 
         /// <summary>
@@ -164,18 +165,11 @@ namespace EliteInfoPanel.Core
             Log.Information("🚀 Carrier jump completed");
             
             _carrierJumpState.CompleteJump();
-            // Stop countdown timer; reconfigure overlay timeout to auto-hide shortly
+            // Stop countdown timer and overlay safety timer; overlay will be hidden immediately
             _carrierJumpTimer.Stop();
+            _overlayTimeoutTimer.Stop();
 
-            // Ensure the overlay will be hidden shortly after completion
-            if (_overlayTimeoutTimer != null)
-            {
-                _overlayTimeoutTimer.Stop();
-                _overlayTimeoutTimer.Interval = TimeSpan.FromSeconds(6); // slightly longer than ShowOverlay grace
-                _overlayTimeoutTimer.Start();
-            }
-
-            // Notify UI now (overlay may still show briefly due to JumpCompleted grace window)
+            // Notify UI now to hide overlay and clear countdown
             OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
             OnPropertyChanged(nameof(CarrierJumpCountdownSeconds));
         }
@@ -191,7 +185,7 @@ namespace EliteInfoPanel.Core
                 return;
             }
 
-            // Update countdown
+            // Update countdown (UI progress)
             OnPropertyChanged(nameof(CarrierJumpCountdownSeconds));
 
             // Check if jump time has arrived
@@ -199,18 +193,19 @@ namespace EliteInfoPanel.Core
             {
                 Log.Information("🚀 Jump time reached - checking if player is on carrier");
                 
-                // CRITICAL: Only show overlay if player is on the carrier
+                // Only show overlay if player is on the carrier at T0
                 if (IsOnFleetCarrier)
                 {
-                    Log.Information("🚀 Player is on carrier - showing overlay");
+                    Log.Information("🚀 Player is on carrier at T0 - activating overlay and waiting for CarrierJump event");
+                    _carrierJumpState.ActivateOverlay();
                     OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
                     
-                    // Start timeout timer
+                    // Start safety timeout in case CarrierJump event is missed
                     _overlayTimeoutTimer.Start();
                 }
                 else
                 {
-                    Log.Information("🚀 Player not on carrier - resetting jump state and hiding overlay");
+                    Log.Information("🚀 Player not on carrier at T0 - do not show overlay, reset jump state");
                     _carrierJumpState.Reset();
                     OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
                     OnPropertyChanged(nameof(CarrierJumpCountdownSeconds));
@@ -272,77 +267,105 @@ namespace EliteInfoPanel.Core
         /// </summary>
         private void ScanForPendingCarrierJump()
         {
-            if (string.IsNullOrEmpty(latestJournalPath) || !System.IO.File.Exists(latestJournalPath))
-                return;
-
             try
             {
-                Log.Information("🚀 Scanning journal for pending carrier jump");
-                
-                var fileInfo = new System.IO.FileInfo(latestJournalPath);
-                using var fs = new System.IO.FileStream(latestJournalPath, System.IO.FileMode.Open, 
-                    System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite);
-                
-                // Read last 20KB to find recent carrier events
-                long startPos = Math.Max(0, fileInfo.Length - 20480);
-                fs.Seek(startPos, System.IO.SeekOrigin.Begin);
-                
-                using var sr = new System.IO.StreamReader(fs);
-                
-                DateTime? lastJumpRequest = null;
-                string lastSystem = null;
-                string lastBody = null;
-                bool jumpCompleted = false;
-                
-                while (!sr.EndOfStream)
+                var journalFiles = System.IO.Directory.GetFiles(gamePath, "Journal.*.log")
+                    .OrderBy(f => System.IO.File.GetLastWriteTime(f)) // chronological
+                    .ToList();
+
+                if (journalFiles.Count == 0)
                 {
-                    string line = sr.ReadLine();
-                    if (string.IsNullOrWhiteSpace(line)) continue;
-                    
-                    try
+                    Log.Warning("🚀 No journal files found when scanning for pending carrier jump");
+                    return;
+                }
+
+                Log.Information("🚀 Scanning {Count} journal files for pending carrier jump", journalFiles.Count);
+
+                DateTime? latestRequestTimestamp = null; // event timestamp
+                DateTime? latestDepartureTimeUtc = null; // scheduled departure
+                string latestSystem = null;
+                string latestBody = null;
+                bool cancelledOrCompleted = false;
+
+                foreach (var path in journalFiles)
+                {
+                    using var sr = new System.IO.StreamReader(new System.IO.FileStream(path, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite));
+                    while (!sr.EndOfStream)
                     {
-                        using var doc = System.Text.Json.JsonDocument.Parse(line);
-                        var root = doc.RootElement;
-                        
-                        if (!root.TryGetProperty("event", out var eventProp)) continue;
-                        
-                        string eventType = eventProp.GetString();
-                        
-                        if (eventType == "CarrierJumpRequest" && 
-                            root.TryGetProperty("DepartureTime", out var timeProp) &&
-                            DateTime.TryParse(timeProp.GetString(), null, 
-                                System.Globalization.DateTimeStyles.RoundtripKind, out var depTime))
+                        var line = sr.ReadLine();
+                        if (string.IsNullOrWhiteSpace(line)) continue;
+                        try
                         {
-                            lastJumpRequest = depTime.Kind == DateTimeKind.Utc ? depTime : 
-                                depTime.Kind == DateTimeKind.Local ? depTime.ToUniversalTime() :
-                                DateTime.SpecifyKind(depTime, DateTimeKind.Utc);
-                            
-                            lastSystem = root.TryGetProperty("SystemName", out var sys) ? sys.GetString() : null;
-                            lastBody = root.TryGetProperty("Body", out var body) ? body.GetString() : null;
-                            jumpCompleted = false;
+                            using var doc = System.Text.Json.JsonDocument.Parse(line);
+                            var root = doc.RootElement;
+                            if (!root.TryGetProperty("event", out var eventProp)) continue;
+                            var et = eventProp.GetString();
+
+                            if (et == "CarrierJumpRequest")
+                            {
+                                // Record the request time and future departure
+                                if (root.TryGetProperty("timestamp", out var tsProp) &&
+                                    System.DateTime.TryParse(tsProp.GetString(), out var ts))
+                                {
+                                    latestRequestTimestamp = ts.Kind == DateTimeKind.Utc ? ts : ts.Kind == DateTimeKind.Local ? ts.ToUniversalTime() : DateTime.SpecifyKind(ts, DateTimeKind.Utc);
+                                }
+                                if (root.TryGetProperty("DepartureTime", out var dtProp) &&
+                                    System.DateTime.TryParse(dtProp.GetString(), null, System.Globalization.DateTimeStyles.RoundtripKind, out var dt))
+                                {
+                                    latestDepartureTimeUtc = dt.Kind == DateTimeKind.Utc ? dt : dt.Kind == DateTimeKind.Local ? dt.ToUniversalTime() : DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+                                }
+                                latestSystem = root.TryGetProperty("SystemName", out var sys) ? sys.GetString() : null;
+                                latestBody = root.TryGetProperty("Body", out var body) ? body.GetString() : null;
+                                cancelledOrCompleted = false; // reset on new request
+                            }
+                            else if ((et == "CarrierJump" || et == "CarrierJumpCancelled" || et == "CarrierCancelJump") && latestRequestTimestamp.HasValue)
+                            {
+                                // Only mark complete/cancel if after the last request
+                                if (root.TryGetProperty("timestamp", out var tsProp) && System.DateTime.TryParse(tsProp.GetString(), out var evtTs))
+                                {
+                                    var evtTsUtc = evtTs.Kind == DateTimeKind.Utc ? evtTs : evtTs.Kind == DateTimeKind.Local ? evtTs.ToUniversalTime() : DateTime.SpecifyKind(evtTs, DateTimeKind.Utc);
+                                    if (evtTsUtc > latestRequestTimestamp.Value)
+                                    {
+                                        cancelledOrCompleted = true;
+                                    }
+                                }
+                            }
                         }
-                        else if (eventType == "CarrierJump")
+                        catch (System.Text.Json.JsonException)
                         {
-                            jumpCompleted = true;
+                            // skip malformed lines
                         }
                     }
-                    catch (System.Text.Json.JsonException jsonEx)
+                }
+
+                // Decide what to do based on the latest request and its status
+                if (latestRequestTimestamp.HasValue && latestDepartureTimeUtc.HasValue && !cancelledOrCompleted)
+                {
+                    if (latestDepartureTimeUtc.Value > DateTime.UtcNow)
                     {
-                        // Skip malformed lines - journal might have corruption or partial data
-                        Log.Debug("🚀 Skipping malformed journal line during carrier jump scan: {Error}", jsonEx.Message);
-                        continue;
+                        Log.Information("🚀 Pending carrier jump detected at startup: {System} departs {Time}", latestSystem, latestDepartureTimeUtc);
+                        HandleCarrierJumpRequest(latestDepartureTimeUtc.Value, latestSystem, latestBody);
+                    }
+                    else
+                    {
+                        // T0 already reached but no completion/cancel recorded yet
+                        Log.Information("🚀 Carrier jump T0 already reached without completion in logs");
+                        if (IsOnFleetCarrier)
+                        {
+                            _carrierJumpState.ScheduleJump(latestDepartureTimeUtc.Value, latestSystem, latestBody);
+                            _carrierJumpState.ActivateOverlay();
+                            OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
+                            _overlayTimeoutTimer.Start(); // safety timeout
+                        }
+                        else
+                        {
+                            _carrierJumpState.Reset();
+                        }
                     }
                 }
-                
-                // If we found a jump request without completion, and it's in the future, schedule it
-                if (lastJumpRequest.HasValue && !jumpCompleted && lastJumpRequest.Value > DateTime.UtcNow)
+                else
                 {
-                    Log.Information("🚀 Found pending carrier jump: {System} at {Time}", lastSystem, lastJumpRequest.Value);
-                    HandleCarrierJumpRequest(lastJumpRequest.Value, lastSystem, lastBody);
-                }
-                else if (lastJumpRequest.HasValue)
-                {
-                    Log.Information("🚀 Found completed or past carrier jump - ignoring");
+                    Log.Information("🚀 No pending carrier jump found at startup");
                 }
             }
             catch (Exception ex)

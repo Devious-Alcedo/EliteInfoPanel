@@ -13,6 +13,7 @@ namespace EliteInfoPanel.Core.Models
         private string _destinationBody;
         private bool _jumpCompleted;
         private DateTime _stateLastUpdated;
+        private bool _overlayActive;
 
         public DateTime? ScheduledJumpTime
         {
@@ -69,27 +70,22 @@ namespace EliteInfoPanel.Core.Models
         }
 
         /// <summary>
-        /// Determines if the carrier jump overlay should be shown
+        /// Determines if the carrier jump overlay should be shown.
+        /// This is explicitly activated at T0 when the player is on the carrier,
+        /// and deactivated on completion/cancel/timeout.
         /// </summary>
-        public bool ShouldShowOverlay
+        public bool ShouldShowOverlay => _overlayActive;
+
+        public void ActivateOverlay()
         {
-            get
-            {
-                // Show overlay if:
-                // 1. Jump is scheduled and hasn't completed yet, OR
-                // 2. Jump just completed (show for a brief moment)
-                if (IsJumpScheduled)
-                    return true;
+            _overlayActive = true;
+            _stateLastUpdated = DateTime.UtcNow;
+        }
 
-                if (JumpCompleted)
-                {
-                    // Show completed state for 5 seconds after jump
-                    var timeSinceUpdate = DateTime.UtcNow - _stateLastUpdated;
-                    return timeSinceUpdate.TotalSeconds < 5;
-                }
-
-                return false;
-            }
+        public void DeactivateOverlay()
+        {
+            _overlayActive = false;
+            _stateLastUpdated = DateTime.UtcNow;
         }
 
         /// <summary>
@@ -103,6 +99,7 @@ namespace EliteInfoPanel.Core.Models
             DestinationSystem = systemName;
             DestinationBody = bodyName;
             JumpCompleted = false;
+            DeactivateOverlay();
         }
 
         /// <summary>
@@ -113,6 +110,7 @@ namespace EliteInfoPanel.Core.Models
             Log.Information("🚀 Carrier jump completed");
             
             JumpCompleted = true;
+            DeactivateOverlay();
         }
 
         /// <summary>
@@ -136,6 +134,7 @@ namespace EliteInfoPanel.Core.Models
             DestinationSystem = null;
             DestinationBody = null;
             JumpCompleted = false;
+            DeactivateOverlay();
         }
 
         /// <summary>
@@ -155,15 +154,11 @@ namespace EliteInfoPanel.Core.Models
                 Reset();
             }
 
-            // If jump is completed and it's been more than 10 seconds, reset the state
-            if (JumpCompleted)
+            // If overlay somehow remained active after completion for too long, force deactivate
+            if (JumpCompleted && _overlayActive)
             {
-                var timeSinceCompletion = DateTime.UtcNow - _stateLastUpdated;
-                if (timeSinceCompletion.TotalSeconds > 10)
-                {
-                    Log.Debug("🚀 Clearing completed carrier jump state after 10 seconds");
-                    Reset();
-                }
+                Log.Debug("🚀 Forcing overlay deactivation after completion cleanup");
+                DeactivateOverlay();
             }
         }
 
