@@ -149,13 +149,18 @@ namespace EliteInfoPanel.ViewModels
             // Apply user preferences AFTER everything else
             ApplyUserCardPreferences();
 
-            // IMPORTANT: Add this explicit check for colonization data
+            // IMPORTANT: Add this explicit check for valid colonization data
             // It needs to happen AFTER ApplyUserCardPreferences to override it if needed
-            if (_gameState.CurrentColonization != null)
+            bool hasColonizationData = _gameState.CurrentColonization != null &&
+                                       _gameState.CurrentColonization.LastUpdated != DateTime.MinValue &&
+                                       _gameState.CurrentColonization.ResourcesRequired?.Count > 0 &&
+                                       !_gameState.CurrentColonization.ConstructionComplete &&
+                                       !_gameState.CurrentColonization.ConstructionFailed;
+            
+            if (hasColonizationData)
             {
-                Log.Information("MainViewModel: Found colonization data after initialization - making card visible");
+                Log.Information("MainViewModel: Found valid colonization data after initialization - updating card visibility");
                 UpdateColonizationCardVisibility();
-
             }
             EventAggregator.Instance.Subscribe<CardVisibilityChangedEvent>(OnCardVisibilityChanged);
             EventAggregator.Instance.Subscribe<LayoutRefreshRequestEvent>(OnLayoutRefreshRequested);
@@ -333,11 +338,20 @@ namespace EliteInfoPanel.ViewModels
             FlagsCard.SetContextVisibility(true); // CHANGED: Use SetContextVisibility
             FlagsCard.IsUserEnabled = settings.ShowFlags; // ADDED: Set user preference directly
 
-            // Colonization card - evaluated once
-           
-            ColonizationCard.SetContextVisibility(true); // Always set the context to true
-            ColonizationCard.IsUserEnabled = settings.ShowColonisation; // Let user setting control visibility
-                                                                        // Fleet Carrier Cargo card (user controlled only)
+            // Colonization card - check if there's actual data
+            bool hasColonizationData = _gameState.CurrentColonization != null &&
+                                       _gameState.CurrentColonization.LastUpdated != DateTime.MinValue &&
+                                       _gameState.CurrentColonization.ResourcesRequired?.Count > 0 &&
+                                       !_gameState.CurrentColonization.ConstructionComplete &&
+                                       !_gameState.CurrentColonization.ConstructionFailed;
+            
+            ColonizationCard.SetContextVisibility(hasColonizationData);
+            ColonizationCard.IsUserEnabled = settings.ShowColonisation;
+            
+            Log.Debug("Colonization card visibility: HasData={HasData}, ContextVisible={Context}, UserEnabled={User}",
+                hasColonizationData, hasColonizationData, settings.ShowColonisation);
+            
+            // Fleet Carrier Cargo card (user controlled only)
             FleetCarrierCard.SetContextVisibility(true); // Always context-visible
             FleetCarrierCard.IsUserEnabled = settings.ShowFleetCarrierCargoCard;  // Respect user setting
             Log.Information("FleetCarrierCard.SetContextVisibility({Visible}), IsUserEnabled: {Enabled}",
@@ -449,33 +463,25 @@ namespace EliteInfoPanel.ViewModels
                 var settings = SettingsManager.Load();
                 bool userEnabled = settings.ShowColonisation;
 
-                // IMPORTANT: Check if we have actual data, regardless of what the status says
+                // Check if we have valid, active colonization data
                 bool hasData = _gameState.CurrentColonization != null &&
-                              _gameState.CurrentColonization.ResourcesRequired?.Count > 0;
+                              _gameState.CurrentColonization.LastUpdated != DateTime.MinValue &&
+                              _gameState.CurrentColonization.ResourcesRequired?.Count > 0 &&
+                              !_gameState.CurrentColonization.ConstructionComplete &&
+                              !_gameState.CurrentColonization.ConstructionFailed;
 
                 Log.Information("Updating ColonizationCard visibility: UserEnabled={UserEnabled}, HasData={HasData}",
                               userEnabled, hasData);
 
-                // Set context visibility to true if we have data (override the usual game state logic)
-                if (hasData)
-                {
-                    // Always set context visibility to true if we have data
-                    ColonizationCard.SetContextVisibility(true);
-                    ColonizationCard.IsUserEnabled = userEnabled;
+                // Set context visibility based on whether we have valid data
+                ColonizationCard.SetContextVisibility(hasData);
+                ColonizationCard.IsUserEnabled = userEnabled;
 
-                    Log.Information("ColonizationCard should be visible: HasData=true, UserEnabled={UserEnabled}",
-                                  userEnabled);
+                Log.Information("ColonizationCard context visibility set to: {HasData}, UserEnabled={UserEnabled}",
+                              hasData, userEnabled);
 
-                    // Force a layout refresh
-                    RefreshLayout(true);
-                }
-                else if (ColonizationCard.IsVisible)
-                {
-                    // Only hide if we don't have data and it's currently visible
-                    ColonizationCard.SetContextVisibility(false);
-                    Log.Information("ColonizationCard hidden due to no data");
-                    RefreshLayout(true);
-                }
+                // Force a layout refresh if visibility changed
+                RefreshLayout(true);
             }
             catch (Exception ex)
             {
@@ -486,8 +492,10 @@ namespace EliteInfoPanel.ViewModels
         {
             try
             {
-                // Check if the colonization data exists and is active
+                // Check if we have valid, active colonization data
                 bool hasActiveColonization = _gameState.CurrentColonization != null &&
+                                            _gameState.CurrentColonization.LastUpdated != DateTime.MinValue &&
+                                            _gameState.CurrentColonization.ResourcesRequired?.Count > 0 &&
                                             !_gameState.CurrentColonization.ConstructionComplete &&
                                             !_gameState.CurrentColonization.ConstructionFailed;
 
@@ -498,7 +506,6 @@ namespace EliteInfoPanel.ViewModels
                 Log.Information("MainViewModel: Updating colonization data - HasData={HasData}, UserEnabled={UserEnabled}",
                     hasActiveColonization, userEnabled);
 
-                // FIXED: Instead of directly setting IsVisible, use the proper methods
                 // Set context visibility based on data availability
                 ColonizationCard.SetContextVisibility(hasActiveColonization);
 
@@ -508,13 +515,8 @@ namespace EliteInfoPanel.ViewModels
                 // The final visibility will be determined by CardViewModel.UpdateIsVisible()
                 // which combines both context visibility and user preference
 
-                // Check if we need to refresh the layout (this won't change)
-                bool shouldBeVisible = hasActiveColonization && userEnabled;
-                if (shouldBeVisible)
-                {
-                    // Force layout refresh to ensure colonization card is displayed
-                    RefreshLayout(true);
-                }
+                // Refresh layout if needed
+                RefreshLayout(true);
             }
             catch (Exception ex)
             {
@@ -771,12 +773,19 @@ namespace EliteInfoPanel.ViewModels
                 card.SetContextVisibility(false);
             }
 
-            if (_gameState.CurrentColonization != null)
+            // Check for valid colonization data
+            bool hasColonizationData = _gameState.CurrentColonization != null &&
+                                       _gameState.CurrentColonization.LastUpdated != DateTime.MinValue &&
+                                       _gameState.CurrentColonization.ResourcesRequired?.Count > 0 &&
+                                       !_gameState.CurrentColonization.ConstructionComplete &&
+                                       !_gameState.CurrentColonization.ConstructionFailed;
+            
+            if (hasColonizationData)
             {
                 var settings = SettingsManager.Load();
-                Log.Information("Colonization data found during initial visibility setup");
+                Log.Information("Valid colonization data found during initial visibility setup");
 
-                // FIXED: Set both context visibility and user preference correctly
+                // Set both context visibility and user preference correctly
                 ColonizationCard.SetContextVisibility(true);
                 ColonizationCard.IsUserEnabled = settings.ShowColonisation;
             }
