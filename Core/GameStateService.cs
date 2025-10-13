@@ -3192,6 +3192,11 @@ namespace EliteInfoPanel.Core
                 }
 
                 var json = File.ReadAllText(ColonizationDataFile);
+                if (string.IsNullOrWhiteSpace(json))
+                {
+                    Log.Debug("Colonization data file is empty or whitespace at {File}", ColonizationDataFile);
+                    return;
+                }
                 var loadedDepots = JsonSerializer.Deserialize<Dictionary<long, ColonizationData>>(json);
 
                 if (loadedDepots != null)
