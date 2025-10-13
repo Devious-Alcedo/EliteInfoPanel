@@ -1,4 +1,4 @@
-using EliteInfoPanel.Core;
+﻿using EliteInfoPanel.Core;
 using EliteInfoPanel.Core.Models;
 using EliteInfoPanel.Util;
 using MQTTnet;
@@ -125,7 +125,7 @@ namespace EliteInfoPanel.Services
                 {
                     if (_mqttClient.IsConnected)
                     {
-                        _mqttClient.DisconnectAsync(MqttClientDisconnectOptionsReason.NormalDisconnection); // Fire-and-forget to avoid deadlock
+                        _mqttClient.DisconnectAsync(MqttClientDisconnectOptionsReason.NormalDisconnection).Wait(5000);
                     }
                     _mqttClient.Dispose();
                 }
