@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -104,7 +104,7 @@ namespace EliteInfoPanel.Core
             var settings = SettingsManager.Load();
             if (settings.DevelopmentMode)
             {
-                Log.Information("?? DEVELOPMENT MODE ENABLED - Using simulated journal entries");
+                Log.Information("🔧 DEVELOPMENT MODE ENABLED - Using simulated journal entries");
                 // Get the development path (dev folder in the same location as real game files)
                 gamePath = EliteDangerousPaths.GetSavedGamesPath(true);
 
@@ -141,7 +141,7 @@ namespace EliteInfoPanel.Core
             if (CurrentStatus != null)
             {
                 Task.Run(() => PublishStatusToMqtt(CurrentStatus));
-                Log.Information("? Initial flag state pushed to MQTT on startup");
+                Log.Information("✅ Initial flag state pushed to MQTT on startup");
             }
         }
 
@@ -181,7 +181,7 @@ namespace EliteInfoPanel.Core
             private set
             {
                 _carrierCargo = value;
-                OnPropertyChanged(nameof(CarrierCargo)); // ? ADD THIS
+                OnPropertyChanged(nameof(CarrierCargo)); // ← ADD THIS
             }
         }
 
@@ -525,7 +525,7 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                Log.Information("?? Removing colonization depot {MarketID}", marketId);
+                Log.Information("📋 Removing colonization depot {MarketID}", marketId);
 
                 if (!_colonizationDepots.ContainsKey(marketId))
                 {
@@ -550,7 +550,7 @@ namespace EliteInfoPanel.Core
                 // Save to disk
                 SaveAllColonizationData();
 
-                Log.Information("? Colonization depot {MarketID} removed successfully", marketId);
+                Log.Information("✅ Colonization depot {MarketID} removed successfully", marketId);
             }
             catch (Exception ex)
             {
@@ -619,7 +619,7 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                Log.Information("?? Synchronizing carrier cargo state between GameState and Tracker");
+                Log.Information("🔄 Synchronizing carrier cargo state between GameState and Tracker");
                 
                 // Normalize keys in the tracker
                 _carrierCargoTracker.NormalizeCargoKeys();
@@ -646,7 +646,7 @@ namespace EliteInfoPanel.Core
                 // Update UI
                 UpdateCurrentCarrierCargoFromDictionary();
                 
-                Log.Information("? Carrier cargo synchronized: {Count} items", _carrierCargo.Count);
+                Log.Information("✅ Carrier cargo synchronized: {Count} items", _carrierCargo.Count);
                 
                 // Log current state for debugging
                 foreach (var item in _carrierCargo.Take(10))
@@ -711,7 +711,7 @@ namespace EliteInfoPanel.Core
                 }
                 else
                 {
-                    Log.Information("? GameState and CarrierCargoTracker are in sync");
+                    Log.Information("✅ GameState and CarrierCargoTracker are in sync");
                 }
 
                 // Check recent journal entries for CargoTransfer
@@ -757,12 +757,12 @@ namespace EliteInfoPanel.Core
             {
                 if (string.IsNullOrEmpty(latestJournalPath) || !File.Exists(latestJournalPath))
                 {
-                    Log.Error("?? DEBUG: No valid journal file");
+                    Log.Error("📖 DEBUG: No valid journal file");
                     return;
                 }
 
                 var fileInfo = new FileInfo(latestJournalPath);
-                Log.Information("?? DEBUG Journal State:");
+                Log.Information("📖 DEBUG Journal State:");
                 Log.Information("  File: {File}", Path.GetFileName(latestJournalPath));
                 Log.Information("  File Size: {Size} bytes", fileInfo.Length);
                 Log.Information("  Current Position: {Position} bytes", lastJournalPosition);
@@ -793,24 +793,24 @@ namespace EliteInfoPanel.Core
                     }
                 }
 
-                Log.Information("?? DEBUG: Last {LineCount} lines in journal, {CarrierCount} carrier-related events",
+                Log.Information("📖 DEBUG: Last {LineCount} lines in journal, {CarrierCount} carrier-related events",
                     recentLines.Count, carrierEvents.Count);
 
                 foreach (var carrierEvent in carrierEvents.TakeLast(3))
                 {
-                    Log.Information("?? CARRIER EVENT: {Event}", carrierEvent);
+                    Log.Information("📖 CARRIER EVENT: {Event}", carrierEvent);
                 }
 
                 // Check if we missed the CarrierJump event
                 bool missedCarrierJump = carrierEvents.Any(e => e.Contains("\"event\":\"CarrierJump\""));
                 if (missedCarrierJump)
                 {
-                    Log.Warning("?? ??  FOUND UNPROCESSED CarrierJump EVENT - journal position may be incorrect!");
+                    Log.Warning("📖 ⚠️  FOUND UNPROCESSED CarrierJump EVENT - journal position may be incorrect!");
                 }
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "?? DEBUG: Error checking journal position");
+                Log.Error(ex, "📖 DEBUG: Error checking journal position");
             }
         }
 
@@ -818,7 +818,7 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                Log.Information("?? Force processing recent cargo events");
+                Log.Information("🔄 Force processing recent cargo events");
 
                 if (string.IsNullOrEmpty(latestJournalPath) || !File.Exists(latestJournalPath))
                 {
@@ -944,18 +944,18 @@ namespace EliteInfoPanel.Core
 
         public void ForceRefreshColonizationData()
         {
-            Log.Information("?? Force refreshing colonization data from journal");
+            Log.Information("🔄 Force refreshing colonization data from journal");
 
             Task.Run(async () =>
             {
                 try
                 {
                     await ProcessJournalAsync();
-                    Log.Information("?? Force refresh completed");
+                    Log.Information("🔄 Force refresh completed");
                 }
                 catch (Exception ex)
                 {
-                    Log.Error(ex, "?? Error during force refresh");
+                    Log.Error(ex, "🔄 Error during force refresh");
                 }
             });
         }
@@ -979,7 +979,7 @@ namespace EliteInfoPanel.Core
                 return; // Already initialized
             }
 
-            Log.Information("?? Initializing carrier cargo tracking from {Context}", context);
+            Log.Information("🔧 Initializing carrier cargo tracking from {Context}", context);
 
             try
             {
@@ -995,19 +995,19 @@ namespace EliteInfoPanel.Core
                 // Enable tracking
                 _cargoTrackingInitialized = true;
                 
-                Log.Information("? Carrier cargo tracking initialized with {Count} items from {Context}", 
+                Log.Information("✅ Carrier cargo tracking initialized with {Count} items from {Context}", 
                     _carrierCargo.Count, context);
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "? Failed to initialize carrier cargo tracking from {Context}", context);
+                Log.Error(ex, "❌ Failed to initialize carrier cargo tracking from {Context}", context);
                 
                 // Initialize with empty state to prevent further failures
                 _carrierCargo = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 _carrierCargoTracker.Initialize(_carrierCargo);
                 _cargoTrackingInitialized = true;
                 
-                Log.Warning("?? Initialized with empty carrier cargo state after failure");
+                Log.Warning("⚠️ Initialized with empty carrier cargo state after failure");
             }
         }
 
@@ -1063,7 +1063,7 @@ namespace EliteInfoPanel.Core
                 // Track where we are for position management
                 long initialPosition = lastJournalPosition;
 
-                Log.Information("?? ProcessJournalAsync: isInitialScan={InitialScan}, position={Position}",
+                Log.Information("📖 ProcessJournalAsync: isInitialScan={InitialScan}, position={Position}",
                     isInitialScan, lastJournalPosition);
 
                 // Use the batch update system to reduce property change notifications
@@ -1315,7 +1315,7 @@ namespace EliteInfoPanel.Core
                                     break;
 
                                 case "DockingGranted":
-                                    Log.Debug("Docking granted by station � setting IsDocking = true");
+                                    Log.Debug("Docking granted by station — setting IsDocking = true");
                                     ProcessDockingEvent(eventType, root);
                                     break;
 
@@ -1375,7 +1375,7 @@ namespace EliteInfoPanel.Core
                                     break;
 
                                 case "FSDJump":
-                                    Log.Information("? Hyperspace jump completed");
+                                    Log.Information("✅ Hyperspace jump completed");
                                     bool wasBatchMode = _isUpdating;
                                     if (wasBatchMode)
                                     {
@@ -1422,7 +1422,7 @@ namespace EliteInfoPanel.Core
                                 case "Location":
                                     if (IsHyperspaceJumping || _isInHyperspace)
                                     {
-                                        Log.Warning("?? Hyperspace state was still active during {Event} - resetting", eventType);
+                                        Log.Warning("⚠️ Hyperspace state was still active during {Event} - resetting", eventType);
 
                                         HyperspaceDestination = null;
                                         HyperspaceStarClass = null;
@@ -1445,7 +1445,7 @@ namespace EliteInfoPanel.Core
                                 case "SupercruiseExit":
                                     if (IsHyperspaceJumping || _isInHyperspace)
                                     {
-                                        Log.Warning("?? Hyperspace state was still active during {Event} - resetting", eventType);
+                                        Log.Warning("⚠️ Hyperspace state was still active during {Event} - resetting", eventType);
 
                                         HyperspaceDestination = null;
                                         HyperspaceStarClass = null;
@@ -1467,7 +1467,7 @@ namespace EliteInfoPanel.Core
                                         continue;
                                     }
 
-                                    Log.Information("?? Processing {EventType} cargo event", eventType);
+                                    Log.Information("📦 Processing {EventType} cargo event", eventType);
 
                                     // SIMPLIFIED FIX: Always ensure cargo tracking is ready when we need it
                                     EnsureCarrierCargoTrackingInitialized($"{eventType} event");
@@ -1483,7 +1483,7 @@ namespace EliteInfoPanel.Core
                                         SaveCarrierCargoToDisk();
                                     }
 
-                                    Log.Information("? {EventType} processed: {Count} items in carrier cargo",
+                                    Log.Information("✅ {EventType} processed: {Count} items in carrier cargo",
                                         eventType, _carrierCargo.Count);
                                     break;
 
@@ -1498,7 +1498,7 @@ namespace EliteInfoPanel.Core
                                     // Only process if buying FROM carrier
                                     if (root.TryGetProperty("BuyFromFleetCarrier", out var boughtFromCarrierProp) && boughtFromCarrierProp.GetBoolean())
                                     {
-                                        Log.Information("?? Processing MarketBuy FROM carrier");
+                                        Log.Information("📦 Processing MarketBuy FROM carrier");
                                         
                                         // SIMPLIFIED FIX: Always ensure cargo tracking is ready when we need it
                                         EnsureCarrierCargoTrackingInitialized("MarketBuy FROM carrier event");
@@ -1514,7 +1514,7 @@ namespace EliteInfoPanel.Core
                                             SaveCarrierCargoToDisk();
                                         }
                                         
-                                        Log.Information("? MarketBuy FROM carrier processed: {Count} items in carrier cargo", _carrierCargo.Count);
+                                        Log.Information("✅ MarketBuy FROM carrier processed: {Count} items in carrier cargo", _carrierCargo.Count);
                                     }
                                     else
                                     {
@@ -1533,7 +1533,7 @@ namespace EliteInfoPanel.Core
                                     // Only process if selling TO carrier
                                     if (root.TryGetProperty("SellToFleetCarrier", out var soldToCarrierProp) && soldToCarrierProp.GetBoolean())
                                     {
-                                        Log.Information("?? Processing MarketSell TO carrier");
+                                        Log.Information("📦 Processing MarketSell TO carrier");
                                         
                                         // SIMPLIFIED FIX: Always ensure cargo tracking is ready when we need it
                                         EnsureCarrierCargoTrackingInitialized("MarketSell TO carrier event");
@@ -1549,7 +1549,7 @@ namespace EliteInfoPanel.Core
                                             SaveCarrierCargoToDisk();
                                         }
                                         
-                                        Log.Information("? MarketSell TO carrier processed: {Count} items in carrier cargo", _carrierCargo.Count);
+                                        Log.Information("✅ MarketSell TO carrier processed: {Count} items in carrier cargo", _carrierCargo.Count);
                                     }
                                     else
                                     {
@@ -1565,7 +1565,7 @@ namespace EliteInfoPanel.Core
                                         continue;
                                     }
 
-                                    Log.Information("?? Processing CargoTransfer event");
+                                    Log.Information("📦 Processing CargoTransfer event");
 
                                     // SIMPLIFIED FIX: Always ensure cargo tracking is ready when we need it
                                     EnsureCarrierCargoTrackingInitialized("CargoTransfer event");
@@ -1581,13 +1581,13 @@ namespace EliteInfoPanel.Core
                                         SaveCarrierCargoToDisk();
                                     }
 
-                                    Log.Information("? CargoTransfer processed: {Count} items in carrier cargo",
+                                    Log.Information("✅ CargoTransfer processed: {Count} items in carrier cargo",
                                         _carrierCargo.Count);
 
                                     // Log the updated quantities for debugging
                                     foreach (var item in _carrierCargo.Take(5))
                                     {
-                                        Log.Information("  ?? {Name}: {Quantity}", item.Key, item.Value);
+                                        Log.Information("  📦 {Name}: {Quantity}", item.Key, item.Value);
                                     }
                                     break;
 
@@ -1611,7 +1611,7 @@ namespace EliteInfoPanel.Core
                                     break;
 
                                 case "CarrierLocation":
-                                    Log.Debug("CarrierLocation seen � updating location");
+                                    Log.Debug("CarrierLocation seen — updating location");
 
                                     bool isOnCarrier = false;
 
@@ -1634,7 +1634,7 @@ namespace EliteInfoPanel.Core
                                     {
                                         var carrierSystem = carrierSystemProp.GetString();
                                         CurrentSystem = carrierSystem;
-                                        Log.Debug("? Updated CurrentSystem from CarrierLocation: {System}", carrierSystem);
+                                        Log.Debug("✅ Updated CurrentSystem from CarrierLocation: {System}", carrierSystem);
                                     }
                                     break;
 
@@ -1664,7 +1664,7 @@ namespace EliteInfoPanel.Core
                                 case "ColonisationConstructionDepot":
                                     try
                                     {
-                                        Log.Information("?? Processing ColonisationConstructionDepot event");
+                                        Log.Information("📋 Processing ColonisationConstructionDepot event");
 
                                         var colonizationData = new ColonizationData
                                         {
@@ -1679,7 +1679,7 @@ namespace EliteInfoPanel.Core
                                         if (root.TryGetProperty("ConstructionProgress", out var progressProp))
                                         {
                                             colonizationData.ConstructionProgress = progressProp.GetDouble();
-                                            Log.Information("?? Progress updated to: {Progress:P2}", colonizationData.ConstructionProgress);
+                                            Log.Information("📋 Progress updated to: {Progress:P2}", colonizationData.ConstructionProgress);
                                         }
 
                                         if (root.TryGetProperty("ConstructionComplete", out var completeProp))
@@ -1696,7 +1696,7 @@ namespace EliteInfoPanel.Core
                                         if (colonizationData.ConstructionComplete || colonizationData.ConstructionFailed)
                                         {
                                             string status = colonizationData.ConstructionComplete ? "completed" : "failed";
-                                            Log.Information("?? Colonization {Status} for depot {MarketID} - removing from tracking",
+                                            Log.Information("📋 Colonization {Status} for depot {MarketID} - removing from tracking",
                                                 status, colonizationData.MarketID);
 
                                             // Remove the depot if it exists
@@ -1751,7 +1751,7 @@ namespace EliteInfoPanel.Core
                                         bool wasBatchMode2 = _isUpdating;
                                         if (wasBatchMode2)
                                         {
-                                            Log.Information("?? Temporarily disabling batch mode for colonization update");
+                                            Log.Information("📋 Temporarily disabling batch mode for colonization update");
                                             _isUpdating = false;
                                         }
 
@@ -1787,12 +1787,12 @@ namespace EliteInfoPanel.Core
                                         // Also publish aggregated data
                                         await MqttService.Instance.PublishAllColonizationDepotsAsync(GetActiveColonizationDepots());
 
-                                        Log.Information("?? Colonization depot {MarketID} updated - Progress: {Progress:P2}",
+                                        Log.Information("📋 Colonization depot {MarketID} updated - Progress: {Progress:P2}",
                                             colonizationData.MarketID, colonizationData.ConstructionProgress);
                                     }
                                     catch (Exception ex)
                                     {
-                                        Log.Error(ex, "?? Error processing ColonisationConstructionDepot event");
+                                        Log.Error(ex, "📋 Error processing ColonisationConstructionDepot event");
                                     }
                                     break;
 
@@ -1825,7 +1825,7 @@ namespace EliteInfoPanel.Core
                                 var fileInfo = new FileInfo(latestJournalPath);
                                 lastJournalPosition = fileInfo.Length;
 
-                                Log.Information("? First journal scan completed - now monitoring from end (position {Position})",
+                                Log.Information("✅ First journal scan completed - now monitoring from end (position {Position})",
                                     lastJournalPosition);
                             }
                         }
@@ -1853,7 +1853,7 @@ namespace EliteInfoPanel.Core
 
             if (index >= 0)
             {
-                Log.Information("?? Pruning route - current system is {0}, removing {1} previous entries",
+                Log.Information("📍 Pruning route - current system is {0}, removing {1} previous entries",
                     CurrentSystem, index);
 
                 var updatedRoute = new NavRouteJson
@@ -1957,7 +1957,7 @@ namespace EliteInfoPanel.Core
                             IsActive = true
                         };
                         SaveManualCarrierCargoChanges();
-                        Log.Information("Saved manual change: {Item} {Original} ? {Manual}",
+                        Log.Information("Saved manual change: {Item} {Original} → {Manual}",
                             itemName, originalGameValue, quantity);
                     }
                     else
@@ -1993,7 +1993,7 @@ namespace EliteInfoPanel.Core
                     SaveCarrierCargoToDisk();
                 }
 
-                Log.Information("Carrier cargo updated: {Item} {OldValue} ? {NewValue} (Manual: {Manual})",
+                Log.Information("Carrier cargo updated: {Item} {OldValue} → {NewValue} (Manual: {Manual})",
                     itemName, oldValue, quantity, isManualChange);
             }
         }
@@ -2003,7 +2003,7 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                Log.Information("?? Synchronizing carrier cargo state between GameState and CarrierCargoTracker");
+                Log.Information("🔄 Synchronizing carrier cargo state between GameState and CarrierCargoTracker");
                 using (BeginUpdate())
                 {
                     // Merge manual changes into a new dictionary
@@ -2020,7 +2020,7 @@ namespace EliteInfoPanel.Core
                     UpdateCurrentCarrierCargoFromDictionary();
                     SaveCarrierCargoToDisk();
                 }
-                Log.Information("? Carrier cargo state synchronized: {Count} items", _carrierCargo.Count);
+                Log.Information("✅ Carrier cargo state synchronized: {Count} items", _carrierCargo.Count);
             }
             catch (Exception ex)
             {
@@ -2049,7 +2049,7 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                Log.Information("?? Cleaning up duplicate carrier cargo entries");
+                Log.Information("🧽 Cleaning up duplicate carrier cargo entries");
 
                 var duplicateGroups = _carrierCargo.Keys
                     .GroupBy(k => k.ToLowerInvariant())
@@ -2058,7 +2058,7 @@ namespace EliteInfoPanel.Core
 
                 if (!duplicateGroups.Any())
                 {
-                    Log.Information("? No duplicate entries found");
+                    Log.Information("✅ No duplicate entries found");
                     return;
                 }
 
@@ -2067,7 +2067,7 @@ namespace EliteInfoPanel.Core
                     foreach (var group in duplicateGroups)
                     {
                         var items = group.ToList();
-                        Log.Information("?? Found duplicates: {Items}", string.Join(", ", items));
+                        Log.Information("🔄 Found duplicates: {Items}", string.Join(", ", items));
 
                         // Find the best key to keep (prefer proper case)
                         string bestKey = items.FirstOrDefault(k => char.IsUpper(k[0])) ?? items.First();
@@ -2080,20 +2080,20 @@ namespace EliteInfoPanel.Core
                             if (key != bestKey)
                             {
                                 _carrierCargo.Remove(key);
-                                Log.Information("? Removed duplicate: {Key}", key);
+                                Log.Information("❌ Removed duplicate: {Key}", key);
                             }
                         }
 
                         // Update the best key with the total quantity
                         _carrierCargo[bestKey] = totalQuantity;
-                        Log.Information("? Consolidated to: {Key} = {Quantity}", bestKey, totalQuantity);
+                        Log.Information("✅ Consolidated to: {Key} = {Quantity}", bestKey, totalQuantity);
                     }
 
                     UpdateCurrentCarrierCargoFromDictionary();
                     SaveCarrierCargoToDisk();
                 }
 
-                Log.Information("? Duplicate cleanup completed");
+                Log.Information("✅ Duplicate cleanup completed");
             }
             catch (Exception ex)
             {
@@ -2108,7 +2108,7 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                Log.Information("?? Manual fix for carrier cargo item: {Item}", itemName);
+                Log.Information("🔧 Manual fix for carrier cargo item: {Item}", itemName);
 
                 // Find the correct item name (case-insensitive)
                 var actualKey = _carrierCargo.Keys.FirstOrDefault(k =>
@@ -2133,11 +2133,11 @@ namespace EliteInfoPanel.Core
                         SaveCarrierCargoToDisk();
                     }
 
-                    Log.Information("? Fixed {Item}: {OldQty} ? {NewQty}", actualKey, oldQty, correctQuantity);
+                    Log.Information("✅ Fixed {Item}: {OldQty} → {NewQty}", actualKey, oldQty, correctQuantity);
                 }
                 else
  {
-                    Log.Warning("? Could not find item '{Item}' in carrier cargo", itemName);
+                    Log.Warning("❌ Could not find item '{Item}' in carrier cargo", itemName);
                     Log.Information("Available items: {Items}", string.Join(", ", _carrierCargo.Keys));
                 }
             }
@@ -2154,7 +2154,7 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                Log.Information("?? Force refreshing cargo states");
+                Log.Information("🔄 Force refreshing cargo states");
 
                 // Reload ship cargo from file
                 LoadCargoData();
@@ -2166,7 +2166,7 @@ namespace EliteInfoPanel.Core
                 _carrierCargoTracker.NormalizeCargoKeys();
                 SynchronizeCarrierCargoState();
 
-                Log.Information("? Cargo states refreshed successfully");
+                Log.Information("✅ Cargo states refreshed successfully");
             }
             catch (Exception ex)
             {
@@ -2181,7 +2181,7 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                Log.Information("?? Analyzing recent cargo transfers for: {Commodity}", commodityName ?? "ALL");
+                Log.Information("🔍 Analyzing recent cargo transfers for: {Commodity}", commodityName ?? "ALL");
 
                 if (string.IsNullOrEmpty(latestJournalPath) || !File.Exists(latestJournalPath))
                 {
@@ -2236,7 +2236,7 @@ namespace EliteInfoPanel.Core
                         if (root.TryGetProperty("Transfers", out var transfersProp) &&
                             transfersProp.ValueKind == JsonValueKind.Array)
                         {
-                            Log.Information("?? Transfer at {Timestamp}:", timestamp.ToString("HH:mm:ss"));
+                            Log.Information("📅 Transfer at {Timestamp}:", timestamp.ToString("HH:mm:ss"));
 
                             foreach (var transfer in transfersProp.EnumerateArray())
                             {
@@ -2257,7 +2257,7 @@ namespace EliteInfoPanel.Core
                                         continue;
                                     }
 
-                                    Log.Information("  ?? {InternalName} ? {DisplayName}: {Direction} {Count}",
+                                    Log.Information("  🔄 {InternalName} → {DisplayName}: {Direction} {Count}",
                                         internalName, displayName, direction, count);
 
                                     if (string.Equals(direction, "tocarrier", StringComparison.OrdinalIgnoreCase))
@@ -2279,12 +2279,12 @@ namespace EliteInfoPanel.Core
                     }
                 }
 
-                Log.Information("?? Transfer summary: +{Added} to carrier, -{Removed} from carrier", totalAdded, totalRemoved);
+                Log.Information("📊 Transfer summary: +{Added} to carrier, -{Removed} from carrier", totalAdded, totalRemoved);
 
                 if (!string.IsNullOrEmpty(commodityName))
                 {
                     var currentQty = _carrierCargo.TryGetValue(commodityName, out int qty) ? qty : 0;
-                    Log.Information("?? Current {Commodity} quantity: {Quantity}", commodityName, currentQty);
+                    Log.Information("📦 Current {Commodity} quantity: {Quantity}", commodityName, currentQty);
                 }
             }
             catch (Exception ex)
@@ -2512,7 +2512,7 @@ namespace EliteInfoPanel.Core
             }
             else
             {
-                Log.Debug("?? SetProperty fired for: {Property}", propertyName);
+                Log.Debug("🚨 SetProperty fired for: {Property}", propertyName);
             }
 
             OnPropertyChanged(propertyName);
@@ -2652,7 +2652,7 @@ namespace EliteInfoPanel.Core
                     // If we reach here, the timeout wasn't cancelled, so force reset the hyperspace flag
                     if (!token.IsCancellationRequested && (IsHyperspaceJumping || _isInHyperspace))
                     {
-                        Log.Warning("?? Hyperspace safety timeout reached - forcing reset of hyperspace state");
+                        Log.Warning("⚠️ Hyperspace safety timeout reached - forcing reset of hyperspace state");
                         IsHyperspaceJumping = false;
                         _isInHyperspace = false;
                         HyperspaceDestination = null;
@@ -2731,7 +2731,7 @@ namespace EliteInfoPanel.Core
                                 updatedInventory.Remove(existingItem);
                             }
                             cargoChanged = true;
-                            Log.Information("?? Ship cargo updated: {Item} reduced by {Count} (transferred to carrier)",
+                            Log.Information("📦 Ship cargo updated: {Item} reduced by {Count} (transferred to carrier)",
                                 CommodityMapper.GetDisplayName(internalName), count);
                         }
                     }
@@ -2753,7 +2753,7 @@ namespace EliteInfoPanel.Core
                             });
                         }
                         cargoChanged = true;
-                        Log.Information("?? Ship cargo updated: {Item} increased by {Count} (transferred from carrier)",
+                        Log.Information("📦 Ship cargo updated: {Item} increased by {Count} (transferred from carrier)",
                             CommodityMapper.GetDisplayName(internalName), count);
                     }
                 }
@@ -2768,7 +2768,7 @@ namespace EliteInfoPanel.Core
                 };
 
                 CurrentCargo = updatedCargo;
-                Log.Information("? Ship cargo synchronized after transfer - Total items: {Count}",
+                Log.Information("✅ Ship cargo synchronized after transfer - Total items: {Count}",
                     updatedInventory.Sum(i => i.Count));
             }
         }
@@ -2800,15 +2800,15 @@ namespace EliteInfoPanel.Core
                     _mqttInitialized = true;
                     Log.Information("MQTT service initialized for GameStateService");
 
-                    // ? Publish initial state if available
+                    // ✅ Publish initial state if available
                     if (CurrentStatus != null)
                     {
                         await MqttService.Instance.PublishFlagStatesAsync(CurrentStatus);
-                        Log.Information("? Initial state published to MQTT after MQTT initialization.");
+                        Log.Information("✅ Initial state published to MQTT after MQTT initialization.");
                     }
                     else
                     {
-                        Log.Warning("?? Cannot publish initial state: CurrentStatus is null.");
+                        Log.Warning("⚠️ Cannot publish initial state: CurrentStatus is null.");
                     }
                 }
             }
@@ -2888,7 +2888,7 @@ namespace EliteInfoPanel.Core
                 LoadCarrierCargoFromDisk();
                 _carrierCargoTracker.Initialize(_carrierCargo);
                 _cargoTrackingInitialized = true; // Enable tracking immediately
-                Log.Information("?? CARRIER CARGO: Initialized alongside ship cargo - tracking enabled with {Count} items", _carrierCargo.Count);
+                Log.Information("🔧 CARRIER CARGO: Initialized alongside ship cargo - tracking enabled with {Count} items", _carrierCargo.Count);
                 
                 LoadPersistedColonizationData();
                 latestJournalPath = Directory.GetFiles(gamePath, "Journal.*.log")
@@ -2902,13 +2902,13 @@ namespace EliteInfoPanel.Core
                 LoadCarrierCargoFromDisk();
                 _carrierCargoTracker.Initialize(_carrierCargo);
                 _cargoTrackingInitialized = true; // Enable tracking BEFORE journal processing
-                Log.Information("?? CARRIER CARGO: Initialized tracking alongside ship cargo - {Count} items loaded", _carrierCargo.Count);
-                LoadCarrierCargoFromDisk(); // ? Add this near LoadRouteProgress();
+                Log.Information("🔧 CARRIER CARGO: Initialized tracking alongside ship cargo - {Count} items loaded", _carrierCargo.Count);
+                LoadCarrierCargoFromDisk(); // ← Add this near LoadRouteProgress();
                 
                 // CRITICAL: Set cargo tracking as initialized BEFORE processing journal
                 // This allows current day's events to be processed during startup
                 _cargoTrackingInitialized = true;
-                Log.Information("? Cargo tracking initialized - ready to process journal events");
+                Log.Information("✅ Cargo tracking initialized - ready to process journal events");
 
                 Task.Run(async () => await ProcessJournalAsync()).Wait();
                 
@@ -2936,7 +2936,7 @@ namespace EliteInfoPanel.Core
 
                 // Mark initialization as complete
                 _firstLoadCompleted = true;
-                Log.Information("? GameStateService: First load completed");
+                Log.Information("✅ GameStateService: First load completed");
                 
                 // CRITICAL: Synchronize carrier cargo state after loading
                 // This ensures the tracker and gamestate cargo are aligned for the first transfers
@@ -3024,7 +3024,7 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                Log.Information("?? LoadCarrierCargoFromDisk called, _cargoTrackingInitialized: {Initialized}", _cargoTrackingInitialized);
+                Log.Information("📦 LoadCarrierCargoFromDisk called, _cargoTrackingInitialized: {Initialized}", _cargoTrackingInitialized);
                 
                 if (File.Exists(CarrierCargoFilePath))
                 {
@@ -3128,15 +3128,15 @@ namespace EliteInfoPanel.Core
 
             if (newLoadout == null)
             {
-                Log.Warning("?? ModulesInfo.json was null on startup");
+                Log.Warning("🚫 ModulesInfo.json was null on startup");
                 return false;
             }
 
-            Log.Information("? Loaded ModulesInfo.json with {Count} modules", newLoadout.Modules?.Count ?? 0);
+            Log.Information("✅ Loaded ModulesInfo.json with {Count} modules", newLoadout.Modules?.Count ?? 0);
 
             if (CurrentLoadout == null || !JsonEquals(CurrentLoadout, newLoadout))
             {
-                Log.Information("? Setting CurrentLoadout...");
+                Log.Information("⚡ Setting CurrentLoadout...");
                 CurrentLoadout = newLoadout;
                 LoadoutUpdated?.Invoke();
                 return true;
@@ -3207,36 +3207,7 @@ namespace EliteInfoPanel.Core
                 }
 
                 var json = File.ReadAllText(ColonizationDataFile);
-                Dictionary<long, ColonizationData> loadedDepots = null;
-
-                // Try new Dictionary format first
-                try
-                {
-                    loadedDepots = JsonSerializer.Deserialize<Dictionary<long, ColonizationData>>(json);
-                    Log.Information("Loaded colonization data in Dictionary format");
-                }
-                catch (JsonException)
-                {
-                    // Try legacy List format for backward compatibility
-                    try
-                    {
-                        var legacyList = JsonSerializer.Deserialize<List<ColonizationData>>(json);
-                        if (legacyList != null)
-                        {
-                            loadedDepots = legacyList
-                                .Where(d => d != null && d.MarketID != 0)
-                                .ToDictionary(d => d.MarketID, d => d);
-                            Log.Information("Loaded colonization data from legacy List format and converted to Dictionary");
-                        }
-                    }
-                    catch (JsonException legacyEx)
-                    {
-                        Log.Error(legacyEx, "Failed to load colonization data in both Dictionary and List formats");
-                        return;
-                    }
-                }
-
-              
+                var loadedDepots = JsonSerializer.Deserialize<Dictionary<long, ColonizationData>>(json);
 
                 if (loadedDepots != null)
                 {
@@ -3739,12 +3710,12 @@ namespace EliteInfoPanel.Core
                 }
                 else if (jumpCancelledOrCompleted)
                 {
-                Log.Information("Found CarrierJumpCancelled or CarrierJump after last request � not setting jump state");
+                Log.Information("Found CarrierJumpCancelled or CarrierJump after last request — not setting jump state");
                 _carrierJumpState.Reset();
                 }
                 else if (latestRequestTimestamp.HasValue)
                 {
-                    Log.Information("CarrierJumpRequest found but jump is in the past or cancelled � not setting jump state");
+                    Log.Information("CarrierJumpRequest found but jump is in the past or cancelled — not setting jump state");
                 }
             }
             catch (Exception ex)
@@ -3842,13 +3813,13 @@ namespace EliteInfoPanel.Core
 
                 if (string.IsNullOrEmpty(latestJournalPath))
                 {
-                    Log.Warning("?? No journal files found in {Path}", gamePath);
+                    Log.Warning("📖 No journal files found in {Path}", gamePath);
                     return;
                 }
 
                 // CRITICAL FIX: Do a full initialization scan first, then start monitoring from end
                 var fileInfo = new FileInfo(latestJournalPath);
-                Log.Information("?? Monitoring journal: {Journal} (will scan for initialization, then monitor from end)",
+                Log.Information("📖 Monitoring journal: {Journal} (will scan for initialization, then monitor from end)",
                     Path.GetFileName(latestJournalPath));
 
                 // Start from beginning for initial scan to get all important data
@@ -3885,7 +3856,7 @@ namespace EliteInfoPanel.Core
                         }
                         catch (Exception ex)
                         {
-                            Log.Error(ex, "?? Error in journal timer");
+                            Log.Error(ex, "📖 Error in journal timer");
                         }
                     }
                 };
@@ -3910,17 +3881,17 @@ namespace EliteInfoPanel.Core
                         var newFileInfo = new FileInfo(latestJournalPath);
                         lastJournalPosition = newFileInfo.Length;
                         pendingUpdate = true;
-                        Log.Information("?? Switched to new journal: {Journal} (starting from end at position {Position})",
+                        Log.Information("📖 Switched to new journal: {Journal} (starting from end at position {Position})",
                             Path.GetFileName(latestJournalPath), lastJournalPosition);
                     }
                 };
 
                 _watchers.Add(dirWatcher);
-                Log.Information("?? Journal monitoring active");
+                Log.Information("📖 Journal monitoring active");
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "?? Failed to setup journal watcher");
+                Log.Error(ex, "📖 Failed to setup journal watcher");
             }
         }
 
@@ -3946,7 +3917,7 @@ namespace EliteInfoPanel.Core
                         _carrierCargo.Remove(name);
                     }
 
-                    Log.Information("?? UpdateCarrierCargo: {Name} = {Count}", name, count);
+                    Log.Information("📦 UpdateCarrierCargo: {Name} = {Count}", name, count);
                     OnPropertyChanged(nameof(CarrierCargo));
                 }
             }
@@ -4005,5 +3976,4 @@ namespace EliteInfoPanel.Core
         #endregion Private Methods
     }
 }
-
 
