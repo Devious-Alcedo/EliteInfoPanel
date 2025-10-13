@@ -503,7 +503,45 @@ namespace EliteInfoPanel.Core
         #endregion Public Properties
 
         #region Public Methods
+        /// <summary>
+        /// Removes a colonization depot from tracking
+        /// </summary>
+        public void RemoveColonizationDepot(long marketId)
+        {
+            try
+            {
+                Log.Information("📋 Removing colonization depot {MarketID}", marketId);
 
+                if (!_colonizationDepots.ContainsKey(marketId))
+                {
+                    Log.Warning("Depot {MarketID} not found in colonization depots", marketId);
+                    return;
+                }
+
+                // Remove from dictionary
+                _colonizationDepots.Remove(marketId);
+
+                // If this was the selected depot, select another or clear selection
+                if (_selectedDepotMarketId == marketId)
+                {
+                    _selectedDepotMarketId = _colonizationDepots.Keys.FirstOrDefault();
+                    OnPropertyChanged(nameof(SelectedColonizationDepot));
+                }
+
+                // Notify UI
+                OnPropertyChanged(nameof(ColonizationDepots));
+                OnPropertyChanged(nameof(CurrentColonization));
+
+                // Save to disk
+                SaveAllColonizationData();
+
+                Log.Information("✅ Colonization depot {MarketID} removed successfully", marketId);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error removing colonization depot {MarketID}", marketId);
+            }
+        }
         public void BatchUpdate(Action updateAction)
         {
             using (BeginUpdate())
@@ -1638,6 +1676,33 @@ namespace EliteInfoPanel.Core
                                         {
                                             colonizationData.ConstructionFailed = failedProp.GetBoolean();
                                         }
+
+                                        // *** NEW: Check if construction is complete or failed - if so, remove it ***
+                                        if (colonizationData.ConstructionComplete || colonizationData.ConstructionFailed)
+                                        {
+                                            string status = colonizationData.ConstructionComplete ? "completed" : "failed";
+                                            Log.Information("📋 Colonization {Status} for depot {MarketID} - removing from tracking",
+                                                status, colonizationData.MarketID);
+
+                                            // Remove the depot if it exists
+                                            if (_colonizationDepots.ContainsKey(colonizationData.MarketID))
+                                            {
+                                                RemoveColonizationDepot(colonizationData.MarketID);
+                                            }
+
+                                            // Publish MQTT deletion (add this to MqttService if it doesn't exist)
+                                            try
+                                            {
+                                                await MqttService.Instance.PublishColonizationDepotDeletedAsync(colonizationData.MarketID);
+                                            }
+                                            catch (Exception mqttEx)
+                                            {
+                                                Log.Warning(mqttEx, "Could not publish MQTT deletion for depot {MarketID}", colonizationData.MarketID);
+                                            }
+
+                                            break; // Exit early since we removed it
+                                        }
+                                        // *** END NEW CODE ***
 
                                         colonizationData.ResourcesRequired = new List<ColonizationResource>();
 
@@ -3122,34 +3187,53 @@ namespace EliteInfoPanel.Core
             {
                 if (!File.Exists(ColonizationDataFile))
                 {
-                    Log.Information("No persisted colonization data file found");
+                    Log.Debug("No colonization data file found at {File}", ColonizationDataFile);
                     return;
                 }
 
-                string json = File.ReadAllText(ColonizationDataFile);
-                if (string.IsNullOrWhiteSpace(json))
+                var json = File.ReadAllText(ColonizationDataFile);
+                var loadedDepots = JsonSerializer.Deserialize<Dictionary<long, ColonizationData>>(json);
+
+                if (loadedDepots != null)
                 {
-                    Log.Warning("Colonization data file is empty");
-                    return;
+                    _colonizationDepots.Clear();
+
+                    // **CRITICAL FIX: Only load depots that are NOT complete or failed**
+                    int skippedCount = 0;
+                    foreach (var depot in loadedDepots.Values)
+                    {
+                        if (!depot.ConstructionComplete && !depot.ConstructionFailed)
+                        {
+                            _colonizationDepots[depot.MarketID] = depot;
+                        }
+                        else
+                        {
+                            skippedCount++;
+                            Log.Information("Skipping completed/failed depot {MarketID} during load (Complete: {Complete}, Failed: {Failed})",
+                                depot.MarketID, depot.ConstructionComplete, depot.ConstructionFailed);
+                        }
+                    }
+
+                    Log.Information("Loaded {Count} active colonization depots (skipped {Skipped} completed/failed)",
+                        _colonizationDepots.Count, skippedCount);
+
+                    // Select first depot if none selected and depots exist
+                    if (_colonizationDepots.Any())
+                    {
+                        if (!_selectedDepotMarketId.HasValue || !_colonizationDepots.ContainsKey(_selectedDepotMarketId.Value))
+                        {
+                            _selectedDepotMarketId = _colonizationDepots.Keys.First();
+                        }
+                    }
+                    else
+                    {
+                        _selectedDepotMarketId = null;
+                    }
+
+                    OnPropertyChanged(nameof(ColonizationDepots));
+                    OnPropertyChanged(nameof(CurrentColonization));
+                    OnPropertyChanged(nameof(SelectedColonizationDepot));
                 }
-
-                var depots = JsonSerializer.Deserialize<List<ColonizationData>>(json);
-                if (depots == null || !depots.Any())
-                {
-                    Log.Warning("No colonization depots found in file");
-                    return;
-                }
-
-                _colonizationDepots.Clear();
-                foreach (var depot in depots.Where(d => !d.ConstructionComplete && !d.ConstructionFailed))
-                {
-                    _colonizationDepots[depot.MarketID] = depot;
-                }
-
-                // Select first depot
-                _selectedDepotMarketId = _colonizationDepots.Keys.FirstOrDefault();
-
-                Log.Information("Loaded {Count} active colonization depots from file", _colonizationDepots.Count);
             }
             catch (Exception ex)
             {
