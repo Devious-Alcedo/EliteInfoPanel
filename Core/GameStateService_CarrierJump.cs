@@ -8,6 +8,8 @@ using System.Windows.Threading;
 using System.Linq;
 using EliteInfoPanel.Core.Models;
 using Serilog;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace EliteInfoPanel.Core
 {
@@ -79,6 +81,82 @@ namespace EliteInfoPanel.Core
             {
                 int seconds = _carrierJumpState?.CountdownSeconds ?? 0;
                 return seconds > 0 ? TimeSpan.FromSeconds(seconds) : null;
+            }
+        }
+
+        private void EnsureHyperspaceTimeout()
+        {
+            if (_hyperspaceTimeoutCts != null)
+            {
+                _hyperspaceTimeoutCts.Cancel();
+                _hyperspaceTimeoutCts.Dispose();
+            }
+
+            _hyperspaceTimeoutCts = new CancellationTokenSource();
+            var token = _hyperspaceTimeoutCts.Token;
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(30000, token);
+
+                    if (!token.IsCancellationRequested && (IsHyperspaceJumping || _isInHyperspace))
+                    {
+                        Log.Warning("?? Hyperspace safety timeout reached - forcing reset of hyperspace state");
+                        IsHyperspaceJumping = false;
+                        _isInHyperspace = false;
+                        HyperspaceDestination = null;
+                        HyperspaceStarClass = null;
+                    }
+                }
+                catch (TaskCanceledException)
+                {
+                }
+            }, token);
+        }
+
+        public void DebugCarrierJumpState()
+        {
+            try
+            {
+                Log.Information("=== CARRIER JUMP STATE DEBUG INFO ===");
+                Log.Information("CarrierJumpState: {State}", _carrierJumpState);
+                Log.Information("IsOnFleetCarrier: {OnCarrier}", IsOnFleetCarrier);
+                Log.Information("ShowCarrierJumpOverlay: {ShowOverlay}", ShowCarrierJumpOverlay);
+                Log.Information("CarrierJumpCountdownSeconds: {Countdown}", CarrierJumpCountdownSeconds);
+                Log.Information("CarrierJumpDestination: {Destination}", CarrierJumpDestination);
+                Log.Information("Timer Running: {TimerRunning}", _carrierJumpTimer?.IsEnabled ?? false);
+                Log.Information("Overlay Timeout Running: {TimeoutRunning}", _overlayTimeoutTimer?.IsEnabled ?? false);
+
+                if (!string.IsNullOrEmpty(latestJournalPath) && File.Exists(latestJournalPath))
+                {
+                    var fileInfo = new FileInfo(latestJournalPath);
+                    using var fs = new FileStream(latestJournalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    long startPos = Math.Max(0, fileInfo.Length - 20480);
+                    fs.Seek(startPos, SeekOrigin.Begin);
+                    using var sr = new StreamReader(fs);
+                    var carrierEvents = new System.Collections.Generic.List<string>();
+                    while (!sr.EndOfStream)
+                    {
+                        string line = sr.ReadLine();
+                        if (!string.IsNullOrWhiteSpace(line) && (line.Contains("CarrierJump") || line.Contains("Carrier")))
+                        {
+                            carrierEvents.Add(line);
+                        }
+                    }
+                    Log.Information("Found {Count} recent carrier-related events:", carrierEvents.Count);
+                    foreach (var evt in carrierEvents.TakeLast(5))
+                    {
+                        Log.Information("  {Event}", evt);
+                    }
+                }
+
+                Log.Information("=== END CARRIER JUMP STATE DEBUG ===");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error in carrier jump state debug");
             }
         }
         
