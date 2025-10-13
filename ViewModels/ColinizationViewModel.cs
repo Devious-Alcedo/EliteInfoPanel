@@ -54,7 +54,7 @@ namespace EliteInfoPanel.ViewModels
             ForceRefreshCommand = new RelayCommand(_ => ForceRefresh());
             OpenInNewWindowCommand = new RelayCommand(_ => OpenInNewWindow());
             ExportToCsvCommand = new RelayCommand(_ => ExportToCsv());
-
+            RemoveCurrentDepotCommand = new RelayCommand(_ => RemoveCurrentDepot());
             // Subscribe to property changes
             _gameState.PropertyChanged += GameState_PropertyChanged;
 
@@ -73,7 +73,7 @@ namespace EliteInfoPanel.ViewModels
 
         #region Public Properties
         public ObservableCollection<ColonizationDepotInfo> AvailableDepots { get; } = new ObservableCollection<ColonizationDepotInfo>();
-
+        public RelayCommand RemoveCurrentDepotCommand { get; }
         public ColonizationDepotInfo SelectedDepot
         {
             get => AvailableDepots.FirstOrDefault(d => d.MarketID == _selectedMarketId);
@@ -209,7 +209,73 @@ namespace EliteInfoPanel.ViewModels
         #endregion Public Properties
 
         #region Private Methods
+        private async void RemoveCurrentDepot()
+        {
+            try
+            {
+                if (!_selectedMarketId.HasValue)
+                {
+                    ShowToast("No colonization depot selected");
+                    return;
+                }
 
+                var selectedDepot = SelectedDepot;
+                if (selectedDepot == null)
+                {
+                    ShowToast("No colonization depot selected");
+                    return;
+                }
+
+                // Show confirmation dialog
+                var result = MessageBox.Show(
+                    $"Are you sure you want to remove the colonization depot at {selectedDepot.SystemName}?\n\n" +
+                    $"Progress: {selectedDepot.Progress:P0}\n" +
+                    $"Resources: {selectedDepot.CompletedCount}/{selectedDepot.ResourceCount}",
+                    "Remove Colonization Depot",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (result != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+
+                Log.Information("User confirmed removal of depot {MarketID}", _selectedMarketId.Value);
+
+                // Remove from GameState
+                _gameState.RemoveColonizationDepot(_selectedMarketId.Value);
+
+                // Publish MQTT deletion
+                try
+                {
+                    await MqttService.Instance.PublishColonizationDepotDeletedAsync(_selectedMarketId.Value);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Could not publish MQTT deletion");
+                }
+
+                ShowToast("Colonization depot removed");
+
+                // Refresh the depot list
+                RefreshAvailableDepots();
+
+                // Force update the UI
+                UpdateColonizationDataInternal();
+
+                // Check if card should hide
+                if (!AvailableDepots.Any())
+                {
+                    Log.Information("No colonization depots remain - hiding card");
+                    SetContextVisibility(false);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error removing colonization depot");
+                ShowToast("Failed to remove depot: " + ex.Message);
+            }
+        }
         private void EnsureWindowIsVisible(Window window, AppSettings settings)
         {
             // Get screen information
@@ -588,9 +654,17 @@ namespace EliteInfoPanel.ViewModels
 
                 var colonizationData = _gameState.CurrentColonization;
 
-                if (colonizationData == null)
+                if (!_gameState.GetActiveColonizationDepots().Any())
                 {
-                    Log.Information("UpdateColonizationDataInternal: No colonization data available");
+                    Log.Information("UpdateColonizationDataInternal: No active depots - hiding card");
+                    SetContextVisibility(false);
+                    Items.Clear();
+                    return;
+                }
+
+                if (colonizationData == null || colonizationData.LastUpdated == DateTime.MinValue)
+                {
+                    Log.Information("UpdateColonizationDataInternal: No colonization data available or data is uninitialized");
                     SetContextVisibility(false);
                     Items.Clear();
                     return;
@@ -632,7 +706,8 @@ namespace EliteInfoPanel.ViewModels
 
                 if (colonizationData.ResourcesRequired == null || !colonizationData.ResourcesRequired.Any())
                 {
-                    Log.Warning("UpdateColonizationDataInternal: No resources found in colonization data");
+                    Log.Warning("UpdateColonizationDataInternal: No resources found in colonization data - hiding card");
+                    SetContextVisibility(false);
                     return;
                 }
 
@@ -714,6 +789,13 @@ namespace EliteInfoPanel.ViewModels
                 }
 
                 Log.Information("UpdateColonizationDataInternal: Update complete - Added {Count} resource items", Items.Count);
+
+                // Hide the card if there are no items to display
+                if (Items.Count == 0)
+                {
+                    Log.Information("UpdateColonizationDataInternal: No items to display after filtering - hiding card");
+                    SetContextVisibility(false);
+                }
             }
             catch (Exception ex)
             {

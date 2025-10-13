@@ -97,6 +97,12 @@
         Visibility="{Binding IsInMainWindow, Converter={StaticResource BoolToVis}}">
                 <materialDesign:PackIcon Kind="OpenInNew" Width="20" Height="20" />
             </Button>
+            <Button Style="{DynamicResource MaterialDesignFlatButton}"
+        Command="{Binding RemoveCurrentDepotCommand}" 
+        ToolTip="Remove current colonization depot"
+        Margin="3,0">
+                <materialDesign:PackIcon Kind="Delete" Width="20" Height="20" />
+            </Button>
         </StackPanel>
 
         <!-- Overall Progress -->
