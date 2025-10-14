@@ -1,0 +1,53 @@
+<Window x:Class="EliteInfoPanel.Dialogs.ConfirmDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        mc:Ignorable="d"
+        Title="Confirm"
+        WindowStartupLocation="CenterOwner"
+        SizeToContent="WidthAndHeight"
+        ResizeMode="NoResize"
+        WindowStyle="ToolWindow"
+        Background="{DynamicResource MaterialDesignPaper}">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="8"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="16"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="TitleTextBlock"
+                   Text="Confirm"
+                   FontSize="16"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource MaterialDesignBody}">
+        </TextBlock>
+
+        <TextBlock x:Name="MessageTextBlock"
+                   Grid.Row="2"
+                   TextWrapping="Wrap"
+                   MaxWidth="520"
+                   Foreground="{DynamicResource MaterialDesignBody}"
+                   Margin="0,4,0,0"/>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" >
+            <Button x:Name="SecondaryButton"
+                    Content="Cancel"
+                    Margin="0,0,8,0"
+                    MinWidth="90"
+                    IsCancel="True"
+                    Style="{StaticResource MaterialDesignOutlinedButton}"
+                    Click="SecondaryButton_Click"/>
+            <Button x:Name="PrimaryButton"
+                    Content="OK"
+                    MinWidth="90"
+                    IsDefault="True"
+                    Style="{StaticResource MaterialDesignContainedButton}"
+                    Click="PrimaryButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

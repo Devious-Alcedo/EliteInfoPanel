@@ -34,6 +34,8 @@ namespace EliteInfoPanel.Core
 
         private bool _cargoTrackingInitialized = false;
         private Dictionary<string, int> _carrierCargo = new(StringComparer.OrdinalIgnoreCase);
+        private DateTime _lastCarrierCargoEventTimeUtc = DateTime.MinValue; // last processed carrier cargo affecting journal event (UTC)
+        private DateTime _carrierCargoSnapshotTimeUtc = DateTime.MinValue; // file write time of loaded CarrierCargo.json (UTC)
         private Dictionary<long, ColonizationData> _colonizationDepots = new();
         private int _combatRank;
         private string _commanderName;
@@ -131,8 +133,51 @@ namespace EliteInfoPanel.Core
                     {
                         using (BeginUpdate())
                         {
-                            _carrierCargo = new Dictionary<string, int>(args.Cargo, StringComparer.OrdinalIgnoreCase);
+                            // Merge incoming game state with active manual overrides, applying delta
+                            var incoming = new Dictionary<string, int>(args.Cargo, StringComparer.OrdinalIgnoreCase);
+                            var merged = new Dictionary<string, int>(incoming, StringComparer.OrdinalIgnoreCase);
+
+                            // Ensure manual changes are loaded
+                            LoadManualCarrierCargoChanges();
+
+                            // Apply deltas for items present in game state
+                            foreach (var kvp in incoming)
+                            {
+                                if (_manualCarrierCargoChanges.TryGetValue(kvp.Key, out var manual) &&
+                                    manual.IsActive && DateTime.UtcNow - manual.LastModified < TimeSpan.FromMinutes(30))
+                                {
+                                    int delta = kvp.Value - manual.OriginalGameQuantity;
+                                    int newManual = Math.Max(0, manual.ManualQuantity + delta);
+                                    manual.ManualQuantity = newManual;
+                                    manual.OriginalGameQuantity = kvp.Value;
+                                    merged[kvp.Key] = newManual;
+                                }
+                            }
+
+                            // For manual-only items missing from incoming, treat game count as 0 and apply delta
+                            foreach (var kvp in _manualCarrierCargoChanges.ToList())
+                            {
+                                var manual = kvp.Value;
+                                if (!incoming.ContainsKey(kvp.Key) && manual.IsActive && DateTime.UtcNow - manual.LastModified < TimeSpan.FromMinutes(30))
+                                {
+                                    int delta = 0 - manual.OriginalGameQuantity;
+                                    int newManual = Math.Max(0, manual.ManualQuantity + delta);
+                                    manual.ManualQuantity = newManual;
+                                    manual.OriginalGameQuantity = 0;
+                                    if (newManual > 0)
+                                        merged[kvp.Key] = newManual;
+                                    else
+                                        merged.Remove(kvp.Key);
+                                }
+                            }
+
+                            // Persist manual adjustments
+                            SaveManualCarrierCargoChanges();
+
+                            _carrierCargo = merged;
+                            _carrierCargoTracker.Initialize(_carrierCargo);
                             UpdateCurrentCarrierCargoFromDictionary();
+                            SaveCarrierCargoToDisk();
                             OnPropertyChanged(nameof(CarrierCargo));
                         }
                     });
@@ -978,6 +1023,21 @@ namespace EliteInfoPanel.Core
             {
                 Log.Information("LoadCarrierCargoFromDisk via service, initialized: {Initialized}", _cargoTrackingInitialized);
                 _carrierCargo = _carrierCargoService.Load();
+                // Record snapshot time (UTC) to help ignore historical journal events
+                try
+                {
+                    var path = _filesService.AppDataPathFor("CarrierCargo.json");
+                    if (File.Exists(path))
+                    {
+                        var fi = new FileInfo(path);
+                        _carrierCargoSnapshotTimeUtc = fi.LastWriteTimeUtc;
+                        Log.Debug("Carrier cargo snapshot file time (UTC): {Time}", _carrierCargoSnapshotTimeUtc);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Unable to read CarrierCargo.json file time");
+                }
                 _carrierCargoService.Initialize(_carrierCargo);
                 UpdateCurrentCarrierCargoFromDictionary();
                 Log.Information("Loaded {Count} carrier cargo items from disk", _carrierCargo.Count);
@@ -1291,27 +1351,14 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                // Standardize the dictionary to use internal names only
-                var standardizedCargo = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
-                foreach (var pair in CarrierCargo)
-                {
-                    // Always treat the key as an internal name
-                    string internalName = pair.Key;
-                    standardizedCargo[internalName] = pair.Value;
-                }
-
-                // Update our dictionary to the standardized version (internal names only)
-                CarrierCargo = standardizedCargo;
-
-                // Now create the UI list with display names
+                // CarrierCargo now stores internal names as keys; build UI list mapping to display names
                 var items = new List<CarrierCargoItem>();
 
                 foreach (var pair in CarrierCargo.Where(kv => kv.Value > 0))
                 {
                     items.Add(new CarrierCargoItem
                     {
-                        Name = CommodityMapper.GetDisplayName(pair.Key), // display name for UI
+                        Name = CommodityMapper.GetDisplayName(pair.Key), // convert internal -> display
                         Quantity = pair.Value
                     });
                 }

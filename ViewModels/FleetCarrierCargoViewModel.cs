@@ -288,13 +288,14 @@ namespace EliteInfoPanel.ViewModels
                 if (item.Quantity == 0)
                 {
                     // Handle deletion with confirmation
-                    var result = MessageBox.Show(
-                        $"Remove {item.Name} from carrier cargo?",
-                        "Confirm Removal",
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Question);
+                    bool confirmed = EliteInfoPanel.Dialogs.ConfirmDialog.Show(
+                        owner: Application.Current?.MainWindow,
+                        title: "Confirm Removal",
+                        message: $"Remove {item.Name} from carrier cargo?",
+                        primaryText: "Remove",
+                        secondaryText: "Cancel");
 
-                    if (result == MessageBoxResult.Yes)
+                    if (confirmed)
                     {
                         DeleteItem(item);
                     }
@@ -318,11 +319,10 @@ namespace EliteInfoPanel.ViewModels
                 Log.Error(ex, "Error updating item quantity for {Name}", item.Name);
 
                 // Show user-friendly error message
-                MessageBox.Show(
-                    $"Failed to update {item.Name}: {ex.Message}",
-                    "Update Error",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
+                EliteInfoPanel.Dialogs.ConfirmDialog.ShowError(
+                    owner: Application.Current?.MainWindow,
+                    title: "Update Error",
+                    message: $"Failed to update {item.Name}: {ex.Message}");
             }
         }
 
@@ -509,13 +509,14 @@ namespace EliteInfoPanel.ViewModels
 
                 if (newQuantity == 0)
                 {
-                    var result = MessageBox.Show(
-                        $"Remove {item.Name} from carrier cargo?",
-                        "Confirm Removal",
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Question);
+                    bool confirmed = EliteInfoPanel.Dialogs.ConfirmDialog.Show(
+                        owner: Application.Current?.MainWindow,
+                        title: "Confirm Removal",
+                        message: $"Remove {item.Name} from carrier cargo?",
+                        primaryText: "Remove",
+                        secondaryText: "Cancel");
 
-                    if (result == MessageBoxResult.Yes)
+                    if (confirmed)
                     {
                         _gameState.UpdateCarrierCargoItem(item.Name, 0, isManualChange: true);
                         Cargo.Remove(item);

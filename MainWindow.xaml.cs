@@ -397,7 +397,7 @@ namespace EliteInfoPanel
 
                 if (!System.IO.Directory.Exists(logDirectory))
                 {
-                    MessageBox.Show("Log directory not found.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Dialogs.ConfirmDialog.ShowInfo(this, "Logs", "Log directory not found.");
                     return;
                 }
 
@@ -408,7 +408,7 @@ namespace EliteInfoPanel
 
                 if (latestLog == null)
                 {
-                    MessageBox.Show("No log files found.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Dialogs.ConfirmDialog.ShowInfo(this, "Logs", "No log files found.");
                     return;
                 }
 
@@ -431,7 +431,7 @@ namespace EliteInfoPanel
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Could not open log file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                Dialogs.ConfirmDialog.ShowError(this, "Logs", $"Could not open log file: {ex.Message}");
             }
         }
 

@@ -232,15 +232,16 @@ namespace EliteInfoPanel.ViewModels
                 // 1. An IDialogService interface for testability, OR
                 // 2. EventAggregator to request confirmation from the View layer
                 // For now, this works but should be refactored in a future PR.
-                var result = MessageBox.Show(
-                    $"Are you sure you want to remove the colonization depot at {selectedDepot.SystemName}?\n\n" +
-                    $"Progress: {selectedDepot.Progress:P0}\n" +
-                    $"Resources: {selectedDepot.CompletedCount}/{selectedDepot.ResourceCount}",
-                    "Remove Colonization Depot",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
+                bool confirmed = EliteInfoPanel.Dialogs.ConfirmDialog.Show(
+                    owner: Application.Current?.MainWindow,
+                    title: "Remove Colonization Depot",
+                    message: $"Are you sure you want to remove the colonization depot at {selectedDepot.SystemName}?\n\n" +
+                             $"Progress: {selectedDepot.Progress:P0}\n" +
+                             $"Resources: {selectedDepot.CompletedCount}/{selectedDepot.ResourceCount}",
+                    primaryText: "Remove",
+                    secondaryText: "Cancel");
 
-                if (result != MessageBoxResult.Yes)
+                if (!confirmed)
                 {
                     return;
                 }

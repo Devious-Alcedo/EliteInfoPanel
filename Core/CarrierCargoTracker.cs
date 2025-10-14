@@ -63,15 +63,14 @@ namespace EliteInfoPanel.Core
                 int count = countProp.GetInt32();
                 if (!string.IsNullOrWhiteSpace(internalName))
                 {
-                    string displayName = CommodityMapper.GetDisplayName(internalName);
-                    var existingKey = FindExistingCargoKey(displayName);
-                    if (existingKey != null && existingKey != displayName)
+                    var existingKey = FindExistingCargoKey(internalName);
+                    if (existingKey != null && existingKey != internalName)
                     {
-                        Log.Information("🔄 Normalizing cargo key: {OldKey} → {NewKey}", existingKey, displayName);
+                        Log.Information("🔄 Normalizing (internal) cargo key: {OldKey} → {NewKey}", existingKey, internalName);
                         _cargo.Remove(existingKey);
                     }
-                    _cargo[displayName] = count;
-                    Log.Debug("Set commodity count: {DisplayName} = {Count}", displayName, count);
+                    _cargo[internalName] = count;
+                    Log.Debug("Set commodity count: {Internal} (display: {Display}) = {Count}", internalName, CommodityMapper.GetDisplayName(internalName), count);
                 }
             }
         }
@@ -84,20 +83,19 @@ namespace EliteInfoPanel.Core
                 int count = countProp.GetInt32();
                 if (!string.IsNullOrWhiteSpace(internalName))
                 {
-                    string displayName = CommodityMapper.GetDisplayName(internalName);
-                    var existingKey = FindExistingCargoKey(displayName);
+                    var existingKey = FindExistingCargoKey(internalName);
                     int currentQty = 0;
                     if (existingKey != null)
                     {
                         currentQty = _cargo[existingKey];
-                        if (existingKey != displayName)
+                        if (!string.Equals(existingKey, internalName, StringComparison.OrdinalIgnoreCase))
                         {
-                            Log.Information("🔄 Normalizing cargo key during add: {OldKey} → {NewKey}", existingKey, displayName);
+                            Log.Information("🔄 Normalizing cargo key during add: {OldKey} → {NewKey}", existingKey, internalName);
                             _cargo.Remove(existingKey);
                         }
                     }
-                    _cargo[displayName] = currentQty + count;
-                    Log.Debug("Added to carrier via market: {DisplayName} + {Count} = {Total}", displayName, count, _cargo[displayName]);
+                    _cargo[internalName] = currentQty + count;
+                    Log.Debug("Added to carrier via market: {Internal} (display {Display}) + {Count} = {Total}", internalName, CommodityMapper.GetDisplayName(internalName), count, _cargo[internalName]);
                 }
             }
         }
@@ -110,8 +108,7 @@ namespace EliteInfoPanel.Core
                 int count = countProp.GetInt32();
                 if (!string.IsNullOrWhiteSpace(internalName))
                 {
-                    string displayName = CommodityMapper.GetDisplayName(internalName);
-                    var existingKey = FindExistingCargoKey(displayName);
+                    var existingKey = FindExistingCargoKey(internalName);
                     if (existingKey != null)
                     {
                         int currentQty = _cargo[existingKey];
@@ -119,13 +116,13 @@ namespace EliteInfoPanel.Core
                         _cargo.Remove(existingKey);
                         if (newAmount > 0)
                         {
-                            _cargo[displayName] = newAmount;
+                            _cargo[internalName] = newAmount;
                         }
-                        Log.Debug("Removed from carrier via market: {DisplayName} - {Count} = {Remaining} (key: {OldKey} → {NewKey})", displayName, count, newAmount, existingKey, displayName);
+                        Log.Debug("Removed from carrier via market: {Internal} (display {Display}) - {Count} = {Remaining}", internalName, CommodityMapper.GetDisplayName(internalName), count, newAmount);
                     }
                     else
                     {
-                        Log.Warning("Could not find '{DisplayName}' in carrier cargo to remove via market", displayName);
+                        Log.Warning("Could not find '{Internal}' in carrier cargo to remove via market", internalName);
                     }
                 }
             }
@@ -150,52 +147,38 @@ namespace EliteInfoPanel.Core
                     int count = countProp.GetInt32();
                     string direction = directionProp.GetString();
                     if (string.IsNullOrWhiteSpace(internalName)) continue;
-                    string displayName = CommodityMapper.GetDisplayName(internalName);
-                    Log.Information("🔄 Processing transfer: {InternalName} → {DisplayName} | {Direction} {Count}", internalName, displayName, direction, count);
+                    Log.Information("🔄 Processing transfer: {Internal} (display {Display}) | {Direction} {Count}", internalName, CommodityMapper.GetDisplayName(internalName), direction, count);
                     if (string.Equals(direction, "tocarrier", StringComparison.OrdinalIgnoreCase))
                     {
-                        var existingKey = FindExistingCargoKey(displayName);
+                        var existingKey = FindExistingCargoKey(internalName);
                         int previousQty = 0;
                         if (existingKey != null)
                         {
                             previousQty = _cargo[existingKey];
-                            _cargo.Remove(existingKey);
+                            if (!string.Equals(existingKey, internalName, StringComparison.OrdinalIgnoreCase))
+                                _cargo.Remove(existingKey);
                         }
-                        _cargo[displayName] = previousQty + count;
-                        Log.Information("➕ Added to carrier: {Item} | {PrevQty} + {Count} = {NewQty} (key: {ExistingKey} → {NewKey})", displayName, previousQty, count, _cargo[displayName], existingKey ?? "none", displayName);
+                        _cargo[internalName] = previousQty + count;
+                        Log.Information("➕ Added to carrier: {Internal} (display {Display}) | {PrevQty} + {Count} = {NewQty}", internalName, CommodityMapper.GetDisplayName(internalName), previousQty, count, _cargo[internalName]);
                     }
                     else if (string.Equals(direction, "toship", StringComparison.OrdinalIgnoreCase) ||
                              string.Equals(direction, "fromcarrier", StringComparison.OrdinalIgnoreCase))
                     {
-                        var existingKey = FindExistingCargoKey(displayName);
+                        var existingKey = FindExistingCargoKey(internalName);
                         if (existingKey != null)
                         {
                             int currentQuantity = _cargo[existingKey];
                             int newAmount = Math.Max(0, currentQuantity - count);
-                            Log.Information("➖ Removing from carrier: {Item} (key: {ExistingKey}) | {CurrentQty} - {Count} = {NewQty}", displayName, existingKey, currentQuantity, count, newAmount);
                             _cargo.Remove(existingKey);
                             if (newAmount > 0)
                             {
-                                _cargo[displayName] = newAmount;
-                                Log.Information("✅ Updated carrier: {Item} now at {NewQty}", displayName, newAmount);
+                                _cargo[internalName] = newAmount;
                             }
-                            else
-                            {
-                                Log.Information("🗑️ Removed completely: {Item} (quantity would be 0)", displayName);
-                            }
+                            Log.Information("➖ Removed from carrier: {Internal} (display {Display}) | {Current} - {Count} = {NewQty}", internalName, CommodityMapper.GetDisplayName(internalName), currentQuantity, count, newAmount);
                         }
                         else
                         {
-                            Log.Warning("⚠️ Could not find '{DisplayName}' in carrier cargo to remove", displayName);
-                            var similarNames = _cargo.Keys.Where(k => 
-                                k.Contains(displayName, StringComparison.OrdinalIgnoreCase) ||
-                                displayName.Contains(k, StringComparison.OrdinalIgnoreCase)
-                            ).ToList();
-                            if (similarNames.Any())
-                            {
-                                Log.Warning("🔍 Found similar names: {SimilarNames}", string.Join(", ", similarNames));
-                            }
-                            Log.Debug("📦 Current carrier cargo contains: {Items}", string.Join(", ", _cargo.Select(kvp => $"{kvp.Key}={kvp.Value}")));
+                            Log.Warning("⚠️ Could not find '{Internal}' in carrier cargo to remove", internalName);
                         }
                     }
                     else
@@ -219,29 +202,7 @@ namespace EliteInfoPanel.Core
         }
         public void NormalizeCargoKeys()
         {
-            var itemsToNormalize = new List<(string oldKey, string newKey, int quantity)>();
-            foreach (var item in _cargo.ToList())
-            {
-                string normalizedKey = CommodityMapper.GetDisplayName(item.Key);
-                if (!string.Equals(item.Key, normalizedKey, StringComparison.Ordinal))
-                {
-                    itemsToNormalize.Add((item.Key, normalizedKey, item.Value));
-                }
-            }
-            foreach (var (oldKey, newKey, quantity) in itemsToNormalize)
-            {
-                _cargo.Remove(oldKey);
-                if (_cargo.TryGetValue(newKey, out int existingQty))
-                {
-                    _cargo[newKey] = existingQty + quantity;
-                    Log.Information("🔄 Consolidated cargo: {OldKey} + {NewKey} = {TotalQty}", oldKey, newKey, _cargo[newKey]);
-                }
-                else
-                {
-                    _cargo[newKey] = quantity;
-                    Log.Information("🔄 Normalized cargo key: {OldKey} → {NewKey}", oldKey, newKey);
-                }
-            }
+            // No-op now that we store only internal keys.
         }
     }
 }

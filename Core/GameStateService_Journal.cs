@@ -253,26 +253,43 @@ namespace EliteInfoPanel.Core
                 case "CarrierTradeOrder":
                     if (initialScan)
                         break;
-                    EnsureCarrierCargoTrackingInitialized($"{eventType} event");
-                    _carrierCargoService.ApplyEvent(root);
-                    using (BeginUpdate())
+                    if (ShouldSkipHistoricalCargoEvent(root, eventType))
                     {
-                        _carrierCargo = _carrierCargoService.GetState();
-                        UpdateCurrentCarrierCargoFromDictionary();
-                        SaveCarrierCargoToDisk();
+                        Log.Information("Skipping historical {Event} event (timestamp before last processed)", eventType);
+                        break;
                     }
+                    EnsureCarrierCargoTrackingInitialized($"{eventType} event");
+                    // Apply via service; CargoUpdated event will merge with manual overrides and refresh UI/state
+                    _carrierCargoService.ApplyEvent(root);
+                    UpdateLastCarrierCargoTimestamp(root);
                     break;
                 case "MarketBuy":
                     if (initialScan) break;
                     if (root.TryGetProperty("BuyFromFleetCarrier", out var boughtFromCarrierProp) && boughtFromCarrierProp.GetBoolean())
                     {
+                        if (ShouldSkipHistoricalCargoEvent(root, eventType))
+                        {
+                            Log.Information("Skipping historical MarketBuy event (timestamp before last processed)");
+                            break;
+                        }
                         EnsureCarrierCargoTrackingInitialized("MarketBuy FROM carrier event");
                         _carrierCargoService.ApplyEvent(root);
-                        using (BeginUpdate())
+                        UpdateLastCarrierCargoTimestamp(root);
+                        // Also refresh ship cargo shortly after to reconcile any missed updates
+                        try
                         {
-                            _carrierCargo = _carrierCargoService.GetState();
-                            UpdateCurrentCarrierCargoFromDictionary();
-                            SaveCarrierCargoToDisk();
+                            _ = Task.Run(async () =>
+                            {
+                                await Task.Delay(1200);
+                                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                                {
+                                    try { LoadCargoData(); } catch { }
+                                });
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warning(ex, "Error scheduling cargo reload after MarketBuy");
                         }
                     }
                     break;
@@ -280,25 +297,66 @@ namespace EliteInfoPanel.Core
                     if (initialScan) break;
                     if (root.TryGetProperty("SellToFleetCarrier", out var soldToCarrierProp) && soldToCarrierProp.GetBoolean())
                     {
+                        if (ShouldSkipHistoricalCargoEvent(root, eventType))
+                        {
+                            Log.Information("Skipping historical MarketSell event (timestamp before last processed)");
+                            break;
+                        }
                         EnsureCarrierCargoTrackingInitialized("MarketSell TO carrier event");
                         _carrierCargoService.ApplyEvent(root);
-                        using (BeginUpdate())
+                        UpdateLastCarrierCargoTimestamp(root);
+                        // Also refresh ship cargo shortly after to reconcile any missed updates
+                        try
                         {
-                            _carrierCargo = _carrierCargoService.GetState();
-                            UpdateCurrentCarrierCargoFromDictionary();
-                            SaveCarrierCargoToDisk();
+                            _ = Task.Run(async () =>
+                            {
+                                await Task.Delay(1200);
+                                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                                {
+                                    try { LoadCargoData(); } catch { }
+                                });
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warning(ex, "Error scheduling cargo reload after MarketSell");
                         }
                     }
                     break;
                 case "CargoTransfer":
                     if (initialScan) break;
-                    EnsureCarrierCargoTrackingInitialized("CargoTransfer event");
-                    _carrierCargoService.ApplyEvent(root);
-                    using (BeginUpdate())
+                    if (ShouldSkipHistoricalCargoEvent(root, eventType))
                     {
-                        _carrierCargo = _carrierCargoService.GetState();
-                        UpdateCurrentCarrierCargoFromDictionary();
-                        SaveCarrierCargoToDisk();
+                        Log.Information("Skipping historical CargoTransfer event (timestamp before last processed)");
+                        break;
+                    }
+                    EnsureCarrierCargoTrackingInitialized("CargoTransfer event");
+                    // Also update ship cargo immediately to reflect transfers (Cargo.json lags behind)
+                    try
+                    {
+                        UpdateShipCargoFromTransfers(root);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning(ex, "Error updating ship cargo from CargoTransfer event");
+                    }
+                    _carrierCargoService.ApplyEvent(root);
+                    UpdateLastCarrierCargoTimestamp(root);
+                    // Schedule a delayed cargo reload to reconcile any missed writes from the game
+                    try
+                    {
+                        _ = Task.Run(async () =>
+                        {
+                            await Task.Delay(1200);
+                            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                try { LoadCargoData(); } catch { }
+                            });
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning(ex, "Error scheduling cargo reload after CargoTransfer");
                     }
                     break;
                 case "CarrierJumpRequest":
@@ -464,6 +522,64 @@ namespace EliteInfoPanel.Core
             catch (Exception ex)
             {
                 Log.Error(ex, "?? DEBUG: Error checking journal position");
+            }
+        }
+		private bool ShouldSkipHistoricalCargoEvent(JsonElement root, string eventType)
+        {
+            try
+            {
+                if (!root.TryGetProperty("timestamp", out var tsProp)) return false;
+                string tsStr = tsProp.GetString();
+                if (!DateTime.TryParse(tsStr, null, System.Globalization.DateTimeStyles.RoundtripKind, out var ts))
+                    return false;
+                if (ts.Kind == DateTimeKind.Unspecified)
+                {
+                    ts = DateTime.SpecifyKind(ts, DateTimeKind.Utc);
+                }
+                else if (ts.Kind == DateTimeKind.Local)
+                {
+                    ts = ts.ToUniversalTime();
+                }
+                if ((_carrierCargoSnapshotTimeUtc != DateTime.MinValue && ts <= _carrierCargoSnapshotTimeUtc) ||
+                    ts < _appStartTimeUtc ||
+                    ts <= _lastCarrierCargoEventTimeUtc)
+                {
+                    Log.Debug("Historical cargo event ignored: {Event} ts={Ts} snapshot={Snap} lastProcessed={Last} appStart={Start}",
+                        eventType, ts, _carrierCargoSnapshotTimeUtc, _lastCarrierCargoEventTimeUtc, _appStartTimeUtc);
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Error evaluating historical cargo event skip logic");
+            }
+            return false;
+        }
+
+        private void UpdateLastCarrierCargoTimestamp(JsonElement root)
+        {
+            try
+            {
+                if (root.TryGetProperty("timestamp", out var tsProp))
+                {
+                    var tsStr = tsProp.GetString();
+                    if (DateTime.TryParse(tsStr, null, System.Globalization.DateTimeStyles.RoundtripKind, out var ts))
+                    {
+                        if (ts.Kind == DateTimeKind.Unspecified)
+                            ts = DateTime.SpecifyKind(ts, DateTimeKind.Utc);
+                        else if (ts.Kind == DateTimeKind.Local)
+                            ts = ts.ToUniversalTime();
+                        if (ts > _lastCarrierCargoEventTimeUtc)
+                        {
+                            _lastCarrierCargoEventTimeUtc = ts;
+                            Log.Debug("Updated last carrier cargo event timestamp to {Ts}", ts);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Error updating last carrier cargo timestamp");
             }
         }
         public async Task ProcessJournalAsync()

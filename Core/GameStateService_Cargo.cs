@@ -147,7 +147,7 @@ namespace EliteInfoPanel.Core
                 Log.Information("?? Synchronizing carrier cargo state between GameState and CarrierCargoTracker");
                 using (BeginUpdate())
                 {
-                    _carrierCargoTracker.NormalizeCargoKeys();
+                    // Tracker already uses internal keys; just merge
                     var merged = new Dictionary<string, int>(_carrierCargoTracker.Cargo, StringComparer.OrdinalIgnoreCase);
                     foreach (var kvp in _manualCarrierCargoChanges)
                     {
@@ -180,23 +180,60 @@ namespace EliteInfoPanel.Core
 
                 using (BeginUpdate())
                 {
-                    if (quantity > 0)
+                    if (isManualChange)
                     {
-                        _carrierCargo[itemName] = quantity;
+                        // Directly set to manual value
+                        if (quantity > 0)
+                        {
+                            _carrierCargo[itemName] = quantity;
+                        }
+                        else
+                        {
+                            if (_carrierCargo.ContainsKey(itemName))
+                            {
+                                _carrierCargo.Remove(itemName);
+                                Log.Debug("Removed {Item} from carrier cargo tracking dictionary", itemName);
+                            }
+                            var itemToRemove = _currentCarrierCargo.FirstOrDefault(i =>
+                                string.Equals(i.Name, itemName, StringComparison.OrdinalIgnoreCase));
+                            if (itemToRemove != null)
+                            {
+                                _currentCarrierCargo.Remove(itemToRemove);
+                                Log.Debug("Removed {Item} from CurrentCarrierCargo UI list", itemName);
+                            }
+                        }
                     }
                     else
                     {
-                        if (_carrierCargo.ContainsKey(itemName))
+                        // This is a game update. Apply as delta relative to stored original game value if there's an active manual override
+                        if (_manualCarrierCargoChanges.TryGetValue(itemName, out var manual) &&
+                            manual.IsActive && DateTime.UtcNow - manual.LastModified < TimeSpan.FromMinutes(30))
                         {
-                            _carrierCargo.Remove(itemName);
-                            Log.Debug("Removed {Item} from carrier cargo tracking dictionary", itemName);
+                            int delta = quantity - manual.OriginalGameQuantity;
+                            int newManual = Math.Max(0, manual.ManualQuantity + delta);
+                            manual.ManualQuantity = newManual;
+                            manual.OriginalGameQuantity = quantity;
+                            if (newManual > 0)
+                            {
+                                _carrierCargo[itemName] = newManual;
+                            }
+                            else
+                            {
+                                _carrierCargo.Remove(itemName);
+                            }
+                            SaveManualCarrierCargoChanges();
                         }
-                        var itemToRemove = _currentCarrierCargo.FirstOrDefault(i =>
-                            string.Equals(i.Name, itemName, StringComparison.OrdinalIgnoreCase));
-                        if (itemToRemove != null)
+                        else
                         {
-                            _currentCarrierCargo.Remove(itemToRemove);
-                            Log.Debug("Removed {Item} from CurrentCarrierCargo UI list", itemName);
+                            // No active manual override; accept game value
+                            if (quantity > 0)
+                            {
+                                _carrierCargo[itemName] = quantity;
+                            }
+                            else
+                            {
+                                _carrierCargo.Remove(itemName);
+                            }
                         }
                     }
 
@@ -214,28 +251,6 @@ namespace EliteInfoPanel.Core
                         SaveManualCarrierCargoChanges();
                         Log.Information("Saved manual change: {Item} {Original} -> {Manual}",
                             itemName, originalGameValue, quantity);
-                    }
-                    else
-                    {
-                        if (_manualCarrierCargoChanges.ContainsKey(itemName))
-                        {
-                            var manualChange = _manualCarrierCargoChanges[itemName];
-                            if (DateTime.UtcNow - manualChange.LastModified < TimeSpan.FromMinutes(30))
-                            {
-                                Log.Information("Preserving manual change for {Item}: keeping {Manual} instead of game value {Game}",
-                                    itemName, manualChange.ManualQuantity, quantity);
-                                manualChange.OriginalGameQuantity = quantity;
-                                _carrierCargo[itemName] = manualChange.ManualQuantity;
-                                SaveManualCarrierCargoChanges();
-                            }
-                            else
-                            {
-                                _manualCarrierCargoChanges.Remove(itemName);
-                                SaveManualCarrierCargoChanges();
-                                Log.Information("Manual change for {Item} has expired, accepting game value {Quantity}",
-                                    itemName, quantity);
-                            }
-                        }
                     }
 
                     _carrierCargoTracker.Initialize(_carrierCargo);
@@ -492,7 +507,45 @@ namespace EliteInfoPanel.Core
                 {
                     using (BeginUpdate())
                     {
-                        _carrierCargo = new Dictionary<string, int>(_carrierCargoTracker.Cargo, StringComparer.OrdinalIgnoreCase);
+                        // Merge tracker state with active manual overrides using delta logic
+                        var currentGame = new Dictionary<string, int>(_carrierCargoTracker.Cargo, StringComparer.OrdinalIgnoreCase);
+                        var merged = new Dictionary<string, int>(currentGame, StringComparer.OrdinalIgnoreCase);
+
+                        LoadManualCarrierCargoChanges();
+
+                        foreach (var kvp in currentGame)
+                        {
+                            if (_manualCarrierCargoChanges.TryGetValue(kvp.Key, out var manual) &&
+                                manual.IsActive && DateTime.UtcNow - manual.LastModified < TimeSpan.FromMinutes(30))
+                            {
+                                int delta = kvp.Value - manual.OriginalGameQuantity;
+                                int newManual = Math.Max(0, manual.ManualQuantity + delta);
+                                manual.ManualQuantity = newManual;
+                                manual.OriginalGameQuantity = kvp.Value;
+                                merged[kvp.Key] = newManual;
+                            }
+                        }
+
+                        foreach (var kvp in _manualCarrierCargoChanges.ToList())
+                        {
+                            var manual = kvp.Value;
+                            if (!currentGame.ContainsKey(kvp.Key) && manual.IsActive && DateTime.UtcNow - manual.LastModified < TimeSpan.FromMinutes(30))
+                            {
+                                int delta = 0 - manual.OriginalGameQuantity;
+                                int newManual = Math.Max(0, manual.ManualQuantity + delta);
+                                manual.ManualQuantity = newManual;
+                                manual.OriginalGameQuantity = 0;
+                                if (newManual > 0)
+                                    merged[kvp.Key] = newManual;
+                                else
+                                    merged.Remove(kvp.Key);
+                            }
+                        }
+
+                        SaveManualCarrierCargoChanges();
+
+                        _carrierCargo = merged;
+                        _carrierCargoTracker.Initialize(_carrierCargo);
                         UpdateCurrentCarrierCargoFromDictionary();
                         SaveCarrierCargoToDisk();
                     }
