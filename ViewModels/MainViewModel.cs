@@ -11,6 +11,8 @@ using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
 using MaterialDesignThemes.Wpf;
 using Serilog;
+using EliteInfoPanel.Core.Services;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EliteInfoPanel.ViewModels
 {
@@ -26,6 +28,7 @@ namespace EliteInfoPanel.ViewModels
         private bool _isFullScreenMode;
         private readonly bool _useFloatingWindow;
         private bool _layoutChangePending = false;
+        private readonly ISettingsStorage _settingsStorage = App.Services.GetRequiredService<ISettingsStorage>();
         #endregion Private Fields
 
         #region Public Properties
@@ -40,7 +43,7 @@ namespace EliteInfoPanel.ViewModels
                 }
             }
         }
-        public bool IsDevelopmentMode => SettingsManager.Load().DevelopmentMode;
+        public bool IsDevelopmentMode => _settingsStorage.Load<AppSettings>("settings.json").DevelopmentMode;
         public ObservableCollection<CardViewModel> Cards { get; } = new ObservableCollection<CardViewModel>();
 
         public BackpackViewModel BackpackCard { get; }
@@ -118,9 +121,10 @@ namespace EliteInfoPanel.ViewModels
             UpdateLoadingState();
 
             // Apply initial font size
-            double scale = SettingsManager.Load().UseFloatingWindow
-                ? SettingsManager.Load().FloatingFontScale
-                : SettingsManager.Load().FullscreenFontScale;
+            var __settings_for_scale = _settingsStorage.Load<AppSettings>("settings.json");
+            double scale = __settings_for_scale.UseFloatingWindow
+                ? __settings_for_scale.FloatingFontScale
+                : __settings_for_scale.FullscreenFontScale;
 
             double baseFontSize = AppSettings.DEFAULT_FULLSCREEN_BASE * scale;
 
@@ -185,7 +189,7 @@ namespace EliteInfoPanel.ViewModels
         }
         private void ApplyUserCardPreferences()
         {
-            var settings = SettingsManager.Load();
+            var settings = _settingsStorage.Load<AppSettings>("settings.json");
 
             Log.Information("Applying user card preferences from settings");
 
@@ -228,7 +232,7 @@ namespace EliteInfoPanel.ViewModels
         #region Public Methods
         public void ApplyWindowModeFromSettings()
         {
-            var isFullscreen = !SettingsManager.Load().UseFloatingWindow;
+            var isFullscreen = !_settingsStorage.Load<AppSettings>("settings.json").UseFloatingWindow;
             IsFullScreenMode = isFullscreen;
         }
 
@@ -277,7 +281,7 @@ namespace EliteInfoPanel.ViewModels
             var status = _gameState.CurrentStatus;
             if (status == null) return;
 
-            var settings = SettingsManager.Load();
+            var settings = _settingsStorage.Load<AppSettings>("settings.json");
 
             // Determine global conditions for visibility
             bool globalShowCondition = !_gameState.IsHyperspaceJumping && (
@@ -355,7 +359,7 @@ namespace EliteInfoPanel.ViewModels
             _mainGrid = mainGrid;
 
             // Initialize layout manager
-            var appSettings = SettingsManager.Load();
+            var appSettings = _settingsStorage.Load<AppSettings>("settings.json");
             _layoutManager = new CardLayoutManager(_mainGrid, appSettings, this);
 
             // Do initial layout
@@ -438,7 +442,7 @@ namespace EliteInfoPanel.ViewModels
             bool isJumping = _gameState.IsHyperspaceJumping;
 
             bool shouldShow = hasCarrierCargo && !isJumping &&
-                             SettingsManager.Load().ShowFleetCarrierCargoCard;
+                             _settingsStorage.Load<AppSettings>("settings.json").ShowFleetCarrierCargoCard;
 
             Log.Information("Fleet Carrier card visibility check: HasCargo={HasCargo}, IsJumping={IsJumping}, ShouldShow={ShouldShow}",
                 hasCarrierCargo, isJumping, shouldShow);
@@ -452,7 +456,7 @@ namespace EliteInfoPanel.ViewModels
             try
             {
                 // Get user preference 
-                var settings = SettingsManager.Load();
+                var settings = _settingsStorage.Load<AppSettings>("settings.json");
                 bool userEnabled = settings.ShowColonisation;
 
                 // Check if we have valid, active colonization data
@@ -484,7 +488,7 @@ namespace EliteInfoPanel.ViewModels
                 bool hasActiveColonization = _gameState.HasValidColonizationData;
 
                 // Get user preferences
-                var settings = SettingsManager.Load();
+                var settings = _settingsStorage.Load<AppSettings>("settings.json");
                 bool userEnabled = settings.ShowColonisation;
 
                 Log.Information("MainViewModel: Updating colonization data - HasData={HasData}, UserEnabled={UserEnabled}",
@@ -616,7 +620,7 @@ namespace EliteInfoPanel.ViewModels
         private bool IsEliteRunning()
         {
             // Automatically return true if in development mode
-            if (SettingsManager.Load().DevelopmentMode)
+            if (_settingsStorage.Load<AppSettings>("settings.json").DevelopmentMode)
             {
                 return true;
             }
@@ -762,7 +766,7 @@ namespace EliteInfoPanel.ViewModels
             
             if (hasColonizationData)
             {
-                var settings = SettingsManager.Load();
+                var settings = _settingsStorage.Load<AppSettings>("settings.json");
                 Log.Information("Valid colonization data found during initial visibility setup");
 
                 // Set both context visibility and user preference correctly
@@ -784,7 +788,7 @@ namespace EliteInfoPanel.ViewModels
             if (status == null) return;
 
             // Get user preferences
-            var settings = SettingsManager.Load();
+            var settings = _settingsStorage.Load<AppSettings>("settings.json");
 
             // Calculate global visibility state
             bool shouldShowPanels = !_gameState.IsHyperspaceJumping && (

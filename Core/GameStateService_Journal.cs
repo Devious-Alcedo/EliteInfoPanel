@@ -198,11 +198,11 @@ namespace EliteInfoPanel.Core
                         if (!string.Equals(LastVisitedSystem, currentSystem, StringComparison.OrdinalIgnoreCase))
                             LastVisitedSystem = currentSystem;
                         CurrentSystem = currentSystem;
-                        if (!_routeProgress.CompletedSystems.Contains(CurrentSystem))
+                        if (!_routeProgress.CompletedSystems.Contains(CurrentSystem, StringComparer.OrdinalIgnoreCase))
                         {
                             _routeProgress.CompletedSystems.Add(CurrentSystem);
                             _routeProgress.LastKnownSystem = CurrentSystem;
-                            SaveRouteProgress();
+                            SaveRouteProgressDebounced();
                         }
                         PruneCompletedRouteSystems();
                     }
@@ -224,6 +224,11 @@ namespace EliteInfoPanel.Core
                         if (!string.Equals(LastVisitedSystem, currentSystem, StringComparison.OrdinalIgnoreCase))
                             LastVisitedSystem = currentSystem;
                         CurrentSystem = currentSystem;
+                        if (!string.IsNullOrEmpty(CurrentSystem))
+                        {
+                            _routeProgress.LastKnownSystem = CurrentSystem;
+                            SaveRouteProgressDebounced();
+                        }
                         PruneCompletedRouteSystems();
                     }
                     break;
@@ -236,6 +241,11 @@ namespace EliteInfoPanel.Core
                     if (root.TryGetProperty("StarSystem", out JsonElement exitSystemElement))
                     {
                         CurrentSystem = exitSystemElement.GetString();
+                        if (!string.IsNullOrEmpty(CurrentSystem))
+                        {
+                            _routeProgress.LastKnownSystem = CurrentSystem;
+                            SaveRouteProgressDebounced();
+                        }
                         PruneCompletedRouteSystems();
                     }
                     break;

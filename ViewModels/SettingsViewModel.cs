@@ -9,6 +9,7 @@ using EliteInfoPanel.Core;
 using EliteInfoPanel.Util;
 using Serilog;
 using WpfScreenHelper;
+using EliteInfoPanel.Core.Services;
 
 namespace EliteInfoPanel.ViewModels
 {
@@ -560,7 +561,12 @@ namespace EliteInfoPanel.ViewModels
             if (!ValidateMqttSettings())
                 return;
 
-            SettingsManager.Save(_appSettings);
+            try
+            {
+                var storage = App.Services.GetService(typeof(ISettingsStorage)) as ISettingsStorage;
+                storage?.Save("settings.json", _appSettings);
+            }
+            catch { SettingsManager.Save(_appSettings); }
             Log.Information("💾 Saving: FloatingWindow = {Mode}, FullscreenScale = {F}, FloatingScale = {S}",
                 _appSettings.UseFloatingWindow,
                 _appSettings.FullscreenFontScale,

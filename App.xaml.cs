@@ -27,18 +27,28 @@ public partial class App : Application
     private void ConfigureServices()
     {
         var services = new ServiceCollection();
+        // Load settings first (uses fallback if DI not yet available)
+        var loadedSettings = EliteInfoPanel.Util.SettingsManager.Load();
+        var gamePath = EliteInfoPanel.Core.EliteDangerousPaths.GetSavedGamesPath(loadedSettings.DevelopmentMode);
 
-        // Determine game path with dev mode
-        var settings = EliteInfoPanel.Util.SettingsManager.Load();
-        var gamePath = EliteInfoPanel.Core.EliteDangerousPaths.GetSavedGamesPath(settings.DevelopmentMode);
-
+        // Register core services with the correct game path
         services.AddSingleton<IGameFilesService>(_ => new GameFilesService(gamePath));
+        services.AddSingleton<ISettingsStorage, SettingsStorage>();
         services.AddSingleton<IFileWatcherService>(_ => new FileWatcherService(gamePath));
         services.AddSingleton<IJournalReader, JournalReader>();
-        services.AddSingleton<ICarrierCargoService>(_ => new CarrierCargoService(new Core.CarrierCargoTracker(),
-            System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EliteInfoPanel", "carrier_cargo_state.json")));
+        services.AddSingleton<ICarrierCargoService>(sp =>
+        {
+            var files = sp.GetRequiredService<IGameFilesService>();
+            var cargoPath = files.AppDataPathFor("CarrierCargo.json");
+            return new CarrierCargoService(new Core.CarrierCargoTracker(), cargoPath);
+        });
         services.AddSingleton<IColonizationService, ColonizationService>();
-        services.AddSingleton<IRouteProgressService>(_ => new RouteProgressService("RouteProgress.json"));
+        services.AddSingleton<IRouteProgressService>(sp =>
+        {
+            var files = sp.GetRequiredService<IGameFilesService>();
+            var routePath = files.AppDataPathFor("RouteProgress.json");
+            return new RouteProgressService(routePath);
+        });
         services.AddSingleton<IStatusService, StatusService>();
         services.AddSingleton<ICarrierJumpManager>(sp => new CarrierJumpManager(Current.Dispatcher,
             () => sp.GetRequiredService<GameStateService>().IsOnFleetCarrier,

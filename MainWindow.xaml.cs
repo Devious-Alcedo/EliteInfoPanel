@@ -18,6 +18,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using WpfScreenHelper;
 using Microsoft.Extensions.DependencyInjection;
+using EliteInfoPanel.Core.Services;
 
 
 namespace EliteInfoPanel
@@ -33,6 +34,7 @@ namespace EliteInfoPanel
         #region Private Fields
 
         private readonly AppSettings _appSettings;
+        private readonly ISettingsStorage _settingsStorage;
         private readonly MainViewModel _viewModel;
         private Screen _currentScreen;
         private readonly System.Threading.Timer _cleanupTimer;
@@ -43,8 +45,9 @@ namespace EliteInfoPanel
         public MainWindow()
         {
             InitializeComponent();
-            // Load settings FIRST
-            _appSettings = SettingsManager.Load();
+            // Load settings FIRST via centralized storage
+            _settingsStorage = App.Services.GetRequiredService<ISettingsStorage>();
+            _appSettings = _settingsStorage.Load<AppSettings>("settings.json");
             // Configure logging
             LoggingConfig.Configure(_appSettings.LogLevel);
             Log.Information("MainWindow: Getting EliteThemeManager instance...");
@@ -190,7 +193,7 @@ namespace EliteInfoPanel
                         _appSettings.SelectedScreenId = _currentScreen.DeviceName;
                         _appSettings.SelectedScreenBounds = _currentScreen.WpfBounds;
 
-                        SettingsManager.Save(_appSettings); // ✅ ensure saved
+                        _settingsStorage.Save("settings.json", _appSettings); // ✅ ensure saved
                     }
                     else
                     {
@@ -201,7 +204,7 @@ namespace EliteInfoPanel
                 {
                     // Even if screen was already known, save if switching to fullscreen
                     _appSettings.UseFloatingWindow = false;
-                    SettingsManager.Save(_appSettings); // ✅ ensure saved
+                    _settingsStorage.Save("settings.json", _appSettings); // ✅ ensure saved
                 }
 
                 ApplyScreenBounds(_currentScreen);
@@ -265,6 +268,7 @@ namespace EliteInfoPanel
         private void MainWindow_Closing(object sender, CancelEventArgs e)
         {
             _cleanupTimer?.Dispose();
+            try { _gameState.FlushRouteProgressSave(); } catch { }
             SaveWindowPosition();
         }
        
@@ -296,7 +300,7 @@ namespace EliteInfoPanel
             {
                 // In fullscreen mode, Escape switches to floating window mode
                 _appSettings.UseFloatingWindow = true;
-                SettingsManager.Save(_appSettings);
+                _settingsStorage.Save("settings.json", _appSettings);
                 ApplyWindowSettings();
                 _viewModel.ApplyWindowModeFromSettings();
             }
@@ -462,7 +466,7 @@ namespace EliteInfoPanel
                 if (primaryScreen != null)
                 {
                     _appSettings.LastOptionsScreenId = primaryScreen.DeviceName;
-                    SettingsManager.Save(_appSettings);
+                    _settingsStorage.Save("settings.json", _appSettings);
                 }
 
                 options.ScreenChanged += screen =>
@@ -491,7 +495,7 @@ namespace EliteInfoPanel
                 // Show the dialog modally
                 if (options.ShowDialog() == true)
                 {
-                    var updatedSettings = SettingsManager.Load();
+                    var updatedSettings = _settingsStorage.Load<AppSettings>("settings.json");
 
                     bool modeChanged = updatedSettings.UseFloatingWindow != _appSettings.UseFloatingWindow;
 
@@ -533,7 +537,7 @@ namespace EliteInfoPanel
                 _appSettings.FloatingWindowTop = Top;
                 _appSettings.FloatingWindowWidth = Width;
                 _appSettings.FloatingWindowHeight = Height;
-                SettingsManager.Save(_appSettings);
+                _settingsStorage.Save("settings.json", _appSettings);
 
                 Log.Information("Saved floating window position: {Left}x{Top} {Width}x{Height}",
                     Left, Top, Width, Height);
@@ -544,7 +548,7 @@ namespace EliteInfoPanel
         private void SwitchToWindowedMode_Click(object sender, RoutedEventArgs e)
         {
             _appSettings.UseFloatingWindow = true;
-            SettingsManager.Save(_appSettings);
+            _settingsStorage.Save("settings.json", _appSettings);
             ApplyWindowSettings();
             _viewModel.ApplyWindowModeFromSettings();
         }

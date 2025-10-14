@@ -55,3 +55,31 @@ Can push Status flags to MQTT for use in home automation!
 
 ![image](https://github.com/user-attachments/assets/efb40c7f-661f-4384-8e5e-e8a01e43a780)
 
+Persistence and upgrade notes
+- App settings and persisted state are stored under AppData/Roaming/EliteInfoPanel:
+  - CarrierCargo.json (fleet carrier commodity quantities)
+  - ManualCarrierCargo.json (temporary manual overrides, 30 min expiry)
+  - RouteProgress.json (route pruning progress)
+  - ColonizationData.json (active depot cache)
+- Safe migrations are built in:
+  - If CarrierCargo.json is missing, legacy carrier_cargo_state.json is imported automatically and then deleted.
+  - If ManualCarrierCargo.json is missing, legacy LocalAppData/EliteCompanion/ManualCarrierCargo.json is imported automatically and then deleted.
+- All JSON IO uses shared-read semantics to avoid file locks with the game.
+
+Troubleshooting
+- Logs
+  - App logs: %LocalAppData%/EliteInfoPanel/EliteInfoPanel_Log*.log
+  - Open latest from the app with F12.
+- Reset state
+  - Close the app, then delete files under %AppData%/EliteInfoPanel:
+    - CarrierCargo.json, ManualCarrierCargo.json, RouteProgress.json, ColonizationData.json, settings.json (optional).
+  - This resets saved state and preferences; game files are untouched.
+- Development mode
+  - Edit %AppData%/EliteInfoPanel/settings.json: set DevelopmentMode to true.
+  - Optionally set DevelopmentJournalPath to a folder with Elite Dangerous JSON files to simulate game data.
+- Overlays stuck
+  - Hyperspace overlay: ensure you’re not in jump; F12 shows logs to confirm state.
+  - Carrier jump overlay: press F7 to force reset; F8 prints debug info to the log.
+- MQTT
+  - Use the Test button in Settings to verify connectivity and TLS settings.
+

@@ -69,7 +69,7 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                var loadedDepots = _colonizationService.LoadActive(ColonizationDataFile);
+                var loadedDepots = _colonizationService.LoadActive(_filesService.AppDataPathFor("ColonizationData.json"));
                 if (loadedDepots != null)
                 {
                     _colonizationDepots.Clear();
@@ -111,7 +111,7 @@ namespace EliteInfoPanel.Core
             try
             {
                 var activeDepots = GetActiveColonizationDepots();
-                _colonizationService.SaveAllActive(ColonizationDataFile, activeDepots);
+                _colonizationService.SaveAllActive(_filesService.AppDataPathFor("ColonizationData.json"), activeDepots);
             }
             catch (Exception ex)
             {
@@ -124,7 +124,7 @@ namespace EliteInfoPanel.Core
             try
             {
                 if (CurrentColonization == null) return;
-                _colonizationService.SaveSingle(ColonizationDataFile, CurrentColonization);
+                _colonizationService.SaveSingle(_filesService.AppDataPathFor("ColonizationData.json"), CurrentColonization);
             }
             catch (Exception ex)
             {

@@ -12,8 +12,7 @@ namespace EliteInfoPanel.Util
     {
         #region Private Fields
 
-        private static readonly string SettingsPath =
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EliteInfoPanel", "settings.json");
+        private const string SettingsFile = "settings.json";
 
         #endregion Private Fields
 
@@ -21,25 +20,42 @@ namespace EliteInfoPanel.Util
 
         public static AppSettings Load()
         {
-            if (!File.Exists(SettingsPath))
-                return new AppSettings();
-
             try
             {
-                string json = File.ReadAllText(SettingsPath);
-                return JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+                var files = EliteInfoPanel.App.Services?.GetService(typeof(EliteInfoPanel.Core.Services.IGameFilesService)) as EliteInfoPanel.Core.Services.IGameFilesService;
+                if (files != null)
+                {
+                    return files.ReadAppDataJson<AppSettings>(SettingsFile) ?? new AppSettings();
+                }
+
+                // Fallback before DI is initialized
+                var defaultPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EliteInfoPanel", SettingsFile);
+                if (!File.Exists(defaultPath)) return new AppSettings();
+                var json = File.ReadAllText(defaultPath);
+                return string.IsNullOrWhiteSpace(json) ? new AppSettings() : (JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings());
             }
-            catch
-            {
-                return new AppSettings();
-            }
+            catch { return new AppSettings(); }
         }
 
         public static void Save(AppSettings settings)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
-            string json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(SettingsPath, json);
+            try
+            {
+                var files = EliteInfoPanel.App.Services?.GetService(typeof(EliteInfoPanel.Core.Services.IGameFilesService)) as EliteInfoPanel.Core.Services.IGameFilesService;
+                if (files != null)
+                {
+                    files.WriteAppDataJson(SettingsFile, settings);
+                }
+                else
+                {
+                    var defaultPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EliteInfoPanel", SettingsFile);
+                    var dir = Path.GetDirectoryName(defaultPath);
+                    if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+                    var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+                    File.WriteAllText(defaultPath, json);
+                }
+            }
+            catch { }
         }
 
         #endregion Public Methods

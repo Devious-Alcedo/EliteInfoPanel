@@ -37,6 +37,15 @@ Phase 4: Event model and threading
 Phase 5: Persistence normalization
 •	Move all JSON read/write and path decisions to GameFilesService.
 •	ColonizationService and CarrierCargoService call IGameFilesService for persistence.
+•	All app settings and persisted feature state now live under AppData/Roaming/EliteInfoPanel using IGameFilesService:
+    - CarrierCargo.json (replaces legacy carrier_cargo_state.json)
+    - ManualCarrierCargo.json (replaces legacy LocalAppData EliteCompanion path)
+    - RouteProgress.json
+    - ColonizationData.json
+•	Migrations implemented:
+    - On missing CarrierCargo.json, load legacy carrier_cargo_state.json (AppData/Roaming/EliteInfoPanel), save to new path, then delete legacy file.
+    - On missing ManualCarrierCargo.json, load legacy LocalAppData/EliteCompanion/ManualCarrierCargo.json, save to new path, then delete legacy file.
+•	Reads use FileShare.ReadWrite with empty/whitespace checks to avoid file contention with the game.
 Phase 6: API boundaries per feature (mapping from current methods)
 •	Journal
 •	Move: ProcessJournalAsync, SetupJournalWatcher, scanning logic → JournalReader

@@ -14,7 +14,7 @@ namespace EliteInfoPanel.Core
         private void UpdateShipCargoFromTransfers(JsonElement root)
         {
             if (!_cargoTrackingInitialized || CurrentCargo?.Inventory == null) return;
-            if (root.TryGetProperty("Transfers", out var transfers)) return;
+            if (!root.TryGetProperty("Transfers", out var transfers) || transfers.ValueKind != JsonValueKind.Array) return;
 
             var updatedInventory = new List<CargoJson.CargoItem>(CurrentCargo.Inventory);
             bool cargoChanged = false;
@@ -672,22 +672,11 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                string directory = Path.GetDirectoryName(ManualCarrierCargoFilePath);
-                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-                {
-                    Directory.CreateDirectory(directory);
-                }
-
                 var activeChanges = _manualCarrierCargoChanges
                     .Where(kvp => kvp.Value.IsActive)
                     .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
-
-                var json = JsonSerializer.Serialize(activeChanges, new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                });
-
-                File.WriteAllText(ManualCarrierCargoFilePath, json);
+                // Persist via files service in AppData
+                _filesService.WriteAppDataJson("ManualCarrierCargo.json", activeChanges);
                 Log.Debug("Saved {Count} manual carrier cargo changes to disk", activeChanges.Count);
             }
             catch (Exception ex)
@@ -700,10 +689,49 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                if (!File.Exists(ManualCarrierCargoFilePath)) return;
+                // Try new AppData location first
+                var loadedChanges = _filesService.ReadAppDataJson<Dictionary<string, ManualCargoChange>>("ManualCarrierCargo.json");
 
-                var json = File.ReadAllText(ManualCarrierCargoFilePath);
-                var loadedChanges = JsonSerializer.Deserialize<Dictionary<string, ManualCargoChange>>(json);
+                // Back-compat: migrate from legacy LocalAppData path if needed
+                if (loadedChanges == null)
+                {
+                    var legacyPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EliteCompanion", "ManualCarrierCargo.json");
+                    if (File.Exists(legacyPath))
+                    {
+                        try
+                        {
+                            using var stream = new FileStream(legacyPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                            if (stream.Length > 0)
+                            {
+                                using var reader = new StreamReader(stream);
+                                var json = reader.ReadToEnd();
+                                if (!string.IsNullOrWhiteSpace(json))
+                                {
+                                    loadedChanges = JsonSerializer.Deserialize<Dictionary<string, ManualCargoChange>>(json);
+                                    if (loadedChanges != null)
+                                    {
+                                        // Save to new AppData location for future
+                                        _filesService.WriteAppDataJson("ManualCarrierCargo.json", loadedChanges);
+                                        Log.Information("Migrated ManualCarrierCargo.json from legacy location to AppData");
+                                        try
+                                        {
+                                            File.Delete(legacyPath);
+                                            Log.Information("Deleted legacy ManualCarrierCargo.json at {Legacy}", legacyPath);
+                                        }
+                                        catch (Exception dex)
+                                        {
+                                            Log.Warning(dex, "Failed to delete legacy ManualCarrierCargo.json at {Legacy}", legacyPath);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception mex)
+                        {
+                            Log.Warning(mex, "Failed reading legacy ManualCarrierCargo.json from {Legacy}", legacyPath);
+                        }
+                    }
+                }
 
                 if (loadedChanges != null)
                 {

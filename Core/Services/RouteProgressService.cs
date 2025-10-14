@@ -21,7 +21,11 @@ namespace EliteInfoPanel.Core.Services
             {
                 if (File.Exists(_filePath))
                 {
-                    string json = File.ReadAllText(_filePath);
+                    using var stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    if (stream.Length == 0) return new RouteProgressState();
+                    using var reader = new StreamReader(stream);
+                    string json = reader.ReadToEnd();
+                    if (string.IsNullOrWhiteSpace(json)) return new RouteProgressState();
                     var state = JsonSerializer.Deserialize<RouteProgressState>(json) ?? new RouteProgressState();
                     RouteUpdated?.Invoke(this, new RouteUpdatedEventArgs(state));
                     return state;
@@ -38,6 +42,10 @@ namespace EliteInfoPanel.Core.Services
         {
             try
             {
+                // Ensure directory exists for the target file path
+                var dir = Path.GetDirectoryName(_filePath);
+                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+
                 string json = JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(_filePath, json);
                 RouteUpdated?.Invoke(this, new RouteUpdatedEventArgs(state));

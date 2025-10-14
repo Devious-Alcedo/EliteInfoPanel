@@ -13,6 +13,8 @@ using System.Windows.Data;
 using System.Collections.ObjectModel;
 using EliteInfoPanel.Controls;
 using System.Windows.Media;
+using EliteInfoPanel.Core.Services;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EliteInfoPanel.Dialogs
 {
@@ -21,6 +23,7 @@ namespace EliteInfoPanel.Dialogs
         #region Private Fields
 
         private SettingsViewModel _viewModel;
+        private readonly ISettingsStorage _settingsStorage;
         private bool _originalUseFloating;
         private double _originalFloatingScale;
         private double _originalFullscreenScale;
@@ -34,11 +37,7 @@ namespace EliteInfoPanel.Dialogs
         {
             InitializeComponent();
 
-            // Configure logging
-            Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.Debug()
-                .WriteTo.File("EliteInfoPanel.log", rollingInterval: RollingInterval.Day)
-                .CreateLogger();
+            // Logging is configured globally in App/MainWindow; do not reconfigure here
             this.Loaded += (s, e) =>
             {
                 // Simple solution - just copy all resources from the main window
@@ -47,8 +46,9 @@ namespace EliteInfoPanel.Dialogs
                     this.Resources.MergedDictionaries.Add(Application.Current.MainWindow.Resources);
                 }
             };
-            // Load settings
-            var settings = SettingsManager.Load();
+            // Acquire centralized settings storage and load settings
+            _settingsStorage = App.Services.GetRequiredService<ISettingsStorage>();
+            var settings = _settingsStorage.Load<AppSettings>("settings.json");
             _originalUseFloating = settings.UseFloatingWindow;
             _originalFloatingScale = settings.FloatingFontScale;
             _originalFullscreenScale = settings.FullscreenFontScale;
@@ -97,6 +97,7 @@ namespace EliteInfoPanel.Dialogs
                 }
 
                 _viewModel.SaveSettings();
+                try { _settingsStorage.Save("settings.json", settings); } catch { }
 
                 // Refresh MQTT settings if they changed
                 Application.Current.Dispatcher.InvokeAsync(async () =>

@@ -21,7 +21,19 @@ namespace EliteInfoPanel.Core.Services
                     return new Dictionary<long, ColonizationData>();
                 }
 
-                var json = File.ReadAllText(filePath);
+                using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                if (stream.Length == 0)
+                {
+                    Log.Debug("Colonization data file is empty at {File}", filePath);
+                    return new Dictionary<long, ColonizationData>();
+                }
+                using var reader = new StreamReader(stream);
+                var json = reader.ReadToEnd();
+                if (string.IsNullOrWhiteSpace(json))
+                {
+                    Log.Debug("Colonization data file contains no data at {File}", filePath);
+                    return new Dictionary<long, ColonizationData>();
+                }
                 Dictionary<long, ColonizationData> loadedDepots = null;
 
                 try

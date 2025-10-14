@@ -30,11 +30,7 @@ namespace EliteInfoPanel.Core
         private static readonly SolidColorBrush CountdownRedBrush = new SolidColorBrush(Colors.Red);
         private readonly CarrierCargoTracker _carrierCargoTracker = new();
         private readonly MqttService _mqttService;
-        private readonly string CarrierCargoFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EliteInfoPanel", "carrier_cargo_state.json");
-        private readonly string ColonizationDataFile = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "EliteInfoPanel",
-            "ColonizationData.json");
+        // Path managed via services; legacy field removed
 
         private bool _cargoTrackingInitialized = false;
         private Dictionary<string, int> _carrierCargo = new(StringComparer.OrdinalIgnoreCase);
@@ -68,7 +64,7 @@ namespace EliteInfoPanel.Core
         private bool _isRouteLoaded = false;
         private bool _isUpdating = false;
         private readonly Dictionary<string, ManualCargoChange> _manualCarrierCargoChanges = new(StringComparer.OrdinalIgnoreCase);
-        private string ManualCarrierCargoFilePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EliteCompanion", "ManualCarrierCargo.json");
+        private string ManualCarrierCargoFilePath => _filesService.AppDataPathFor("ManualCarrierCargo.json");
         private readonly object _cargoLock = new object();
         private bool _suppressNextCargoUpdate = false;
         private string _lastFsdTargetSystem;
@@ -855,32 +851,18 @@ namespace EliteInfoPanel.Core
 
                 Task.WaitAll(statusTask, routeTask, cargoTask, backpackTask, materialsTask, loadoutTask);
                 
-                // CRITICAL FIX: Initialize carrier cargo tracking at the same time as ship cargo
-                // This ensures carrier cargo works exactly like ship cargo from startup
+                // Initialize carrier cargo tracking alongside ship cargo
                 LoadCarrierCargoFromDisk();
                 _carrierCargoTracker.Initialize(_carrierCargo);
-                _cargoTrackingInitialized = true; // Enable tracking immediately
-                Log.Information("?? CARRIER CARGO: Initialized alongside ship cargo - tracking enabled with {Count} items", _carrierCargo.Count);
-                
+                _cargoTrackingInitialized = true;
+                Log.Information("CARRIER CARGO: Initialized with {Count} items", _carrierCargo.Count);
+
+                // Load persisted feature data
                 LoadPersistedColonizationData();
                 latestJournalPath = Directory.GetFiles(gamePath, "Journal.*.log")
                     .OrderByDescending(File.GetLastWriteTime)
                     .FirstOrDefault();
-
                 LoadRouteProgress();
-                
-                // CRITICAL FIX: Initialize carrier cargo tracking immediately alongside ship cargo
-                // This ensures carrier cargo tracking works the same as ship cargo from the start
-                LoadCarrierCargoFromDisk();
-                _carrierCargoTracker.Initialize(_carrierCargo);
-                _cargoTrackingInitialized = true; // Enable tracking BEFORE journal processing
-                Log.Information("?? CARRIER CARGO: Initialized tracking alongside ship cargo - {Count} items loaded", _carrierCargo.Count);
-                LoadCarrierCargoFromDisk(); // ? Add this near LoadRouteProgress();
-                
-                // CRITICAL: Set cargo tracking as initialized BEFORE processing journal
-                // This allows current day's events to be processed during startup
-                _cargoTrackingInitialized = true;
-                Log.Information("? Cargo tracking initialized - ready to process journal events");
 
                 Task.Run(async () => await ProcessJournalAsync()).Wait();
                 
@@ -927,8 +909,6 @@ namespace EliteInfoPanel.Core
                 OnPropertyChanged(nameof(CarrierJumpCountdownSeconds));
                 OnPropertyChanged(nameof(ShowCarrierJumpCountdown));
                 // --- END FIX ---
-                LoadCarrierCargoFromDisk();
-                LoadPersistedColonizationData();
                 // Note: cargo tracking was already initialized before journal processing
                 // Notify subscribers
                 FirstLoadCompletedEvent?.Invoke();

@@ -6,6 +6,15 @@ namespace EliteInfoPanel.Core.Services
         T? ReadJson<T>(string fileName) where T : class;
         void WriteJson<T>(string fileName, T value);
         string? LatestJournal();
+        string AppDataPathFor(string fileName);
+        T? ReadAppDataJson<T>(string fileName) where T : class;
+        void WriteAppDataJson<T>(string fileName, T value);
+    }
+
+    internal interface ISettingsStorage
+    {
+        T Load<T>(string fileName) where T : class, new();
+        void Save<T>(string fileName, T instance);
     }
 
     internal interface IJournalReader
