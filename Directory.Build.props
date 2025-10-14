@@ -1,0 +1,5 @@
+<Project>
+  <PropertyGroup>
+    <DefaultItemExcludes>$(DefaultItemExcludes);EliteInfoPanel.Tests/**;$(MSBuildThisFileDirectory)EliteInfoPanel.Tests/**</DefaultItemExcludes>
+  </PropertyGroup>
+</Project>

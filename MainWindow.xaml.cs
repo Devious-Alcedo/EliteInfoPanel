@@ -17,6 +17,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using WpfScreenHelper;
+using Microsoft.Extensions.DependencyInjection;
 
 
 namespace EliteInfoPanel
@@ -73,10 +74,8 @@ namespace EliteInfoPanel
             if (_appSettings.FloatingFontScale <= 0)
                 _appSettings.FloatingFontScale = 1.0;
 
-            // Initialize the GameStateService
-            // IMPORTANT: Pass the settings' DevelopmentMode to ensure path consistency
-            var gamePath = EliteDangerousPaths.GetSavedGamesPath(_appSettings.DevelopmentMode);
-            _gameState = new GameStateService(gamePath);
+            // Resolve GameStateService from DI
+            _gameState = App.Services.GetRequiredService<GameStateService>();
             _cleanupTimer = new System.Threading.Timer(
                 callback: _ => _gameState.ClearExpiredManualCargoChanges(),
                 state: null,
@@ -84,8 +83,7 @@ namespace EliteInfoPanel
                 period: TimeSpan.FromMinutes(10)  // Then every 10 minutes
             );
             // Create and set ViewModel
-            var settings = SettingsManager.Load();
-            _viewModel = new MainViewModel(_gameState, settings.UseFloatingWindow);
+            _viewModel = new MainViewModel(_gameState, _appSettings.UseFloatingWindow);
 
             _viewModel.SetMainGrid(MainGrid);
             DataContext = _viewModel;

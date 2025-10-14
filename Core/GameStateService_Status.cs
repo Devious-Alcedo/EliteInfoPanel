@@ -12,7 +12,8 @@ namespace EliteInfoPanel.Core
         private bool LoadStatusData()
         {
             var oldStatus = CurrentStatus;
-            CurrentStatus = LoadJsonFile<StatusJson>("Status.json", CurrentStatus);
+            // Prefer the centralized files service for JSON load
+            CurrentStatus = _statusService.LoadStatus(_filesService) ?? CurrentStatus;
 
             bool changed = !ReferenceEquals(oldStatus, CurrentStatus);
 
@@ -60,100 +61,19 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                // Different events have different ways to get the legal status
-                switch (eventType)
+                var mapped = _statusService.MapLegalState(root, eventType);
+                if (!string.IsNullOrWhiteSpace(mapped.LegalState))
                 {
-                    case "Status":
-                        // Status.json flag for legal status
-                        if (root.TryGetProperty("LegalState", out var legalStateProp))
-                        {
-                            LegalState = legalStateProp.GetString() ?? "Clean";
-                            Log.Debug("Legal state from Status.json: {0}", LegalState);
-                        }
-                        break;
-
-                    case "Docked":
-                        // When docked, reset to "Clean" unless explicitly told otherwise
-                        if (root.TryGetProperty("Wanted", out var wantedProp) && wantedProp.GetBoolean())
-                        {
-                            LegalState = "Wanted";
-                        }
-                        else
-                        {
-                            LegalState = "Clean";
-                        }
-                        if (root.TryGetProperty("StationName", out var stationProp))
-                        {
-                            CurrentStationName = stationProp.GetString();
-
-                            // Check specifically for Fleet Carrier station type
-                            bool isCarrier = false;
-                            if (root.TryGetProperty("StationType", out var stationTypeProp))
-                            {
-                                string stationType = stationTypeProp.GetString();
-                                isCarrier = string.Equals(stationType, "FleetCarrier", StringComparison.OrdinalIgnoreCase);
-
-                                Log.Debug("Docked at station: {Station}, StationType: {Type}, IsCarrier: {IsCarrier}",
-                                    CurrentStationName, stationType, isCarrier);
-                            }
-
-                            // Only set if true or if we're sure it's not a carrier
-                            if (isCarrier || stationTypeProp.ValueKind != JsonValueKind.Undefined)
-                            {
-                                IsOnFleetCarrier = isCarrier;
-                            }
-                        }
-                        break;
-
-                    case "FactionKillBond":
-                    case "Bounty":
-                        // These are activities against wanted ships
-                        LegalState = "Clean"; // Reaffirm we're clean
-                        break;
-
-                    case "CommitCrime":
-                        // Process different crime types
-                        if (root.TryGetProperty("CrimeType", out var crimeTypeProp))
-                        {
-                            string crimeType = crimeTypeProp.GetString();
-                            switch (crimeType?.ToLower())
-                            {
-                                case "assault":
-                                case "murder":
-                                case "piracy":
-                                    LegalState = "Wanted";
-                                    break;
-
-                                case "speeding":
-                                    LegalState = "Speeding";
-                                    break;
-
-                                case "illegalcargo":
-                                    LegalState = "IllegalCargo";
-                                    break;
-
-                                default:
-                                    LegalState = "Wanted"; // Default for other crimes
-                                    break;
-                            }
-                            Log.Debug("Legal state changed due to crime: {0}", LegalState);
-                        }
-                        break;
-
-                    case "FactionAllianceChanged":
-                        if (root.TryGetProperty("Status", out var statusProp))
-                        {
-                            string status = statusProp.GetString();
-                            if (status?.ToLower() == "hostile")
-                            {
-                                LegalState = "Hostile";
-                            }
-                            else if (status?.ToLower() == "allied")
-                            {
-                                LegalState = "Allied";
-                            }
-                        }
-                        break;
+                    LegalState = mapped.LegalState;
+                    Log.Debug("Legal state set: {0} from {1}", LegalState, eventType);
+                }
+                if (!string.IsNullOrWhiteSpace(mapped.StationName))
+                {
+                    CurrentStationName = mapped.StationName;
+                }
+                if (mapped.IsOnFleetCarrier.HasValue)
+                {
+                    IsOnFleetCarrier = mapped.IsOnFleetCarrier.Value;
                 }
             }
             catch (Exception ex)

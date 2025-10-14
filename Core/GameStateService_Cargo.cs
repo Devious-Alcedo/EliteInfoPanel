@@ -391,7 +391,7 @@ namespace EliteInfoPanel.Core
                 LoadCargoData();
                 ForceProcessRecentCargoEvents();
 
-                _carrierCargoTracker.NormalizeCargoKeys();
+                _carrierCargoService.Normalize();
                 SynchronizeCarrierCargoState();
 
                 Log.Information("? Cargo states refreshed successfully");

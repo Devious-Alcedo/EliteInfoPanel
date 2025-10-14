@@ -14,6 +14,7 @@
     <PackageProjectUrl>https://github.com/jimmyeao/EliteInfoPanel</PackageProjectUrl>
     <Description>Elite Dangerous Info Panel</Description>
     <AllowUnsafeBlocks>False</AllowUnsafeBlocks>
+    <DefaultItemExcludes>$(DefaultItemExcludes);EliteInfoPanel.Tests/**;$(MSBuildProjectDirectory)\EliteInfoPanel.Tests\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,6 +22,16 @@
     <EmbeddedResource Remove="Views\**" />
     <None Remove="Views\**" />
     <Page Remove="Views\**" />
+    <Compile Remove="EliteInfoPanel.Tests\**" />
+    <Compile Remove="EliteInfoPanel.Tests/**/*.cs" />
+    <Compile Remove="**/EliteInfoPanel.Tests/**/*.cs" />
+    <Compile Remove="$(MSBuildProjectDirectory)\EliteInfoPanel.Tests\**\*.cs" />
+    <EmbeddedResource Remove="EliteInfoPanel.Tests\**" />
+    <EmbeddedResource Remove="EliteInfoPanel.Tests/**" />
+    <None Remove="EliteInfoPanel.Tests\**" />
+    <None Remove="EliteInfoPanel.Tests/**" />
+    <Page Remove="EliteInfoPanel.Tests\**" />
+    <Page Remove="EliteInfoPanel.Tests/**" />
   </ItemGroup>
 
   <ItemGroup>
@@ -83,6 +94,8 @@
     <None Remove="ModuleNameMap.json" />
   </ItemGroup>
 
+  
+
   <ItemGroup>
     <Content Include="commodity_mapping.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -91,6 +104,10 @@
     <Content Include="ModuleNameMap.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="EliteInfoPanel.Tests\EliteInfoPanel.Tests.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -104,6 +121,7 @@
     <PackageReference Include="System.Windows.Extensions" Version="9.0.5" />
     <PackageReference Include="TextCopy" Version="6.2.1" />
     <PackageReference Include="WpfScreenHelper" Version="2.1.1" />
+   <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>

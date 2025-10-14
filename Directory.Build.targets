@@ -1,0 +1,8 @@
+<Project>
+  <Target Name="ExcludeTests" BeforeTargets="PrepareForBuild">
+    <ItemGroup>
+      <Compile Remove="EliteInfoPanel.Tests\**\*.cs" />
+      <Compile Remove="EliteInfoPanel.Tests/**/*.cs" />
+    </ItemGroup>
+  </Target>
+</Project>

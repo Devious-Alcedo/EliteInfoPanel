@@ -36,8 +36,7 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                string json = JsonSerializer.Serialize(_routeProgress, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(RouteProgressFile, json);
+                _routeProgressService.Save(_routeProgress);
             }
             catch (Exception ex)
             {
@@ -49,11 +48,7 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                if (File.Exists(RouteProgressFile))
-                {
-                    string json = File.ReadAllText(RouteProgressFile);
-                    _routeProgress = JsonSerializer.Deserialize<RouteProgressState>(json) ?? new RouteProgressState();
-                }
+                _routeProgress = _routeProgressService.Load();
             }
             catch (Exception ex)
             {

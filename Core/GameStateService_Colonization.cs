@@ -69,40 +69,7 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                if (!File.Exists(ColonizationDataFile))
-                {
-                    Log.Debug("No colonization data file found at {File}", ColonizationDataFile);
-                    return;
-                }
-
-                var json = File.ReadAllText(ColonizationDataFile);
-                Dictionary<long, ColonizationData> loadedDepots = null;
-
-                try
-                {
-                    loadedDepots = JsonSerializer.Deserialize<Dictionary<long, ColonizationData>>(json);
-                    Log.Information("Loaded colonization data in Dictionary format");
-                }
-                catch (JsonException)
-                {
-                    try
-                    {
-                        var legacyList = JsonSerializer.Deserialize<List<ColonizationData>>(json);
-                        if (legacyList != null)
-                        {
-                            loadedDepots = legacyList
-                                .Where(d => d != null && d.MarketID != 0)
-                                .ToDictionary(d => d.MarketID, d => d);
-                            Log.Information("Loaded colonization data from legacy List format and converted to Dictionary");
-                        }
-                    }
-                    catch (JsonException legacyEx)
-                    {
-                        Log.Error(legacyEx, "Failed to load colonization data in both Dictionary and List formats");
-                        return;
-                    }
-                }
-
+                var loadedDepots = _colonizationService.LoadActive(ColonizationDataFile);
                 if (loadedDepots != null)
                 {
                     _colonizationDepots.Clear();
@@ -110,16 +77,7 @@ namespace EliteInfoPanel.Core
                     int skippedCount = 0;
                     foreach (var depot in loadedDepots.Values)
                     {
-                        if (!depot.ConstructionComplete && !depot.ConstructionFailed)
-                        {
-                            _colonizationDepots[depot.MarketID] = depot;
-                        }
-                        else
-                        {
-                            skippedCount++;
-                            Log.Information("Skipping completed/failed depot {MarketID} during load (Complete: {Complete}, Failed: {Failed})",
-                                depot.MarketID, depot.ConstructionComplete, depot.ConstructionFailed);
-                        }
+                        _colonizationDepots[depot.MarketID] = depot;
                     }
 
                     Log.Information("Loaded {Count} active colonization depots (skipped {Skipped} completed/failed)",
@@ -153,19 +111,7 @@ namespace EliteInfoPanel.Core
             try
             {
                 var activeDepots = GetActiveColonizationDepots();
-                if (!activeDepots.Any())
-                    return;
-
-                Directory.CreateDirectory(Path.GetDirectoryName(ColonizationDataFile));
-
-                string json = JsonSerializer.Serialize(activeDepots, new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                });
-
-                File.WriteAllText(ColonizationDataFile, json);
-
-                Log.Information("Saved {Count} colonization depots to file", activeDepots.Count);
+                _colonizationService.SaveAllActive(ColonizationDataFile, activeDepots);
             }
             catch (Exception ex)
             {
@@ -177,20 +123,8 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                if (CurrentColonization == null)
-                    return;
-
-                Directory.CreateDirectory(Path.GetDirectoryName(ColonizationDataFile));
-
-                string json = JsonSerializer.Serialize(CurrentColonization, new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                });
-                File.WriteAllText(ColonizationDataFile, json);
-
-                Log.Information("Saved colonization data to file: Progress={Progress:P2}, Resources={Count}",
-                    CurrentColonization.ConstructionProgress,
-                    CurrentColonization.ResourcesRequired?.Count ?? 0);
+                if (CurrentColonization == null) return;
+                _colonizationService.SaveSingle(ColonizationDataFile, CurrentColonization);
             }
             catch (Exception ex)
             {

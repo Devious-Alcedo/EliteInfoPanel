@@ -5,6 +5,7 @@ using System.Timers;
 using System.Windows.Threading;
 using Serilog;
 using EliteInfoPanel.Util;
+using EliteInfoPanel.Core.Services;
 
 namespace EliteInfoPanel.Core
 {
@@ -23,48 +24,19 @@ namespace EliteInfoPanel.Core
                         Log.Debug("Created empty development file: {File}", filePath);
                     }
                 }
-                var watcher = new FileSystemWatcher(gamePath)
+                // Use shared FileWatcherService with built-in debounce (injected)
+                _fileWatcherService.Watch(fileName, () =>
                 {
-                    Filter = fileName,
-                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.CreationTime,
-                    EnableRaisingEvents = true
-                };
-
-                var debounceTimer = new System.Timers.Timer(100) { AutoReset = false };
-                bool pendingUpdate = false;
-
-                debounceTimer.Elapsed += (s, e) =>
-                {
-                    if (pendingUpdate)
+                    try
                     {
-                        pendingUpdate = false;
-                        try
-                        {
-                            loadMethod();
-                        }
-                        catch (Exception ex)
-                        {
-                            Log.Error(ex, $"Error loading {fileName}");
-                        }
+                        loadMethod();
                     }
-                };
-
-                watcher.Changed += (s, e) =>
-                {
-                    pendingUpdate = true;
-                    debounceTimer.Stop();
-                    debounceTimer.Start();
-                };
-
-                watcher.Created += (s, e) =>
-                {
-                    pendingUpdate = true;
-                    debounceTimer.Stop();
-                    debounceTimer.Start();
-                };
-
-                _watchers.Add(watcher);
-                Log.Debug($"Set up file system watcher for {fileName}");
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "Error loading {File}", fileName);
+                    }
+                }, debounceMs: 100);
+                Log.Debug("Set up file system watcher for {File}", fileName);
             }
             catch (Exception ex)
             {
@@ -92,65 +64,52 @@ namespace EliteInfoPanel.Core
 
                 lastJournalPosition = 0;
 
-                var dirWatcher = new FileSystemWatcher(gamePath)
-                {
-                    Filter = "Journal.*.log",
-                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size,
-                    EnableRaisingEvents = true,
-                    IncludeSubdirectories = false
-                };
+                // Push model is active; no polling timer needed
 
-                var journalTimer = new DispatcherTimer
+                // Start push-based journal tail
+                _journalReader.JournalEventReceived += (eventType, data) =>
                 {
-                    Interval = TimeSpan.FromMilliseconds(200)
-                };
-
-                bool pendingUpdate = false;
-                DateTime lastUpdate = DateTime.MinValue;
-
-                journalTimer.Tick += async (s, e) =>
-                {
-                    if (pendingUpdate && DateTime.UtcNow - lastUpdate > TimeSpan.FromMilliseconds(100))
+                    try
                     {
-                        pendingUpdate = false;
-                        lastUpdate = DateTime.UtcNow;
-
-                        try
+                        // Marshal to UI thread and process
+                        System.Windows.Application.Current.Dispatcher.InvokeAsync(async () =>
                         {
-                            await ProcessJournalAsync();
-                        }
-                        catch (Exception ex)
+                            await ProcessJournalEventAsync(eventType, data, initialScan: !_firstLoadCompleted);
+                        }, DispatcherPriority.Background);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning(ex, "Error handling journal event {EventType}", eventType);
+                    }
+                };
+                _ = _journalReader.StartAsync(latestJournalPath, lastJournalPosition, _appStartTimeUtc, !_firstLoadCompleted);
+
+                // Use injected watcher to monitor journal files
+                _fileWatcherService.Watch("Journal.*.log", () =>
+                {
+                    try
+                    {
+                        var newest = Directory.GetFiles(gamePath, "Journal.*.log")
+                            .OrderByDescending(File.GetLastWriteTime)
+                            .FirstOrDefault();
+
+                        if (!string.IsNullOrEmpty(newest) &&
+                            !string.Equals(newest, latestJournalPath, StringComparison.OrdinalIgnoreCase))
                         {
-                            Log.Error(ex, "?? Error in journal timer");
+                            latestJournalPath = newest;
+                            var newFileInfo = new FileInfo(latestJournalPath);
+                            lastJournalPosition = newFileInfo.Length; // start at end of new file
+                            _journalReader.SwitchTo(latestJournalPath, startAtEnd: true);
+                            Log.Information("?? Switched to new journal: {Journal} (starting from end at position {Position})",
+                                Path.GetFileName(latestJournalPath), lastJournalPosition);
                         }
                     }
-                };
-
-                journalTimer.Start();
-
-                dirWatcher.Changed += (s, e) =>
-                {
-                    if (Path.GetFileName(e.FullPath) == Path.GetFileName(latestJournalPath))
+                    catch (Exception ex)
                     {
-                        pendingUpdate = true;
+                        Log.Warning(ex, "Error handling journal watcher callback");
                     }
-                };
+                }, debounceMs: 150, notify: NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.CreationTime);
 
-                dirWatcher.Created += (s, e) =>
-                {
-                    if (Path.GetFileName(e.FullPath).StartsWith("Journal.") &&
-                        File.GetLastWriteTime(e.FullPath) > File.GetLastWriteTime(latestJournalPath))
-                    {
-                        latestJournalPath = e.FullPath;
-                        var newFileInfo = new FileInfo(latestJournalPath);
-                        lastJournalPosition = newFileInfo.Length;
-                        pendingUpdate = true;
-                        Log.Information("?? Switched to new journal: {Journal} (starting from end at position {Position})",
-                            Path.GetFileName(latestJournalPath), lastJournalPosition);
-                    }
-                };
-
-                _watchers.Add(dirWatcher);
                 Log.Information("?? Journal monitoring active");
             }
             catch (Exception ex)

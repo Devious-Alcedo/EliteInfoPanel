@@ -10,6 +10,7 @@ using EliteInfoPanel.Core.Models;
 using Serilog;
 using System.Threading;
 using System.Threading.Tasks;
+using EliteInfoPanel.Core.Services;
 
 namespace EliteInfoPanel.Core
 {
@@ -17,9 +18,10 @@ namespace EliteInfoPanel.Core
     {
         #region Carrier Jump - Private Fields
         
-        private readonly CarrierJumpState _carrierJumpState = new();
-        private DispatcherTimer _carrierJumpTimer;
-        private DispatcherTimer _overlayTimeoutTimer;
+        private readonly CarrierJumpState _carrierJumpState = new(); // legacy field; will mirror manager state during phase 2
+        private DispatcherTimer _carrierJumpTimer; // legacy timer
+        private DispatcherTimer _overlayTimeoutTimer; // legacy timer
+        // Manager injected via DI in GameStateService
         
         #endregion
 
@@ -28,49 +30,49 @@ namespace EliteInfoPanel.Core
         /// <summary>
         /// Indicates whether the carrier jump overlay should be visible
         /// </summary>
-        public bool ShowCarrierJumpOverlay => IsOnFleetCarrier && (_carrierJumpState?.ShouldShowOverlay ?? false);
+        public bool ShowCarrierJumpOverlay => IsOnFleetCarrier && (_carrierJumpManager?.ShouldShowOverlay ?? _carrierJumpState?.ShouldShowOverlay ?? false);
         
         /// <summary>
         /// Gets the destination system for the carrier jump
         /// </summary>
-        public string CarrierJumpDestination => _carrierJumpState?.DestinationSystem;
+        public string CarrierJumpDestination => _carrierJumpManager?.DestinationSystem ?? _carrierJumpState?.DestinationSystem;
         
         /// <summary>
         /// Gets the countdown seconds until jump (0 if not scheduled or time has passed)
         /// </summary>
-        public int CarrierJumpCountdownSeconds => _carrierJumpState?.CountdownSeconds ?? 0;
+        public int CarrierJumpCountdownSeconds => _carrierJumpManager?.CountdownSeconds ?? _carrierJumpState?.CountdownSeconds ?? 0;
         
         // Compatibility properties for ViewModels
         
         /// <summary>
         /// Legacy property: Use CarrierJumpDestination instead
         /// </summary>
-        public string CarrierJumpDestinationSystem => _carrierJumpState?.DestinationSystem;
+        public string CarrierJumpDestinationSystem => _carrierJumpManager?.DestinationSystem ?? _carrierJumpState?.DestinationSystem;
         
         /// <summary>
         /// Legacy property: Use CarrierJumpDestination instead
         /// </summary>
-        public string CarrierJumpDestinationBody => _carrierJumpState?.DestinationBody;
+        public string CarrierJumpDestinationBody => _carrierJumpManager?.DestinationBody ?? _carrierJumpState?.DestinationBody;
         
         /// <summary>
         /// Legacy property: Use CarrierJumpState.IsJumpScheduled instead
         /// </summary>
-        public bool FleetCarrierJumpInProgress => _carrierJumpState?.IsJumpScheduled ?? false;
+        public bool FleetCarrierJumpInProgress => _carrierJumpManager?.IsJumpScheduled ?? _carrierJumpState?.IsJumpScheduled ?? false;
         
         /// <summary>
         /// Legacy property: Use CarrierJumpState.ScheduledJumpTime instead
         /// </summary>
-        public DateTime? FleetCarrierJumpTime => _carrierJumpState?.ScheduledJumpTime;
+        public DateTime? FleetCarrierJumpTime => _carrierJumpManager?.ScheduledJumpTime ?? _carrierJumpState?.ScheduledJumpTime;
         
         /// <summary>
         /// Legacy property: Same as FleetCarrierJumpTime
         /// </summary>
-        public DateTime? CarrierJumpScheduledTime => _carrierJumpState?.ScheduledJumpTime;
+        public DateTime? CarrierJumpScheduledTime => _carrierJumpManager?.ScheduledJumpTime ?? _carrierJumpState?.ScheduledJumpTime;
         
         /// <summary>
         /// Legacy property: Indicates if jump has completed (but overlay may still be visible)
         /// </summary>
-        public bool JumpArrived => _carrierJumpState?.JumpCompleted ?? false;
+        public bool JumpArrived => _carrierJumpManager?.JumpCompleted ?? _carrierJumpState?.JumpCompleted ?? false;
         
         /// <summary>
         /// Legacy property: Returns TimeSpan for countdown (nullable)
@@ -163,7 +165,7 @@ namespace EliteInfoPanel.Core
         /// <summary>
         /// Legacy property: Shows countdown in UI (when jump is scheduled)
         /// </summary>
-        public bool ShowCarrierJumpCountdown => _carrierJumpState?.IsJumpScheduled ?? false;
+        public bool ShowCarrierJumpCountdown => _carrierJumpManager?.IsJumpScheduled ?? _carrierJumpState?.IsJumpScheduled ?? false;
         
         #endregion
 
@@ -187,6 +189,19 @@ namespace EliteInfoPanel.Core
                 Interval = TimeSpan.FromMinutes(3)
             };
             _overlayTimeoutTimer.Tick += OverlayTimeout_Tick;
+
+            // introduce manager alongside legacy timers; mirror state updates
+            // Manager injected via DI; subscribe to its events
+            _carrierJumpManager.CarrierJumpScheduled += (_, __) =>
+            {
+                OnPropertyChanged(nameof(CarrierJumpCountdownSeconds));
+                OnPropertyChanged(nameof(CarrierJumpDestination));
+            };
+            _carrierJumpManager.CarrierJumpCompleted += (_, __) =>
+            {
+                OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
+                OnPropertyChanged(nameof(CarrierJumpCountdownSeconds));
+            };
         }
 
         /// <summary>
@@ -210,6 +225,7 @@ namespace EliteInfoPanel.Core
             Log.Information("🚀 Carrier jump scheduled: {System} at {Time}", systemName, departureTime);
             
             _carrierJumpState.ScheduleJump(departureTime, systemName, bodyName);
+            _carrierJumpManager?.ScheduleJump(departureTime, systemName, bodyName);
             
             // Start countdown timer
             _carrierJumpTimer.Start();
@@ -228,6 +244,7 @@ namespace EliteInfoPanel.Core
             Log.Information("🚀 Carrier jump cancelled");
             
             _carrierJumpState.CancelJump();
+            _carrierJumpManager?.CancelJump();
             _carrierJumpTimer.Stop();
             _overlayTimeoutTimer.Stop();
             
@@ -244,6 +261,7 @@ namespace EliteInfoPanel.Core
             Log.Information("🚀 Carrier jump completed");
             
             _carrierJumpState.CompleteJump();
+            _carrierJumpManager?.CompleteJump();
             // Stop countdown timer and overlay safety timer; overlay will be hidden immediately
             _carrierJumpTimer.Stop();
             _overlayTimeoutTimer.Stop();
@@ -277,6 +295,7 @@ namespace EliteInfoPanel.Core
                 {
                     Log.Information("🚀 Player is on carrier at T0 - activating overlay and waiting for CarrierJump event");
                     _carrierJumpState.ActivateOverlay();
+                    _carrierJumpManager?.ActivateOverlay();
                     OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
                     
                     // Start safety timeout in case CarrierJump event is missed
@@ -286,6 +305,7 @@ namespace EliteInfoPanel.Core
                 {
                     Log.Information("🚀 Player not on carrier at T0 - do not show overlay, reset jump state");
                     _carrierJumpState.Reset();
+                    _carrierJumpManager?.Reset();
                     OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
                     OnPropertyChanged(nameof(CarrierJumpCountdownSeconds));
                 }

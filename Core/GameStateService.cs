@@ -15,6 +15,7 @@ using EliteInfoPanel.Core.Models;
 using EliteInfoPanel.Util;
 using Serilog;
 using Serilog.Core;
+using EliteInfoPanel.Core.Services;
 
 namespace EliteInfoPanel.Core
 {
@@ -87,10 +88,18 @@ namespace EliteInfoPanel.Core
         private int _tradeRank;
         private string _userShipId;
         private string _userShipName;
-        private List<FileSystemWatcher> _watchers = new List<FileSystemWatcher>();
+        private List<FileSystemWatcher> _watchers = new List<FileSystemWatcher>(); // legacy
         private string gamePath;
         private long lastJournalPosition = 0;
         private string latestJournalPath;
+        private IGameFilesService _filesService;
+        private IFileWatcherService _fileWatcherService;
+        private ICarrierCargoService _carrierCargoService;
+        private IColonizationService _colonizationService;
+        private IRouteProgressService _routeProgressService;
+        private IStatusService _statusService;
+        private IJournalReader _journalReader;
+        private ICarrierJumpManager _carrierJumpManager;
 
         // Add this field to track the app's UTC start time
         private readonly DateTime _appStartTimeUtc = DateTime.UtcNow;
@@ -99,24 +108,84 @@ namespace EliteInfoPanel.Core
 
         #region Public Constructors
 
-        public GameStateService(string path)
+        internal GameStateService(string path,
+            IGameFilesService filesService,
+            IFileWatcherService fileWatcherService,
+            ICarrierCargoService carrierCargoService,
+            IColonizationService colonizationService,
+            IRouteProgressService routeProgressService,
+            IStatusService statusService,
+            IJournalReader journalReader,
+            ICarrierJumpManager carrierJumpManager)
         {
+            _filesService = filesService;
+            _fileWatcherService = fileWatcherService;
+            _carrierCargoService = carrierCargoService;
+            _colonizationService = colonizationService;
+            _routeProgressService = routeProgressService;
+            _statusService = statusService;
+            _journalReader = journalReader;
+            _carrierJumpManager = carrierJumpManager;
+            // Subscribe to cargo updates from the service and marshal to UI thread
+            _carrierCargoService.CargoUpdated += (sender, args) =>
+            {
+                try
+                {
+                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        using (BeginUpdate())
+                        {
+                            _carrierCargo = new Dictionary<string, int>(args.Cargo, StringComparer.OrdinalIgnoreCase);
+                            UpdateCurrentCarrierCargoFromDictionary();
+                            OnPropertyChanged(nameof(CarrierCargo));
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Serilog.Log.Warning(ex, "Error applying CargoUpdated event");
+                }
+            };
+
+            // Subscribe to colonization updates
+            _colonizationService.ColonizationUpdated += (sender, args) =>
+            {
+                try
+                {
+                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        _colonizationDepots[args.MarketId] = args.Data;
+                        if (!_selectedDepotMarketId.HasValue)
+                            _selectedDepotMarketId = args.MarketId;
+                        OnPropertyChanged(nameof(ColonizationDepots));
+                        OnPropertyChanged(nameof(SelectedColonizationDepot));
+                        OnPropertyChanged(nameof(HasValidColonizationData));
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Serilog.Log.Warning(ex, "Error applying ColonizationUpdated event");
+                }
+            };
+
+            // Subscribe to route progress updates
+            _routeProgressService.RouteUpdated += (sender, args) =>
+            {
+                try
+                {
+                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        _routeProgress = args.State ?? new RouteProgressState();
+                        OnPropertyChanged(nameof(TotalRemainingJumps));
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Serilog.Log.Warning(ex, "Error applying RouteUpdated event");
+                }
+            };
             var settings = SettingsManager.Load();
-            if (settings.DevelopmentMode)
-            {
-                Log.Information("?? DEVELOPMENT MODE ENABLED - Using simulated journal entries");
-                // Get the development path (dev folder in the same location as real game files)
-                gamePath = EliteDangerousPaths.GetSavedGamesPath(true);
-
-                // Ensure crucial files exist in dev folder
-                EnsureDevelopmentFilesExist(gamePath);
-
-                Log.Information("Using development journal path: {Path}", gamePath);
-            }
-            else
-            {
-                gamePath = path;
-            }
+            gamePath = path;
 
             // Set up individual file watchers for each important file
             SetupFileWatcher("Status.json", () => LoadStatusData());
@@ -927,32 +996,12 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                Log.Information("?? LoadCarrierCargoFromDisk called, _cargoTrackingInitialized: {Initialized}", _cargoTrackingInitialized);
-                
-                if (File.Exists(CarrierCargoFilePath))
-                {
-                    var json = File.ReadAllText(CarrierCargoFilePath);
-                    var loadedCargo = JsonSerializer.Deserialize<Dictionary<string, int>>(json);
-                    if (loadedCargo != null && loadedCargo.Any())
-                    {
-                        _carrierCargo = loadedCargo;
-                        _carrierCargoTracker.Initialize(_carrierCargo);
-                        UpdateCurrentCarrierCargoFromDictionary();
-                        Log.Information("Loaded {Count} carrier cargo items from disk", _carrierCargo.Count);
-                    }
-                    else
-                    {
-                        Log.Warning("Carrier cargo file exists but is empty or invalid");
-                        _carrierCargo = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                    }
-                }
-                else
-                {
-                    Log.Information("No carrier cargo file found - starting with empty cargo");
-                    _carrierCargo = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                }
+                Log.Information("LoadCarrierCargoFromDisk via service, initialized: {Initialized}", _cargoTrackingInitialized);
+                _carrierCargo = _carrierCargoService.Load();
+                _carrierCargoService.Initialize(_carrierCargo);
+                UpdateCurrentCarrierCargoFromDictionary();
+                Log.Information("Loaded {Count} carrier cargo items from disk", _carrierCargo.Count);
 
-                // Always try to load manual changes
                 LoadManualCarrierCargoChanges();
             }
             catch (Exception ex)
@@ -1195,20 +1244,8 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                // Ensure directory exists
-                string directory = Path.GetDirectoryName(CarrierCargoFilePath);
-                if (!string.IsNullOrEmpty(directory))
-                {
-                    Directory.CreateDirectory(directory);
-                }
-
-                var json = JsonSerializer.Serialize(_carrierCargo, new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                });
-
-                File.WriteAllText(CarrierCargoFilePath, json);
-                Log.Debug("Saved {Count} carrier cargo items to disk", _carrierCargo.Count);
+                _carrierCargoService.Save(_carrierCargo);
+                Log.Debug("Saved {Count} carrier cargo items to disk via service", _carrierCargo.Count);
             }
             catch (Exception ex)
             {
