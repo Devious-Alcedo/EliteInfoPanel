@@ -104,30 +104,52 @@ namespace EliteInfoPanel.Core
                             using var doc = JsonDocument.Parse(line);
                             var root = doc.RootElement;
 
-                            if (root.TryGetProperty("timestamp", out var tsProp))
-                            {
-                                if (DateTime.TryParse(tsProp.GetString(), out var eventTimeUtc) && eventTimeUtc < _appStartTimeUtc)
-                                {
-                                    if (root.TryGetProperty("event", out var etProp))
-                                    {
-                                        var et = etProp.GetString();
-                                        if (et is "CargoTransfer" or "CargoDepot" or "CarrierTradeOrder" or "MarketBuy" or "MarketSell")
-                                        {
-                                            Log.Debug("Skipping heavy event predating app launch: {Event} {Timestamp}", et, eventTimeUtc);
-                                            continue;
-                                        }
-                                    }
-                                }
-                            }
-
                             if (!root.TryGetProperty("event", out var eventProp))
                                 continue;
 
                             string eventType = eventProp.GetString();
 
-                            if (isInitialScan && (eventType == "CarrierJumpRequest" || eventType == "CarrierJump" || eventType == "CarrierJumpCancelled"))
+                            // CRITICAL: Skip ALL historical cargo events during initial scan
+                            // AND skip any cargo events that occurred before app start (historical events)
+                            bool shouldSkipCargoEvent = false;
+                            if (eventType is "CargoTransfer" or "CargoDepot" or "CarrierTradeOrder" or "MarketBuy" or "MarketSell")
                             {
-                                Log.Debug("Skipping historical carrier event during initialization: {Event}", eventType);
+                                if (isInitialScan)
+                                {
+                                    Log.Debug("Skipping historical cargo event during initial scan: {Event}", eventType);
+                                    shouldSkipCargoEvent = true;
+                                }
+                                else if (root.TryGetProperty("timestamp", out var tsProp))
+                                {
+                                    if (DateTime.TryParse(tsProp.GetString(), out var eventTimeUtc))
+                                    {
+                                        // Convert to UTC if not already
+                                        if (eventTimeUtc.Kind == DateTimeKind.Local)
+                                            eventTimeUtc = eventTimeUtc.ToUniversalTime();
+                                        else if (eventTimeUtc.Kind == DateTimeKind.Unspecified)
+                                            eventTimeUtc = DateTime.SpecifyKind(eventTimeUtc, DateTimeKind.Utc);
+                                            
+                                        if (eventTimeUtc < _appStartTimeUtc)
+                                        {
+                                            Log.Debug("Skipping cargo event predating app launch: {Event} {EventTime} < {AppStart}", 
+                                                eventType, eventTimeUtc.ToString("HH:mm:ss"), _appStartTimeUtc.ToString("HH:mm:ss"));
+                                            shouldSkipCargoEvent = true;
+                                        }
+                                        else
+                                        {
+                                            Log.Information("Processing LIVE cargo event: {Event} {EventTime} >= {AppStart}", 
+                                                eventType, eventTimeUtc.ToString("HH:mm:ss"), _appStartTimeUtc.ToString("HH:mm:ss"));
+                                        }
+                                    }
+                                }
+                                
+                                if (shouldSkipCargoEvent) continue;
+                            }
+                            
+                            // Skip historical carrier jump events during initial scan 
+                            if (isInitialScan && eventType is "CarrierJumpRequest" or "CarrierJump" or "CarrierJumpCancelled")
+                            {
+                                Log.Debug("Skipping historical carrier jump event during initial scan: {Event}", eventType);
                                 continue;
                             }
 
@@ -329,7 +351,7 @@ namespace EliteInfoPanel.Core
                                     break;
 
                                 case "DockingGranted":
-                                    Log.Debug("Docking granted by station — setting IsDocking = true");
+                                    Log.Debug("Docking granted by station ï¿½ setting IsDocking = true");
                                     ProcessDockingEvent(eventType, root);
                                     break;
 
@@ -598,7 +620,7 @@ namespace EliteInfoPanel.Core
                                     break;
 
                                 case "CarrierLocation":
-                                    Log.Debug("CarrierLocation seen — updating location");
+                                    Log.Debug("CarrierLocation seen ï¿½ updating location");
 
                                     bool isOnCarrier = false;
 
@@ -786,15 +808,18 @@ namespace EliteInfoPanel.Core
                                     break;
                             }
 
+                            // Mark first load as completed only after processing all events
                             if (!_firstLoadCompleted)
                             {
                                 _firstLoadCompleted = true;
 
+                                // Move to end of file for future monitoring
                                 var fileInfo = new FileInfo(latestJournalPath);
                                 lastJournalPosition = fileInfo.Length;
 
                                 Log.Information("? First journal scan completed - now monitoring from end (position {Position})",
                                     lastJournalPosition);
+                                Log.Information("? Historical cargo events were skipped during initial scan");
                             }
                         }
                         catch (Exception ex)
@@ -889,12 +914,12 @@ namespace EliteInfoPanel.Core
                 }
                 else if (jumpCancelledOrCompleted)
                 {
-                    Log.Information("Found CarrierJumpCancelled or CarrierJump after last request — not setting jump state");
+                    Log.Information("Found CarrierJumpCancelled or CarrierJump after last request ï¿½ not setting jump state");
                     _carrierJumpState.Reset();
                 }
                 else if (latestRequestTimestamp.HasValue)
                 {
-                    Log.Information("CarrierJumpRequest found but jump is in the past or cancelled — not setting jump state");
+                    Log.Information("CarrierJumpRequest found but jump is in the past or cancelled ï¿½ not setting jump state");
                 }
             }
             catch (Exception ex)

@@ -91,6 +91,7 @@ namespace EliteInfoPanel.Core
         private string gamePath;
         private long lastJournalPosition = 0;
         private string latestJournalPath;
+        private bool _carrierCargoLoadedOnce = false;
 
         // Add this field to track the app's UTC start time
         private readonly DateTime _appStartTimeUtc = DateTime.UtcNow;
@@ -786,34 +787,21 @@ namespace EliteInfoPanel.Core
 
                 Task.WaitAll(statusTask, routeTask, cargoTask, backpackTask, materialsTask, loadoutTask);
                 
-                // CRITICAL FIX: Initialize carrier cargo tracking at the same time as ship cargo
-                // This ensures carrier cargo works exactly like ship cargo from startup
+                // Initialize carrier cargo tracking once
                 LoadCarrierCargoFromDisk();
                 _carrierCargoTracker.Initialize(_carrierCargo);
-                _cargoTrackingInitialized = true; // Enable tracking immediately
-                Log.Information("?? CARRIER CARGO: Initialized alongside ship cargo - tracking enabled with {Count} items", _carrierCargo.Count);
-                
+                _cargoTrackingInitialized = true;
+                Log.Information("CARRIER CARGO: Initialized with {Count} items", _carrierCargo.Count);
+
                 LoadPersistedColonizationData();
                 latestJournalPath = Directory.GetFiles(gamePath, "Journal.*.log")
                     .OrderByDescending(File.GetLastWriteTime)
                     .FirstOrDefault();
 
                 LoadRouteProgress();
-                
-                // CRITICAL FIX: Initialize carrier cargo tracking immediately alongside ship cargo
-                // This ensures carrier cargo tracking works the same as ship cargo from the start
-                LoadCarrierCargoFromDisk();
-                _carrierCargoTracker.Initialize(_carrierCargo);
-                _cargoTrackingInitialized = true; // Enable tracking BEFORE journal processing
-                Log.Information("?? CARRIER CARGO: Initialized tracking alongside ship cargo - {Count} items loaded", _carrierCargo.Count);
-                LoadCarrierCargoFromDisk(); // ? Add this near LoadRouteProgress();
-                
-                // CRITICAL: Set cargo tracking as initialized BEFORE processing journal
-                // This allows current day's events to be processed during startup
-                _cargoTrackingInitialized = true;
-                Log.Information("? Cargo tracking initialized - ready to process journal events");
 
-                Task.Run(async () => await ProcessJournalAsync()).Wait();
+                // Start journal processing without blocking UI - this will set _firstLoadCompleted when done
+                _ = Task.Run(ProcessJournalAsync);
                 
                 // Log cargo tracking state after journal processing
                 Log.Information("After journal processing: _cargoTrackingInitialized = {Initialized}", _cargoTrackingInitialized);
@@ -858,8 +846,7 @@ namespace EliteInfoPanel.Core
                 OnPropertyChanged(nameof(CarrierJumpCountdownSeconds));
                 OnPropertyChanged(nameof(ShowCarrierJumpCountdown));
                 // --- END FIX ---
-                LoadCarrierCargoFromDisk();
-                LoadPersistedColonizationData();
+                // Avoid reloading carrier cargo again here; it's already loaded
                 // Note: cargo tracking was already initialized before journal processing
                 // Notify subscribers
                 FirstLoadCompletedEvent?.Invoke();
@@ -927,7 +914,12 @@ namespace EliteInfoPanel.Core
         {
             try
             {
-                Log.Information("?? LoadCarrierCargoFromDisk called, _cargoTrackingInitialized: {Initialized}", _cargoTrackingInitialized);
+                if (_carrierCargoLoadedOnce)
+                {
+                    Log.Debug("LoadCarrierCargoFromDisk skipped (already loaded)");
+                    return;
+                }
+                Log.Information("LoadCarrierCargoFromDisk called, _cargoTrackingInitialized: {Initialized}", _cargoTrackingInitialized);
                 
                 if (File.Exists(CarrierCargoFilePath))
                 {
@@ -954,6 +946,7 @@ namespace EliteInfoPanel.Core
 
                 // Always try to load manual changes
                 LoadManualCarrierCargoChanges();
+                _carrierCargoLoadedOnce = true;
             }
             catch (Exception ex)
             {
@@ -1195,6 +1188,17 @@ namespace EliteInfoPanel.Core
         {
             try
             {
+                // Avoid persisting empty/zero state during initial load
+                if (!_firstLoadCompleted)
+                {
+                    Log.Debug("SaveCarrierCargoToDisk skipped during initial load");
+                    return;
+                }
+                if (_carrierCargo.Count == 0 || !_carrierCargo.Values.Any(v => v > 0))
+                {
+                    Log.Warning("Skipped saving carrier cargo: empty or zero quantities");
+                    return;
+                }
                 // Ensure directory exists
                 string directory = Path.GetDirectoryName(CarrierCargoFilePath);
                 if (!string.IsNullOrEmpty(directory))
