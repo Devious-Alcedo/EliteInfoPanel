@@ -432,6 +432,17 @@ namespace EliteInfoPanel.Core
 
                                         CurrentSystem = currentSystem;
 
+                                        // Capture star position coordinates from FSDJump event
+                                        if (root.TryGetProperty("StarPos", out var starPosElement) &&
+                                            starPosElement.ValueKind == JsonValueKind.Array &&
+                                            starPosElement.GetArrayLength() == 3)
+                                        {
+                                            var coords = starPosElement.EnumerateArray().Select(e => e.GetDouble()).ToArray();
+                                            CurrentSystemCoordinates = (coords[0], coords[1], coords[2]);
+                                            Log.Debug("FSDJump: Updated CurrentSystemCoordinates to [{X:F2}, {Y:F2}, {Z:F2}]",
+                                                coords[0], coords[1], coords[2]);
+                                        }
+
                                         if (!_routeProgress.CompletedSystems.Contains(CurrentSystem))
                                         {
                                             _routeProgress.CompletedSystems.Add(CurrentSystem);
@@ -470,6 +481,18 @@ namespace EliteInfoPanel.Core
                                         }
 
                                         CurrentSystem = currentSystem;
+
+                                        // Capture star position coordinates from Location event
+                                        if (root.TryGetProperty("StarPos", out var starPosElement) &&
+                                            starPosElement.ValueKind == JsonValueKind.Array &&
+                                            starPosElement.GetArrayLength() == 3)
+                                        {
+                                            var coords = starPosElement.EnumerateArray().Select(e => e.GetDouble()).ToArray();
+                                            CurrentSystemCoordinates = (coords[0], coords[1], coords[2]);
+                                            Log.Debug("Location: Updated CurrentSystemCoordinates to [{X:F2}, {Y:F2}, {Z:F2}]",
+                                                coords[0], coords[1], coords[2]);
+                                        }
+
                                         PruneCompletedRouteSystems();
                                     }
                                     break;
@@ -807,25 +830,25 @@ namespace EliteInfoPanel.Core
                                     }
                                     break;
                             }
-
-                            // Mark first load as completed only after processing all events
-                            if (!_firstLoadCompleted)
-                            {
-                                _firstLoadCompleted = true;
-
-                                // Move to end of file for future monitoring
-                                var fileInfo = new FileInfo(latestJournalPath);
-                                lastJournalPosition = fileInfo.Length;
-
-                                Log.Information("? First journal scan completed - now monitoring from end (position {Position})",
-                                    lastJournalPosition);
-                                Log.Information("? Historical cargo events were skipped during initial scan");
-                            }
                         }
                         catch (Exception ex)
                         {
                             Log.Warning(ex, "Error processing journal file");
                         }
+                    }
+
+                    // Mark first load as completed only after processing ALL events
+                    if (!_firstLoadCompleted)
+                    {
+                        _firstLoadCompleted = true;
+
+                        // Move to end of file for future monitoring
+                        var fileInfo = new FileInfo(latestJournalPath);
+                        lastJournalPosition = fileInfo.Length;
+
+                        Log.Information("? First journal scan completed - now monitoring from end (position {Position})",
+                            lastJournalPosition);
+                        Log.Information("? Historical cargo events were skipped during initial scan");
                     }
                 }
             }

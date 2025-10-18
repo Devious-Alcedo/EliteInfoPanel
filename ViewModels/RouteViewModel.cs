@@ -342,13 +342,8 @@ namespace EliteInfoPanel.ViewModels
                 // fallback so jump loop can still run
                 route ??= new List<NavRouteJson.NavRouteSystem>();
 
-                var firstJump = route.FirstOrDefault(j => j.StarPos?.Length == 3);
-                if (firstJump != null && _gameState.CurrentSystemCoordinates == null)
-                {
-                    // Only set coordinates if not already set
-                    _gameState.CurrentSystemCoordinates = (firstJump.StarPos[0], firstJump.StarPos[1], firstJump.StarPos[2]);
-                    Log.Debug("UpdateRoute: Set system coordinates to {X}, {Y}, {Z}", firstJump.StarPos[0], firstJump.StarPos[1], firstJump.StarPos[2]);
-                }
+                // Note: CurrentSystemCoordinates is now populated from FSDJump and Location journal events
+                // in GameStateService_Journal.cs, so no fallback logic is needed here.
 
                 if (_gameState.RouteWasActive && _gameState.RouteCompleted && !_gameState.IsInHyperspace)
                 {
