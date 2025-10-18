@@ -428,18 +428,9 @@ namespace EliteInfoPanel.Core
                     else
                     {
                         // T0 already reached but no completion/cancel recorded yet
-                        Log.Information("🚀 Carrier jump T0 already reached without completion in logs");
-                        if (IsOnFleetCarrier)
-                        {
-                            _carrierJumpState.ScheduleJump(latestDepartureTimeUtc.Value, latestSystem, latestBody);
-                            _carrierJumpState.ActivateOverlay();
-                            OnPropertyChanged(nameof(ShowCarrierJumpOverlay));
-                            _overlayTimeoutTimer.Start(); // safety timeout
-                        }
-                        else
-                        {
-                            _carrierJumpState.Reset();
-                        }
+                        // This is likely stale data from a previous session - do NOT activate overlay at startup
+                        Log.Information("🚀 Carrier jump T0 already reached without completion in logs - resetting state (likely stale from previous session)");
+                        _carrierJumpState.Reset();
                     }
                 }
                 else
