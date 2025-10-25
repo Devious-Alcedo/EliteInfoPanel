@@ -163,4 +163,10 @@
     <Resource Include="Assets\Stars\Y.png" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Assets\jump2.mp4">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

@@ -13,18 +13,23 @@
                       Opacity="0.6" />
     </UserControl.Resources>
 
-    <Grid x:Name="RootGrid" 
-          Background="#FF04071A"
+    <Grid x:Name="RootGrid"
+          Background="Black"
           HorizontalAlignment="Stretch"
           VerticalAlignment="Stretch"
           Visibility="Collapsed">
 
-        <!-- Starfield Canvas -->
-        <Canvas x:Name="StarfieldCanvas" 
-                HorizontalAlignment="Stretch"
-                VerticalAlignment="Stretch">
-            <!-- Stars will be generated in code -->
-        </Canvas>
+        <!-- Video background with centered cropping -->
+        <MediaElement x:Name="JumpVideoPlayer"
+                      LoadedBehavior="Manual"
+                      UnloadedBehavior="Stop"
+                      Stretch="UniformToFill"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center"
+                      MediaEnded="JumpVideoPlayer_MediaEnded"
+                      MediaOpened="JumpVideoPlayer_MediaOpened"
+                      MediaFailed="JumpVideoPlayer_MediaFailed"
+                      Volume="0" />
 
         <!-- Central content with text information -->
         <StackPanel HorizontalAlignment="Center"
